@@ -2,6 +2,8 @@
 
 Turn any tablet or phone into a macro pad for your computer: buttons and faders for shortcuts, apps, music, sounds and volume, with deep OBS support for streaming. Punchboard runs on your computer; your devices connect to it over the same wifi, in the browser. No account, no cloud, nothing to install on the tablet.
 
+<p align="center"><img src="docs/images/deck.png" alt="A Punchboard deck on a tablet: scene buttons lit with what OBS is showing, a mic fader with a live level meter, music and sound buttons" width="820"></p>
+
 ## Install
 
 Download the latest version from **[Releases](https://github.com/GH-Jaider/punchboard/releases/latest)**:
@@ -26,11 +28,17 @@ On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add t
 
 ## What buttons can do
 
+<p align="center"><img src="docs/images/control-center.png" alt="The Control Center on the computer: the deck in the middle, the selected Break button's steps on the right" width="820"></p>
+
 - **This computer**: press key combinations (any app's shortcuts), launch apps, open links, control music (play / pause, next, previous) and play sounds.
 - **OBS**: switch scenes, show or hide sources, mute inputs, turn filters on or off, start or stop the stream, recording and virtual camera, save a replay, and send the preview live in Studio Mode. Buttons light up with what OBS is doing, even when you change it in OBS itself.
 - **The deck**: go to another deck, or open a link on the device.
 - **Faders**: the computer's volume, Punchboard's sounds, or an OBS input.
 - **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
+
+Three looks, for the Control Center and every device at once: **Studio**, **Hardware** and **Broadcast**, each with your own accent colour.
+
+<p align="center"><img src="docs/images/themes.png" alt="The same deck in the Studio, Hardware and Broadcast themes" width="820"></p>
 
 On a Mac, key combinations and music controls need a one-time permission: **System Settings › Privacy & Security › Accessibility**, allow Punchboard.
 
