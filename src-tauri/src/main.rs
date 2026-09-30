@@ -4,6 +4,8 @@
 // Control Center in a window, and keeps an icon in the menu bar.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::VecDeque;
+use std::io::Write;
 use std::net::TcpStream;
 use std::sync::Mutex;
 use std::time::Duration;
@@ -25,6 +27,73 @@ struct Companion {
     child: Mutex<Option<CommandChild>>,
     port: Mutex<Option<u16>>,
     quitting: Mutex<bool>,
+    /** The companion's last lines, shown if it stops. */
+    recent: Mutex<VecDeque<String>>,
+    /** Everything it printed this run, for the next time something goes wrong. */
+    log: Mutex<Option<std::fs::File>>,
+}
+
+const RECENT_LINES: usize = 40;
+
+/// Keeps a line the companion printed, in the log file and the recent lines.
+fn note(app: &AppHandle, line: &str) {
+    let state = app.state::<Companion>();
+    if let Some(file) = state.log.lock().unwrap().as_mut() {
+        let _ = writeln!(file, "{line}");
+    }
+    let mut recent = state.recent.lock().unwrap();
+    recent.push_back(line.to_string());
+    while recent.len() > RECENT_LINES {
+        recent.pop_front();
+    }
+}
+
+fn log_path(app: &AppHandle) -> Option<std::path::PathBuf> {
+    app.path().app_log_dir().ok().map(|dir| dir.join("companion.log"))
+}
+
+/// Replaces whatever the window shows (the starting screen, or a Control
+/// Center that can no longer reach its companion) with the problem.
+const PROBLEM_PAGE: &str = r#"function (title, details, log) {
+  var body = document.body
+  body.innerHTML = ""
+  body.style.cssText = "margin:0;min-height:100vh;display:grid;place-items:center;background:#0d0e11;color:#a3a9b4;font:15px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
+  var box = document.createElement("div")
+  box.style.cssText = "max-width:760px;padding:0 24px"
+  function add(tag, text, css) { var el = document.createElement(tag); el.textContent = text; if (css) el.style.cssText = css; box.appendChild(el) }
+  add("h1", title, "margin:0 0 8px;color:#f1f2f4;font-size:18px")
+  add("p", "Quit Punchboard from its icon next to the clock (or in the menu bar) and open it again. If it keeps happening, send the lines below, or the log file, to whoever looks after your Punchboard.")
+  add("pre", details || "It printed nothing.", "max-height:50vh;overflow:auto;padding:12px;border-radius:8px;background:#16181d;color:#d7dae0;font:12px ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap")
+  if (log) add("p", "Full log: " + log)
+  body.appendChild(box)
+}"#;
+
+/// The companion stopped on its own: say so in the window, with what it last
+/// printed and where the full log is, instead of vanishing.
+fn show_problem(app: &AppHandle, status: String) {
+    *app.state::<Companion>().port.lock().unwrap() = None;
+    open_window(app, "/designer");
+    let details = app.state::<Companion>().recent.lock().unwrap().iter().cloned().collect::<Vec<_>>().join("\n");
+    let log = log_path(app).map(|p| p.display().to_string()).unwrap_or_default();
+    let script = format!(
+        "({})({}, {}, {})",
+        PROBLEM_PAGE,
+        serde_json::to_string(&format!("Punchboard's companion stopped ({status}).")).unwrap_or_default(),
+        serde_json::to_string(&details).unwrap_or_default(),
+        serde_json::to_string(&log).unwrap_or_default()
+    );
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        // The window may still be loading the starting screen.
+        for _ in 0..20 {
+            tokio_sleep(Duration::from_millis(250)).await;
+            if let Some(window) = app.get_webview_window("main") {
+                if window.eval(&script).is_ok() {
+                    break;
+                }
+            }
+        }
+    });
 }
 
 /// The menu-bar item that checks for, and then offers, an update.
@@ -121,8 +190,16 @@ fn keep_running_on_close(window: &WebviewWindow) {
 
 /// Starts the companion and follows what it prints.
 fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std::error::Error>> {
-    let resources = app.path().resource_dir()?;
+    // Windows hands out the resource folder as \\?\C:\…, a form Node cannot
+    // start a module from; dunce turns it back into C:\… where that is safe.
+    let resources = dunce::simplified(&app.path().resource_dir()?).to_path_buf();
     let script = resources.join("server.mjs");
+    if let Some(path) = log_path(app) {
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        *app.state::<Companion>().log.lock().unwrap() = std::fs::File::create(&path).ok();
+    }
     let (mut events, child) = app
         .shell()
         .sidecar("node")?
@@ -144,6 +221,7 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
                         let line: String = buffered.drain(..=end).collect();
                         let line = line.trim();
                         println!("{line}");
+                        note(&app, line);
                         if let Some(value) = line.strip_prefix("PUNCHBOARD_READY ") {
                             if let Ok(ready) = value.trim().parse::<u16>() {
                                 *app.state::<Companion>().port.lock().unwrap() = Some(ready);
@@ -154,7 +232,14 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
                         }
                     }
                 }
-                CommandEvent::Stderr(bytes) => eprint!("{}", String::from_utf8_lossy(&bytes)),
+                CommandEvent::Stderr(bytes) => {
+                    let text = String::from_utf8_lossy(&bytes).to_string();
+                    eprint!("{text}");
+                    for line in text.lines() {
+                        note(&app, line);
+                    }
+                }
+                CommandEvent::Error(error) => note(&app, &format!("error: {error}")),
                 CommandEvent::Terminated(status) => {
                     if *app.state::<Companion>().quitting.lock().unwrap() {
                         break;
@@ -165,8 +250,9 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
                         .map(|p| TcpStream::connect_timeout(&([127, 0, 0, 1], p).into(), Duration::from_millis(500)).is_ok())
                         .unwrap_or(false);
                     if !still_served {
-                        eprintln!("The companion stopped ({status:?}); quitting.");
-                        app.exit(1);
+                        eprintln!("The companion stopped ({status:?}).");
+                        note(&app, &format!("The companion stopped ({status:?})."));
+                        show_problem(&app, format!("exit code {}", status.code.map(|c| c.to_string()).unwrap_or_else(|| "unknown".into())));
                     }
                     break;
                 }
