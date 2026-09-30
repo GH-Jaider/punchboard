@@ -6,14 +6,21 @@
 export function webAddress(value: string | undefined | null): string | null {
   const text = (value ?? "").trim()
   if (!text || /\s/.test(text)) return null
-  const withScheme = /^https?:\/\//i.test(text) ? text : `https://${text}`
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text)
+  // Another scheme (file://, ftp://) is refused outright, not rewritten.
+  if (hasScheme && !/^https?:\/\//i.test(text)) return null
   try {
-    const url = new URL(withScheme)
+    const url = new URL(hasScheme ? text : `https://${text}`)
     if (url.protocol !== "http:" && url.protocol !== "https:") return null
     // A host is the least a link needs; "https://" alone parses but goes nowhere.
     if (!url.hostname) return null
+    // Nothing on a home network speaks https: a bare LAN address gets http.
+    if (!hasScheme && isLocalHost(url.hostname)) url.protocol = "http:"
     return url.href
   } catch {
     return null
   }
 }
+
+const isLocalHost = (hostname: string): boolean =>
+  hostname === "localhost" || /\.local$/i.test(hostname) || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || /^\[/.test(hostname)
