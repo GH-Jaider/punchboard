@@ -21,6 +21,8 @@ ObjC.bindFunction("CGEventCreateScrollWheelEvent2", ["void *", ["void *", "int",
 ObjC.bindFunction("CGEventPost", ["void", ["int", "void *"]])
 ObjC.bindFunction("CGEventSetIntegerValueField", ["void", ["void *", "int", "long"]])
 ObjC.bindFunction("CGEventSetFlags", ["void", ["void *", "long"]])
+ObjC.bindFunction("CGEventSourceCreate", ["void *", ["int"]])
+ObjC.bindFunction("CGEventSetSource", ["void", ["void *", "void *"]])
 ObjC.bindFunction("CGPreflightPostEventAccess", ["bool", []])
 ObjC.bindFunction("CGRequestPostEventAccess", ["bool", []])
 
@@ -28,6 +30,20 @@ var HID = 0
 var MOVED = 5, LEFT_DOWN = 1, LEFT_UP = 2, RIGHT_DOWN = 3, RIGHT_UP = 4, LEFT_DRAGGED = 6
 var CLICK_STATE = 1
 var DOUBLE_CLICK_MS = 400
+/** How long a click holds the button. A press and release at the same instant
+    is sometimes dropped (Chrome is known to), and no finger clicks that fast. */
+var CLICK_HOLD_S = 0.02
+
+// Every event carries the hardware's own event source, so macOS treats it as
+// part of the same input as the real trackpad and keyboard. Without one, the
+// first clicks after starting were ignored until the real trackpad was used.
+var HID_SYSTEM_STATE = 1
+var source = $.CGEventSourceCreate(HID_SYSTEM_STATE)
+
+function sourced(event) {
+  $.CGEventSetSource(event, source)
+  return event
+}
 
 var stdin = $.NSFileHandle.fileHandleWithStandardInput
 var stdout = $.NSFileHandle.fileHandleWithStandardOutput
@@ -75,7 +91,7 @@ function here() {
 }
 
 function post(type, point, button, clicks) {
-  var event = $.CGEventCreateMouseEvent(null, type, point, button)
+  var event = sourced($.CGEventCreateMouseEvent(null, type, point, button))
   if (clicks) $.CGEventSetIntegerValueField(event, CLICK_STATE, clicks)
   $.CGEventPost(HID, event)
 }
@@ -88,13 +104,17 @@ function move(dx, dy) {
 
 function scroll(dx, dy) {
   // Pixel units, vertical then horizontal; positive is up and left.
-  $.CGEventPost(HID, $.CGEventCreateScrollWheelEvent2(null, 0, 2, Math.round(dy), Math.round(dx), 0))
+  $.CGEventPost(HID, sourced($.CGEventCreateScrollWheelEvent2(null, 0, 2, Math.round(dy), Math.round(dx), 0)))
 }
 
 function click(which) {
   var point = here()
+  // A move to where the cursor already is: the window under it is the one
+  // macOS hands the press to, even if nothing has moved since it started.
+  post(MOVED, point, 0, 0)
   if (which === "right") {
     post(RIGHT_DOWN, point, 1, 1)
+    delay(CLICK_HOLD_S)
     post(RIGHT_UP, point, 1, 1)
     return
   }
@@ -102,15 +122,16 @@ function click(which) {
   clickCount = now - lastClickAt < DOUBLE_CLICK_MS ? clickCount + 1 : 1
   lastClickAt = now
   post(LEFT_DOWN, point, 0, clickCount)
+  delay(CLICK_HOLD_S)
   post(LEFT_UP, point, 0, clickCount)
 }
 
 /** A shortcut such as Ctrl+Up (Mission Control): key down and up with its modifiers held. */
 function key(code, flags) {
-  var down = $.CGEventCreateKeyboardEvent(null, code, true)
+  var down = sourced($.CGEventCreateKeyboardEvent(null, code, true))
   $.CGEventSetFlags(down, flags)
   $.CGEventPost(HID, down)
-  var up = $.CGEventCreateKeyboardEvent(null, code, false)
+  var up = sourced($.CGEventCreateKeyboardEvent(null, code, false))
   $.CGEventSetFlags(up, flags)
   $.CGEventPost(HID, up)
 }
