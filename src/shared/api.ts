@@ -75,14 +75,8 @@ export interface SignedFields {
 
 // ------------------------------------------------------------- live state
 
-export interface SoundCommand {
-  id: number
-  slot: number
-  action: "play" | "stop"
-}
-
-/** A sound the companion has told its audio output to play. Decks draw the
-    progress themselves from these two numbers and their server-clock offset. */
+/** A sound the companion is playing. Decks draw the progress themselves
+    from these two numbers and their server-clock offset. */
 export interface SoundPlayback {
   /** Server time (ms) when playback was ordered. */
   startedAt: number
@@ -105,10 +99,8 @@ export interface Snapshot {
   libraryRev: number
   soundsRev: number
   toggles: Record<string, boolean>
-  soundCommands: SoundCommand[]
+  /** Slots playing on this computer right now. */
   playing: number[]
-  /** The Control Center tab currently playing sounds, if any. */
-  audioOutput: string | null
   levels: Record<string, number>
   /** Sounds playing right now, by slot number. */
   playback: Record<string, SoundPlayback>
@@ -190,13 +182,8 @@ export interface SoundSlot {
   format: "WAV" | "MP3"
   bytes: number
   updatedAt: string | null
-  /** Length in ms: read from the file for WAV, learned from playback for MP3, null until then. */
+  /** Length in ms: read from the file for WAV, learned from the first full play for MP3, null until then. */
   durationMs: number | null
-}
-
-/** The Control Center reports an MP3's length once it has played it. */
-export interface SoundDurationRequest {
-  durationMs: number
 }
 
 export interface SoundsResponse {

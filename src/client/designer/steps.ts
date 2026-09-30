@@ -219,7 +219,7 @@ function soundField(step: SoundStep, title: HTMLElement): HTMLElement {
   preview.innerHTML = svg(UI_ICONS.play)
   preview.title = "Preview on this computer"
   preview.setAttribute("aria-label", "Preview this sound")
-  preview.onclick = () => playSlot(Number(select.value), preview)
+  preview.onclick = () => playSlot(Number(select.value))
   row.appendChild(preview)
 
   // Uploads straight into the slot this step uses.

@@ -1,6 +1,6 @@
 // The eight sound slots: listing, previewing, replacing and restoring them.
 import { LIMITS } from "../../shared/actions.ts"
-import type { Ok, SoundDurationRequest, SoundsChanged, SoundSlot, SoundsResponse } from "../../shared/api.ts"
+import type { Ok, SoundsChanged, SoundSlot, SoundsResponse } from "../../shared/api.ts"
 import { byId, el, svg } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { confirmAction } from "./dialogs.ts"
@@ -8,21 +8,8 @@ import { toast, UI_ICONS, view } from "./hub.ts"
 import { selectedButton } from "./state.ts"
 
 let slots: SoundSlot[] = []
-
-/** Playback state shared with the deck's sound output (sound-output.ts). */
-export const playback = {
-  /** Browsers only allow audio after the page has been clicked once. */
-  unlocked: false,
-  volume: 1
-}
-
-/** A per-slot cache key: previewing twice reuses the download, an upload busts it. */
-export function soundVersion(slot: number): string {
-  const info = slots.find((item) => item.slot === slot)
-  return encodeURIComponent(info?.updatedAt ?? "0")
-}
-
-export const soundUrl = (slot: number): string => `/api/sounds/${slot}/file?v=${soundVersion(slot)}`
+/** Slots the companion is playing right now, from the live state. */
+let playingNow: number[] = []
 
 /** Labels say whether a slot holds your file or the shipped tone. */
 export function soundSlotLabel(slot: number): string {
@@ -36,23 +23,6 @@ export function formatDuration(ms: number): string {
   if (ms < 10000) return `${(Math.round(ms / 100) / 10).toFixed(1)} s`
   const seconds = Math.round(ms / 1000)
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
-}
-
-/** WAV lengths come from the server; an MP3's is learned the first time it
-    plays here, reported once per slot per page load. */
-const reportedDurations = new Set<number>()
-
-export function learnDuration(slot: number, audio: HTMLAudioElement): void {
-  audio.addEventListener("loadedmetadata", () => {
-    const info = slots.find((item) => item.slot === slot)
-    if (!info || info.durationMs !== null || reportedDurations.has(slot)) return
-    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return
-    reportedDurations.add(slot)
-    const body: SoundDurationRequest = { durationMs: Math.round(audio.duration * 1000) }
-    request<Ok>(`/api/sounds/${slot}/duration`, { method: "POST", json: body })
-      .then(() => loadSounds())
-      .catch(() => { reportedDurations.delete(slot) })
-  })
 }
 
 function prettyBytes(bytes: number): string {
@@ -87,52 +57,22 @@ function slotsChanged(next: SoundSlot[]): void {
 
 // ---------------------------------------------------------------- previews
 
-// One preview at a time; a second click on the playing button stops it.
-let currentAudio: HTMLAudioElement | null = null
-let currentButton: HTMLElement | null = null
-
-function stopPreview(): void {
-  if (currentAudio) {
-    currentAudio.pause()
-    currentAudio.currentTime = 0
-  }
-  if (currentButton) {
-    currentButton.innerHTML = svg(UI_ICONS.play)
-    currentButton.title = "Preview on this computer"
-  }
-  currentAudio = null
-  currentButton = null
+/** A preview plays through the companion, exactly like a deck press; a
+    second click stops it. The button's icon follows the live state. */
+export function playSlot(slot: number): void {
+  request<Ok>(`/api/sounds/${slot}/preview`, { method: "POST" }).catch((error: unknown) => toast(errorMessage(error), true))
 }
 
-export function playSlot(slot: number, trigger: HTMLElement): void {
-  const sameButton = currentButton === trigger
-  stopPreview()
-  if (sameButton) return
-
-  const audio = new Audio(soundUrl(slot))
-  audio.volume = playback.volume
-  learnDuration(slot, audio)
-  currentAudio = audio
-  currentButton = trigger
-  trigger.innerHTML = svg(UI_ICONS.stop)
-  trigger.title = "Stop"
-  audio.addEventListener("ended", () => {
-    if (currentAudio === audio) stopPreview()
-  })
-  audio.addEventListener("error", () => {
-    if (currentAudio !== audio) return
-    stopPreview()
-    toast(`Sound ${slot} could not be played.`, true)
-  })
-  audio.play().then(() => { playback.unlocked = true }).catch(() => {
-    stopPreview()
-    toast("Your browser blocked playback. Click Preview once more to allow it.", true)
-  })
-}
-
-/** Applies a new sounds volume to the preview that is playing, if any. */
-export function setPreviewVolume(volume: number): void {
-  if (currentAudio) currentAudio.volume = volume
+export function showPlaying(playing: number[]): void {
+  playingNow = playing
+  const buttons = byId("sound-list").querySelectorAll<HTMLElement>("[data-preview-slot]")
+  for (let i = 0; i < buttons.length; i += 1) {
+    const button = buttons[i]
+    if (!button) continue
+    const on = playing.indexOf(Number(button.getAttribute("data-preview-slot"))) !== -1
+    button.innerHTML = svg(on ? UI_ICONS.stop : UI_ICONS.play)
+    button.title = on ? "Stop" : "Preview on this computer"
+  }
 }
 
 // ----------------------------------------------------------------- uploads
@@ -213,10 +153,9 @@ function renderSoundList(): void {
     const tools = el("div", "tools")
     const play = el("button", "icon-btn")
     play.type = "button"
-    play.innerHTML = svg(UI_ICONS.play)
-    play.title = "Preview on this computer"
+    play.setAttribute("data-preview-slot", String(info.slot))
     play.setAttribute("aria-label", `Preview sound ${info.slot}`)
-    play.onclick = () => playSlot(info.slot, play)
+    play.onclick = () => playSlot(info.slot)
     tools.appendChild(play)
 
     const upload = audioFilePicker(`sound-file-${info.slot}`, "Replace with a WAV or MP3", (file) => void uploadSound(info.slot, file, row))
@@ -236,10 +175,10 @@ function renderSoundList(): void {
     row.appendChild(tools)
     host.appendChild(row)
   }
+  showPlaying(playingNow)
 }
 
 export function bindSounds(): void {
   const dialog = byId<HTMLDialogElement>("dlg-sounds")
   byId("sounds-toggle").addEventListener("click", () => dialog.showModal())
-  document.addEventListener("pointerdown", () => { playback.unlocked = true }, { once: true })
 }

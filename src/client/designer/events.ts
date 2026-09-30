@@ -1,5 +1,5 @@
 // Live state from the companion: theme and accent, sounds, other windows'
-// saves, and the sound commands this tab may have to play.
+// saves, devices, OBS.
 import type { Snapshot, StatusResponse } from "../../shared/api.ts"
 import { applyAccent } from "../common/dom.ts"
 import { toast } from "./hub.ts"
@@ -7,8 +7,8 @@ import { request } from "../common/http.ts"
 import { activeTheme, setTheme } from "./appearance.ts"
 import { showObsLink } from "./obs.ts"
 import { showDeviceCount } from "./pairing.ts"
-import { AUDIO_ID, handleSoundCommands, renderNowPlaying, setSoundVolume } from "./sound-output.ts"
-import { loadSounds } from "./sounds.ts"
+import { renderNowPlaying } from "./sound-output.ts"
+import { loadSounds, showPlaying } from "./sounds.ts"
 import { reloadLibrary, saveTimerPending, store } from "./state.ts"
 
 let loadedBuild: string | null = null
@@ -34,16 +34,15 @@ function handle(state: Snapshot): void {
   if (store.libraryRev !== null && state.libraryRev > store.libraryRev && !store.saving && !saveTimerPending()) {
     void reloadLibrary("Updated with changes from another window.")
   }
-  if (typeof state.levels.sounds === "number") setSoundVolume(state.levels.sounds)
   renderNowPlaying(state.playback)
+  showPlaying(state.playing)
   showDeviceCount(state.tablets)
   showObsLink(state.obs)
-  handleSoundCommands(state.soundCommands, state.audioOutput)
 }
 
 export function watchEvents(): void {
   if (window.EventSource) {
-    const source = new EventSource(`/api/events?audio=${AUDIO_ID}`)
+    const source = new EventSource("/api/events")
     source.onmessage = (event: MessageEvent<string>) => {
       try {
         handle(JSON.parse(event.data) as Snapshot)

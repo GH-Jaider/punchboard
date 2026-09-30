@@ -27,6 +27,7 @@ import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
 import { createObsLink } from "./obs.ts"
+import { createPlayer } from "./player.ts"
 import { AuthError, createAuth } from "./auth.ts"
 import type { Device } from "./auth.ts"
 import { loadConfig, saveConfig } from "./config.ts"
@@ -86,14 +87,26 @@ setInterval(() => {
   live.broadcast()
 }, 5000).unref()
 
+// Sounds play from this process. A sound whose length could not be read
+// from its file learns it from a full play (afplay adds ~0.7 s of its own
+// start-up, so this is only the fallback).
+const player = createPlayer({
+  volume: () => config.soundVolume,
+  log,
+  onEnded: (slot, ranMs) => {
+    if (ranMs !== null && sounds.durationMs(slot) === null && sounds.setDuration(slot, ranMs)) live.soundsChanged()
+    live.soundEnded(slot)
+  }
+})
 const live = createLive({
   accent: () => config.theme.accent,
   theme: () => config.theme.name,
   libraryRev: library.revision,
   build: () => build,
   obs: () => obs.status(),
-  soundDuration: (slot) => sounds.durationMs(slot)
-}, config.soundVolume)
+  soundDuration: (slot) => sounds.durationMs(slot),
+  soundFile: (slot) => sounds.file(slot).file
+}, player, config.soundVolume)
 // Meters are only read for OBS inputs that a fader on a connected page shows.
 const obs = createObsLink({
   config,
@@ -246,10 +259,8 @@ const routes: Route[] = [
   }),
 
   // --- live state
-  route<void>("GET", "/api/events", "deck", ({ req, res, url, device }) => {
-    // Only a tab on this computer can be the audio output.
-    const audioId = device ? "" : String(url.searchParams.get("audio") ?? "").slice(0, 64)
-    live.openStream(req, res, { deviceId: device?.id ?? "", audioId })
+  route<void>("GET", "/api/events", "deck", ({ req, res, device }) => {
+    live.openStream(req, res, device?.id ?? "")
   }),
   route<StatusResponse>("GET", "/api/status", "deck", () => ({ ok: true, ...live.snapshot() })),
 
@@ -356,14 +367,9 @@ const routes: Route[] = [
   route<void>("GET", /^\/api\/sounds\/([1-8])\/file$/, "local", ({ res, params }) => staticFile(res, sounds.file(Number(params[1])).file)),
   // The audio tab reports a sound that finished on its own.
   // The Control Center learns an MP3's length when it plays it; WAVs are read from their header.
-  route<Ok>("POST", /^\/api\/sounds\/([1-8])\/duration$/, "local", async ({ req, params }) => {
-    const data = await jsonBody(req)
-    if (sounds.setDuration(Number(params[1]), Number(data.durationMs))) live.soundsChanged()
-    return { ok: true }
-  }),
-  route<Ok>("POST", "/api/sounds/ended", "local", async ({ req }) => {
-    const data = await jsonBody(req)
-    live.soundEnded(Number(data.slot))
+  // Previews play the same way a deck press does, through this computer's speakers.
+  route<Ok>("POST", /^\/api\/sounds\/([1-8])\/preview$/, "local", ({ params }) => {
+    live.toggleSound(Number(params[1]))
     return { ok: true }
   }),
   route<Ok>("POST", "/api/sounds/stop", "deck", () => {
@@ -393,6 +399,7 @@ const routes: Route[] = [
     res.once("finish", () => {
       auth.flush()
       obs.stop()
+      player.stopAll()
       live.closeAll()
       server.close(() => process.exit(0))
     })

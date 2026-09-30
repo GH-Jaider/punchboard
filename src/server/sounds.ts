@@ -53,6 +53,41 @@ export function isAudio(data: Buffer, type: AudioType): boolean {
 /** Only ever shown back to the user; the file on disk is always sound-N.ext. */
 const safeName = (value: unknown): string => String(value ?? "").replace(/[^\w .()[\]-]/g, "").slice(0, 80)
 
+const MP3_BITRATES_V1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
+const MP3_BITRATES_V2 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
+const MP3_SAMPLE_RATES: Record<number, number[]> = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] }
+
+interface Mp3Frame { bitrate: number; sampleRate: number; samplesPerFrame: number; xingFrames: number | null }
+
+/** Reads the first Layer III frame header at or after `start`. Exposed for tests. */
+export function mp3Frame(data: Buffer, start: number): Mp3Frame | null {
+  for (let i = start; i + 4 <= data.length && i < start + 4096; i += 1) {
+    const b1 = data[i + 1]!
+    if (data[i] !== 0xff || (b1 & 0xe0) !== 0xe0) continue
+    const version = (b1 >> 3) & 3          // 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
+    const layer = (b1 >> 1) & 3            // 1 = Layer III
+    if (version === 1 || layer !== 1) continue
+    const b2 = data[i + 2]!
+    const bitrateIndex = b2 >> 4
+    const rateIndex = (b2 >> 2) & 3
+    if (bitrateIndex === 0 || bitrateIndex === 15 || rateIndex === 3) continue
+    const bitrate = (version === 3 ? MP3_BITRATES_V1 : MP3_BITRATES_V2)[bitrateIndex]! * 1000
+    const sampleRate = MP3_SAMPLE_RATES[version]![rateIndex]!
+    const samplesPerFrame = version === 3 ? 1152 : 576
+    const mono = ((data[i + 3]! >> 6) & 3) === 3
+    // The Xing/Info header follows the side info, whose size depends on version and channels.
+    const sideInfo = version === 3 ? (mono ? 17 : 32) : (mono ? 9 : 17)
+    const tag = i + 4 + sideInfo
+    let xingFrames: number | null = null
+    const tagName = data.toString("ascii", tag, tag + 4)
+    if ((tagName === "Xing" || tagName === "Info") && (data[tag + 7]! & 1) && tag + 12 <= data.length) {
+      xingFrames = data.readUInt32BE(tag + 8)
+    }
+    return { bitrate, sampleRate, samplesPerFrame, xingFrames }
+  }
+  return null
+}
+
 export type SoundStore = ReturnType<typeof createSoundStore>
 
 export function createSoundStore(dir: string) {
@@ -130,10 +165,35 @@ export function createSoundStore(dir: string) {
     }
   }
 
+  /** An MP3's length from its first frame: a Xing/Info header gives the
+      frame count (VBR), otherwise the bitrate is taken as constant. Layer III
+      only, which is what an .mp3 is; anything odd returns null. */
+  function mp3DurationMs(file: string): number | null {
+    try {
+      const size = fs.statSync(file).size
+      const handle = fs.openSync(file, "r")
+      const head = Buffer.alloc(Math.min(size, 64 * 1024))
+      try { fs.readSync(handle, head, 0, head.length, 0) } finally { fs.closeSync(handle) }
+      let offset = 0
+      // An ID3v2 tag sits in front: its size is a 28-bit "syncsafe" number.
+      if (head.toString("ascii", 0, 3) === "ID3" && head.length >= 10) {
+        offset = 10 + ((head[6]! & 0x7f) << 21 | (head[7]! & 0x7f) << 14 | (head[8]! & 0x7f) << 7 | (head[9]! & 0x7f))
+      }
+      const parsed = mp3Frame(head, offset)
+      if (!parsed) return null
+      const xing = parsed.xingFrames
+      if (xing) return Math.round((xing * parsed.samplesPerFrame / parsed.sampleRate) * 1000)
+      return Math.round(((size - offset) * 8 / parsed.bitrate) * 1000)
+    } catch {
+      return null
+    }
+  }
+
   function durationMs(slot: number): number | null {
     const target = file(slot)
-    if (target.ext === "wav") return fs.existsSync(target.file) ? wavDurationMs(target.file) : null
-    return entry(slot)?.durationMs ?? null
+    if (!fs.existsSync(target.file)) return null
+    if (target.ext === "wav") return wavDurationMs(target.file)
+    return mp3DurationMs(target.file) ?? entry(slot)?.durationMs ?? null
   }
 
   /** Remembers an MP3's length once the Control Center has played it. */

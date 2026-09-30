@@ -7,8 +7,13 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Punchboard">
   <title>Punchboard</title>
   <link rel="icon" href="/punchboard.svg" type="image/svg+xml">
+  <!-- Added to the Home Screen, the deck opens without any browser chrome:
+       the only true full screen an iPhone offers a web page. -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/icons/punchboard-180.png">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <!-- Paints the last-used theme before first render; the server's setting
