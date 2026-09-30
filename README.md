@@ -25,7 +25,9 @@ Signing protects against someone listening on the network. It cannot protect aga
 
 ## Your data is safe
 
-Decks, settings and sound choices are saved atomically: written to a temporary file, flushed, then swapped in, so a crash or power cut mid-save cannot leave a half-written file. The previous save is kept as `.bak`, and a daily copy of your decks goes to `profiles/backups` (the last 14 days). If a deck file is ever damaged, the companion restores the last good save and keeps the damaged copy beside it. Two Control Center windows cannot overwrite each other: the second one reloads the latest version instead.
+Everything you make lives in a data folder of its own, never in the app's folder, so updating or reinstalling Punchboard cannot touch it: **~/Library/Application Support/Punchboard** on macOS, **%APPDATA%\Punchboard** on Windows. Versions that kept data in the app folder are moved over automatically on the first start (the old copies are left where they were). `PUNCHBOARD_DATA_DIR` points it elsewhere, for a portable copy or for tests.
+
+Decks, settings and sound choices are saved atomically: written to a temporary file, flushed, then swapped in, so a crash or power cut mid-save cannot leave a half-written file. The previous save is kept as `.bak`, and a daily copy of your decks goes to `decks/backups` in the data folder (the last 14 days). If a deck file is ever damaged, the companion restores the last good save and keeps the damaged copy beside it. Two Control Center windows cannot overwrite each other: the second one reloads the latest version instead.
 
 ## Building a deck
 

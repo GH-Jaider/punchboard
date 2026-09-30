@@ -12,7 +12,6 @@ import fs from "node:fs"
 import http from "node:http"
 import type { ServerResponse } from "node:http"
 import path from "node:path"
-import { fileURLToPath } from "node:url"
 import QRCode from "qrcode"
 import open from "open"
 import qrcodeTerminal from "qrcode-terminal"
@@ -47,10 +46,9 @@ import type { AudioType } from "./sounds.ts"
 import { readLevel, writeLevel } from "./volume.ts"
 import type { VolumeContext } from "./volume.ts"
 import { claimPort } from "./port.ts"
+import { DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
 
-const ROOT = fileURLToPath(new URL("../../", import.meta.url))
-const PUBLIC_DIR = path.join(ROOT, "public")
-const CONFIG_PATH = path.join(ROOT, "config.json")
+const PUBLIC_DIR = paths.public
 // Libraries carry custom icons as data URIs, so they can be large.
 const LIBRARY_LIMIT = 24 * 1024 * 1024
 
@@ -58,12 +56,13 @@ const log = (message: string): void => console.log(`[punchboard] ${message}`)
 
 // ------------------------------------------------------------------ state
 
-const config = loadConfig(CONFIG_PATH, log)
+migrateLegacyData(log)
+const config = loadConfig(paths.config, log)
 /** PUNCHBOARD_PORT overrides the saved port for this run only (used by tests). */
 const PORT_OVERRIDE = Number(process.env.PUNCHBOARD_PORT) || 0
 /** The port actually listened on, settled at start-up (see claimPort). */
 let PORT = PORT_OVERRIDE || config.port
-const writeConfig = (): void => saveConfig(CONFIG_PATH, config)
+const writeConfig = (): void => saveConfig(paths.config, config)
 // A fader drag sends several levels a second; the file only needs the last.
 let configTimer: NodeJS.Timeout | undefined
 const writeConfigSoon = (): void => {
@@ -71,9 +70,9 @@ const writeConfigSoon = (): void => {
   configTimer = setTimeout(writeConfig, 400)
 }
 
-const library = createLibraryStore(path.resolve(ROOT, config.profileFile), log)
-const auth = createAuth({ file: path.join(ROOT, "data", "devices.json"), log })
-const sounds = createSoundStore(path.join(ROOT, "sounds"))
+const library = createLibraryStore(paths.library, log)
+const auth = createAuth({ file: paths.devices, log })
+const sounds = createSoundStore(paths.sounds)
 sounds.ensureDefaults()
 // The page bundles' modification times name the build. When they change
 // (an update, or a rebuild while developing) every open page finds out.
@@ -96,6 +95,7 @@ setInterval(() => {
 // from its file learns it from a full play (afplay adds ~0.7 s of its own
 // start-up, so this is only the fallback).
 const player = createPlayer({
+  helper: path.join(paths.helpers, "mac-player.js"),
   volume: () => config.soundVolume,
   log,
   onEnded: (slot, ranMs) => {
@@ -170,7 +170,7 @@ if (config.obs.source === "auto") {
   }
 }
 
-const googleIcons = createGoogleIcons(path.join(ROOT, "cache"))
+const googleIcons = createGoogleIcons(paths.cache)
 const volumeContext: VolumeContext = { config, obs, saveConfig: writeConfigSoon, setSoundVolume: (level) => player.setVolume(level) }
 
 // ------------------------------------------------------------------ access
@@ -516,7 +516,8 @@ function announce(): void {
   const link = (url: string): string => `\u001B]8;;${url}\u0007${url}\u001B]8;;\u0007`
   console.log("\n  Punchboard is ready\n")
   console.log(`  Control Center:  ${link(control)}`)
-  console.log(`  Pair a tablet:   ${link(pair)}\n`)
+  console.log(`  Pair a device:   ${link(pair)}`)
+  console.log(`  Your data:       ${DATA_DIR}\n`)
   qrcodeTerminal.generate(pairUrl(), { small: true }, (code) => console.log(code))
   console.log(`  Scan with a tablet on the same wifi, or open ${deckUrl()} on it and enter code ${auth.currentCode().code}.\n`)
 }

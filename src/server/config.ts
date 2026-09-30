@@ -6,7 +6,6 @@ import { isObject, readJsonSafe, writeJsonAtomic } from "./store.ts"
 
 export interface Config {
   port: number
-  profileFile: string
   theme: { name: ThemeId; accent: string; accentPreset: string }
   soundVolume: number
   /** source "auto" follows OBS's own settings on this computer; "manual" was typed in. */
@@ -15,7 +14,6 @@ export interface Config {
 
 const DEFAULTS: Config = {
   port: 8787,
-  profileFile: "./profiles/current-profile.json",
   theme: { name: DEFAULT_THEME, accent: "#5fd0d6", accentPreset: "custom" },
   soundVolume: 1,
   obs: { address: "ws://127.0.0.1:4455", password: "", source: "auto" }
@@ -35,7 +33,6 @@ export function loadConfig(file: string, log: (message: string) => void): Config
   const soundVolume = Number(raw.soundVolume)
   return {
     port: Number(raw.port) || DEFAULTS.port,
-    profileFile: str(raw.profileFile, DEFAULTS.profileFile),
     theme: {
       name: isThemeId(theme.name) ? theme.name : DEFAULTS.theme.name,
       accent: isHexColor(theme.accent) ? theme.accent : DEFAULTS.theme.accent,

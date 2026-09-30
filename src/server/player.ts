@@ -8,9 +8,10 @@
 // Windows: PowerShell's MediaPlayer, one process per sound, built in.
 import { spawn } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
-import { fileURLToPath } from "node:url"
 
 export interface PlayerOptions {
+  /** The macOS helper script (helpers/mac-player.js). */
+  helper: string
   /** Fader position 0..1, read as each sound starts. */
   volume: () => number
   /** A sound stopped: on its own (`ranMs` = how long it played) or on request (null). */
@@ -34,7 +35,6 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
 /** A fader at half feels like half as loud with a squared gain, not linear. */
 export const gainFor = (level: number): number => clamp01(level) * clamp01(level)
 
-const HELPER = fileURLToPath(new URL("./helpers/mac-player.js", import.meta.url))
 
 /** The one-shot command that plays a file, exposed for tests. */
 export function playCommand(file: string, level: number, platform: NodeJS.Platform = process.platform): { file: string; args: string[] } | null {
@@ -95,7 +95,7 @@ export function createPlayer(options: PlayerOptions): Player {
 
   function startHelper(): ChildProcess | null {
     if (helper || helperBroken) return helper
-    const child = spawn("osascript", ["-l", "JavaScript", HELPER], { stdio: ["pipe", "pipe", "ignore"] })
+    const child = spawn("osascript", ["-l", "JavaScript", options.helper], { stdio: ["pipe", "pipe", "ignore"] })
     helper = child
     child.stdout?.on("data", (chunk: Buffer) => {
       buffered += chunk.toString("utf8")
