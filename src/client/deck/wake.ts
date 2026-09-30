@@ -25,10 +25,11 @@ function acquire(): void {
 export function initWakeLock(): void {
   const nav = navigator as WakeLockNavigator
   if (!nav.wakeLock) {
-    // Older iPads: nothing a page can do; the setting is the answer.
+    // Browsers only offer a wake lock to https pages, and the deck is served
+    // over plain http on the local network: the device's setting is the answer.
     if (!storage.get(HINT_KEY)) {
       storage.set(HINT_KEY, "1")
-      toast("This browser cannot keep the screen on. Set Auto-Lock to Never while you stream.", false, { label: "Got it", onClick: () => { /* dismissed */ } })
+      toast("Keep the screen on: set Auto-Lock (iPad, iPhone) or Screen timeout (Android) to the longest while you use the deck.", false, { label: "Got it", onClick: () => { /* dismissed */ } })
     }
     return
   }

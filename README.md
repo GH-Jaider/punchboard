@@ -38,7 +38,7 @@ On a Mac, key combinations and music controls need a one-time permission: **Syst
 
 - Only paired devices can press buttons, and only this computer can edit decks. Remove a device in **Pair a device** to cut it off.
 - Your decks, sounds and paired devices live in their own folder, so updates never touch them: `~/Library/Application Support/Punchboard` on Mac, `%APPDATA%\Punchboard` on Windows. **Back up** in the Control Center saves everything to a file.
-- Old iPads cannot keep the screen on by themselves; set **Auto-Lock** to Never while you stream.
+- **Keep the device's screen on yourself**: a page on your local wifi cannot do it. On iPad and iPhone set **Settings › Display & Brightness › Auto-Lock** to Never; on Android set **Settings › Display › Screen timeout** (or *Sleep*) to the longest.
 
 ## For developers
 
