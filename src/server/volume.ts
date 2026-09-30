@@ -11,6 +11,8 @@ export interface VolumeContext {
   obs: ObsLink
   config: Config
   saveConfig: () => void
+  /** Applies the sounds fader to what is playing right now. */
+  setSoundVolume: (level: number) => void
 }
 
 const clamp01 = (value: unknown): number => Math.max(0, Math.min(1, Number(value) || 0))
@@ -53,6 +55,7 @@ export async function writeLevel(fader: Fader, level: unknown, context: VolumeCo
     case "sounds":
       context.config.soundVolume = value
       context.saveConfig()
+      context.setSoundVolume(value)
       return value
     case "system":
       requireMac()

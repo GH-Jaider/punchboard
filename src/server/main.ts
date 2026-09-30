@@ -125,7 +125,7 @@ const obs = createObsLink({
   }
 })
 const googleIcons = createGoogleIcons(path.join(ROOT, "cache"))
-const volumeContext: VolumeContext = { config, obs, saveConfig: writeConfigSoon }
+const volumeContext: VolumeContext = { config, obs, saveConfig: writeConfigSoon, setSoundVolume: (level) => player.setVolume(level) }
 
 // ------------------------------------------------------------------ access
 
@@ -399,7 +399,7 @@ const routes: Route[] = [
     res.once("finish", () => {
       auth.flush()
       obs.stop()
-      player.stopAll()
+      player.dispose()
       live.closeAll()
       server.close(() => process.exit(0))
     })
@@ -505,6 +505,7 @@ start().catch((error: unknown) => {
 })
 
 process.on("SIGINT", () => {
+  player.dispose()
   auth.flush()
   process.exit(0)
 })

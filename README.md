@@ -61,7 +61,7 @@ Click a dashed slot to add a button, then give it a label, a colour and an icon.
 | Play a sound | this computer's speakers |
 | Open link on the tablet | the tablet's own browser |
 
-Buttons whose action has an on/off state — mute, stream, recording, source visibility — light up fully while that state is active, reported back from OBS rather than guessed. Sound slots accept WAV and MP3 up to 8 MB. Sounds play from the companion itself through this computer's speakers, so nothing needs to be open or in front. Pressing a sound button again stops it; while it plays the button drains and counts down on the deck, and **Stop sound** with the time left appears in the Control Center's top bar. The **Punchboard sounds** fader sets the volume for the next sound that starts. The tablet never downloads the audio.
+Buttons whose action has an on/off state — mute, stream, recording, source visibility — light up fully while that state is active, reported back from OBS rather than guessed. Sound slots accept WAV and MP3 up to 8 MB. Sounds play from the companion itself through this computer's speakers, so nothing needs to be open or in front. Pressing a sound button again stops it; while it plays the button drains and counts down on the deck, and **Stop sound** with the time left appears in the Control Center's top bar. The **Punchboard sounds** fader changes the volume of what is playing on macOS (a small helper that ships with Punchboard plays the sounds there); on Windows it applies to the next sound that starts. The tablet never downloads the audio.
 
 ## On the tablet
 
