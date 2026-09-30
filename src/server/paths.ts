@@ -56,6 +56,8 @@ function copyInto(from: string, to: string): boolean {
     if something goes wrong; the data folder wins from then on. */
 export function migrateLegacyData(log: (message: string) => void): void {
   if (path.resolve(DATA_DIR) === path.resolve(APP_DIR)) return
+  // A data folder chosen on purpose (tests, a portable copy) starts as it is.
+  if (process.env.PUNCHBOARD_DATA_DIR) return
   fs.mkdirSync(DATA_DIR, { recursive: true })
   const moved: string[] = []
   if (copyInto(LEGACY.config, paths.config)) moved.push("settings")

@@ -2,8 +2,10 @@
 // A file that will not parse is set aside and never overwritten, and each
 // save carries a revision so two Control Center windows cannot clobber
 // each other.
+import fs from "node:fs"
 import path from "node:path"
 import { isLibraryShape, normalizeLibrary } from "../shared/model.ts"
+import { starterLibrary } from "../shared/starter-decks.ts"
 import type { Button, FaderButton, Library } from "../shared/types.ts"
 import { errorText } from "./http.ts"
 import { readJsonSafe, snapshotDaily, writeJsonAtomic } from "./store.ts"
@@ -28,7 +30,11 @@ export function createLibraryStore(file: string, log: (message: string) => void)
     } catch (error) {
       log(`${errorText(error)} Starting with an empty deck; restore a backup from the Control Center or profiles/backups.`)
     }
-    const fresh = normalizeLibrary({ version: 1, activeProfileId: "", profiles: [] })
+    // A first start gets the starter decks, so a device does something the
+    // moment it pairs. A file that was there but could not be read gets an
+    // empty deck instead: its owner had decks of their own.
+    const firstStart = !fs.existsSync(file)
+    const fresh = normalizeLibrary({ version: 1, ...(firstStart ? starterLibrary(process.platform === "darwin") : { activeProfileId: "", profiles: [] }) })
     write(fresh)
     return fresh
   }

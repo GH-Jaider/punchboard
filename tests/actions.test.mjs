@@ -62,6 +62,13 @@ async function main() {
   if (!LAN) throw new Error("No LAN address on this machine.")
   await companion.ready
   await until("the OBS link", (s) => s.obs === "connected")
+  // A first start comes with the starter decks, every button complete.
+  const first = (await request({ path: "/api/library" })).json
+  check("A fresh install starts with the starter decks", first.profiles.map((p) => p.name).join(",") === "Streaming,Music,Shortcuts,Trackpad", first.profiles.map((p) => p.name).join(","))
+  const buttons = first.profiles.flatMap((p) => p.buttons)
+  const broken = buttons.filter((b) => !b.glyph || (b.control === "press" && b.steps.some((st) => st.type === "none" || (st.type === "hotkey" && !st.keys))))
+  check("Every starter button has an icon and a working action", buttons.length === 30 && broken.length === 0, JSON.stringify(broken.map((b) => b.label)))
+  check("The trackpad starter is a trackpad deck", Boolean(first.profiles[3]?.trackpad), JSON.stringify(first.profiles[3]))
   const saved = await request({ method: "PUT", path: "/api/library", headers: JSON_TYPE, body: JSON.stringify(library) })
   check("Deck with every new action saves", saved.status === 200, saved.text)
 

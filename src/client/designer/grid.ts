@@ -303,7 +303,7 @@ function renderParked(): void {
   const body = el("div")
   body.style.flex = "1 1 auto"
   body.appendChild(el("strong", null, `${parked.length}${one ? " button is" : " buttons are"} outside this grid`))
-  body.appendChild(el("span", null, `Shrinking the grid left ${one ? "it" : "them"} parked. Nothing was deleted — grow the grid back, or move ${one ? "it" : "them"} into the free slots.`))
+  body.appendChild(el("span", null, `Shrinking the grid left ${one ? "it" : "them"} parked. Nothing was deleted — grow the grid back, move ${one ? "it" : "them"} into the free slots, or delete ${one ? "it" : "them"}.`))
 
   const actions = el("div", "notice-actions")
   const grow = el("button", "btn", "Grow the grid to fit")
@@ -334,8 +334,21 @@ function renderParked(): void {
     view.renderAll()
     toast(moved ? `Moved ${moved} into free slots.` : "No free slots — make the grid bigger first.")
   }
+  // For when the smaller grid is the point: they go, with an undo.
+  const drop = el("button", "btn ghost danger-text", one ? "Delete it" : "Delete them")
+  drop.type = "button"
+  drop.onclick = () => {
+    const removed = parked.slice()
+    profile.buttons = profile.buttons.filter((button) => removed.indexOf(button) === -1)
+    recordUndo(`${removed.length}${removed.length === 1 ? " parked button" : " parked buttons"} deleted`, () => {
+      for (const button of removed) profile.buttons.push(button)
+    })
+    touch()
+    view.renderAll()
+  }
   actions.appendChild(grow)
   actions.appendChild(pull)
+  actions.appendChild(drop)
   body.appendChild(actions)
   notice.appendChild(body)
   host.appendChild(notice)

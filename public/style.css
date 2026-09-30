@@ -393,8 +393,36 @@ select {
 .profile-row.active { border-color: var(--accent-line); background: var(--accent-soft); }
 .profile-row.active strong { color: var(--accent-text); font-weight: var(--w-bold); }
 
+/* The + menu: an empty deck or a ready-made one. */
+.add-menu {
+  position: fixed;
+  z-index: 50;
+  display: grid;
+  width: 280px;
+  gap: 2px;
+  padding: var(--s-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+.add-menu-item {
+  display: grid;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border-radius: var(--r-sm);
+  background: transparent;
+  text-align: left;
+}
+.add-menu-item:hover, .add-menu-item:focus-visible { background: var(--surface-3); }
+.add-menu-item strong { font-size: var(--fs-sm); font-weight: var(--w-medium); }
+.add-menu-item span { color: var(--text-muted); font-size: var(--fs-xs); }
+
 /* Set-and-forget settings: one row each, opening its own window. */
 .rail-setup { display: grid; flex: none; gap: 2px; padding: var(--s-3); border-top: 1px solid var(--border); }
+/* Grid items would otherwise grow to their content and push past the rail
+   when a theme's type (or a system's fallback font) runs wide. */
+.rail-setup > * { min-width: 0; }
 .rail-setup h3 { margin: 0 0 var(--s-1) var(--s-2); }
 .setup-item {
   display: flex;
@@ -411,7 +439,10 @@ select {
 }
 .setup-item:hover { background: var(--surface-2); }
 .setup-item > svg { width: 17px; height: 17px; flex: none; color: var(--text-muted); }
-.setup-name { flex: 1 1 auto; min-width: 0; }
+/* The name keeps its room; a long status shortens with an ellipsis instead. */
+.setup-item .state-chip { display: inline-block; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.setup-item .state-chip::before { display: inline-block; margin-right: 5px; vertical-align: 1px; }
+.setup-name { flex: 1 1 auto; min-width: 0; white-space: nowrap; }
 .accent-dot { width: 14px; height: 14px; flex: none; border-radius: 50%; background: var(--accent); box-shadow: inset 0 0 0 1px var(--hairline); }
 
 .rail-foot { display: flex; flex: none; gap: 2px; padding: var(--s-2) var(--s-3); border-top: 1px solid var(--border); }
