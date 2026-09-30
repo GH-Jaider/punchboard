@@ -75,7 +75,9 @@ The runtime deliberately sticks to widely supported CSS and JavaScript so genuin
 
 ## OBS setup
 
-Open the **OBS Studio** panel in the left rail only when you actually use OBS buttons. In OBS, open **Tools → WebSocket Server Settings**, enable the server, set a password, then enter the matching address and password here. OBS normally listens at `ws://127.0.0.1:4455`.
+If OBS runs on this computer, Punchboard reads OBS's own WebSocket settings, password included, so there is nothing to copy. The one step is in OBS: **Tools › WebSocket Server Settings › Enable WebSocket server**. The **OBS Studio** window in Punchboard says what is missing ("Server off", "Wrong password", "Connected") and connects by itself a few seconds after OBS is ready. If you later change the password in OBS, Punchboard picks it up on its next start.
+
+For OBS on another computer, open **OBS is on another computer, or enter it by hand**: the fields match OBS's **Show Connect Info** window (Server IP, Server Port, Server Password), and pasting OBS's whole connect link into any of them fills all three.
 
 ## Key combinations
 

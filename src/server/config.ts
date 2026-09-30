@@ -9,7 +9,8 @@ export interface Config {
   profileFile: string
   theme: { name: ThemeId; accent: string; accentPreset: string }
   soundVolume: number
-  obs: { address: string; password: string }
+  /** source "auto" follows OBS's own settings on this computer; "manual" was typed in. */
+  obs: { address: string; password: string; source: "auto" | "manual" }
 }
 
 const DEFAULTS: Config = {
@@ -17,7 +18,7 @@ const DEFAULTS: Config = {
   profileFile: "./profiles/current-profile.json",
   theme: { name: DEFAULT_THEME, accent: "#5fd0d6", accentPreset: "custom" },
   soundVolume: 1,
-  obs: { address: "ws://127.0.0.1:4455", password: "" }
+  obs: { address: "ws://127.0.0.1:4455", password: "", source: "auto" }
 }
 
 const str = (value: unknown, fallback: string): string => (typeof value === "string" ? value : fallback)
@@ -41,7 +42,12 @@ export function loadConfig(file: string, log: (message: string) => void): Config
       accentPreset: str(theme.accentPreset, DEFAULTS.theme.accentPreset)
     },
     soundVolume: Number.isFinite(soundVolume) ? Math.max(0, Math.min(1, soundVolume)) : DEFAULTS.soundVolume,
-    obs: { address: str(obs.address, DEFAULTS.obs.address), password: str(obs.password, DEFAULTS.obs.password) }
+    obs: {
+      address: str(obs.address, "").trim() || DEFAULTS.obs.address,
+      password: str(obs.password, DEFAULTS.obs.password),
+      // A password typed before this setting existed counts as manual.
+      source: obs.source === "manual" || (obs.source !== "auto" && str(obs.password, "") !== "") ? "manual" : "auto"
+    }
   }
 }
 

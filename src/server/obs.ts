@@ -2,7 +2,7 @@
 // configured, re-tried when it drops, and carrying live audio meters for the
 // inputs that decks are showing.
 import OBSWebSocket, { EventSubscription } from "obs-websocket-js"
-import type { ObsLink as LinkStatus } from "../shared/api.ts"
+import type { ObsIssue, ObsLink as LinkStatus } from "../shared/api.ts"
 import type { Config } from "./config.ts"
 import { errorText } from "./http.ts"
 
@@ -19,8 +19,9 @@ export interface ObsLinkOptions {
 
 export type ObsLink = ReturnType<typeof createObsLink>
 
-// Retries back off while OBS is closed, then settle at one try per 30 s.
-const RETRY_MS = [3000, 5000, 10000, 20000, 30000]
+// Retries stay quick (OBS is usually on this computer, and trying is cheap),
+// so the link comes up a few seconds after OBS or its server does.
+const RETRY_MS = [2000, 3000, 5000]
 const METER_INTERVAL_MS = 66
 
 /** OBS's mixer runs -60 dB at the bottom to 0 dB at the top. */
@@ -61,6 +62,7 @@ export function createObsLink(options: ObsLinkOptions) {
   let announcedOutage = false
   let lastMeterAt = 0
   let pendingLevels: Record<string, number> = {}
+  let issue: ObsIssue = null
 
   const configured = (): boolean => Boolean(options.config.obs.address)
 
@@ -103,6 +105,7 @@ export function createObsLink(options: ObsLinkOptions) {
         connecting = null
         attempt = 0
         announcedOutage = false
+        issue = null
         socket.on("InputVolumeMeters", onMeterEvent)
         socket.once("ConnectionClosed", () => {
           if (client !== socket) return
@@ -117,12 +120,20 @@ export function createObsLink(options: ObsLinkOptions) {
       })
       .catch((error: unknown) => {
         connecting = null
+        // 4009 is OBS refusing the password; anything else means nothing answered.
+        const next: ObsIssue = (error as { code?: unknown }).code === 4009 ? "wrong-password" : "unreachable"
+        if (next !== issue) {
+          issue = next
+          options.onStatus()
+        }
         if (!announcedOutage) {
           announcedOutage = true
           options.log(`OBS is not reachable at ${address}; will keep trying quietly.`)
         }
         scheduleRetry()
-        throw new Error(`Could not reach OBS at ${address}. Start OBS, enable its WebSocket server, then try again. (${errorText(error)})`)
+        throw new Error(issue === "wrong-password"
+          ? "OBS refused the password. Open OBS Studio in Punchboard and find OBS again, or paste the new password."
+          : `Could not reach OBS at ${address}. Start OBS and switch on its WebSocket server (Tools › WebSocket Server Settings). (${errorText(error)})`)
       })
     return connecting
   }
@@ -138,6 +149,7 @@ export function createObsLink(options: ObsLinkOptions) {
     clearTimeout(retryTimer)
     attempt = 0
     announcedOutage = false
+    issue = null
     const old = client
     client = null
     connecting = null
@@ -153,5 +165,5 @@ export function createObsLink(options: ObsLinkOptions) {
     client = null
   }
 
-  return { connect, status, start, reset, stop }
+  return { connect, status, issue: (): ObsIssue => (client ? null : issue), start, reset, stop }
 }

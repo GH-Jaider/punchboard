@@ -17,6 +17,8 @@ import QRCode from "qrcode"
 import open from "open"
 import qrcodeTerminal from "qrcode-terminal"
 import type {
+  ObsIssue,
+  ObsDetectResponse,
   AppsResponse,
   ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
@@ -29,6 +31,7 @@ import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
 import { listApps } from "./apps.ts"
 import { createObsLink } from "./obs.ts"
+import { readLocalObs } from "./obs-config.ts"
 import { createPlayer } from "./player.ts"
 import { AuthError, createAuth } from "./auth.ts"
 import type { Device } from "./auth.ts"
@@ -106,6 +109,7 @@ const live = createLive({
   libraryRev: library.revision,
   build: () => build,
   obs: () => obs.status(),
+  obsIssue: () => obsIssue(),
   soundDuration: (slot) => sounds.durationMs(slot),
   soundFile: (slot) => sounds.file(slot).file
 }, player, config.soundVolume)
@@ -126,6 +130,46 @@ const obs = createObsLink({
     return wanted
   }
 })
+/** Points the OBS link at an OBS on this computer, from its own settings. */
+function applyLocalObs(local: ReturnType<typeof readLocalObs>): boolean {
+  config.obs.address = `ws://127.0.0.1:${local.port}`
+  config.obs.password = local.password
+  config.obs.source = "auto"
+  writeConfig()
+  obs.reset()
+  return true
+}
+
+const isLocalObsAddress = (address: string): boolean => /^wss?:\/\/(127\.0\.0\.1|localhost)(:\d+)?\/?$/i.test(address)
+
+/** Why OBS is not connected. For an OBS on this computer, its own settings
+    tell a switched-off server apart from a closed OBS. */
+function obsIssue(): ObsIssue {
+  const issue = obs.issue()
+  if (obs.status() === "connected" || issue === "wrong-password" || !isLocalObsAddress(config.obs.address)) return issue
+  const local = readLocalObs()
+  return local.found && !local.enabled ? "server-off" : issue
+}
+
+// Settings typed in by hand that match this computer's OBS are really OBS's
+// own, so they follow OBS from now on.
+if (config.obs.source === "manual" && isLocalObsAddress(config.obs.address)) {
+  const local = readLocalObs()
+  if (local.found && config.obs.password === local.password) config.obs.source = "auto"
+}
+
+// Unless someone typed their own settings, follow OBS's: a new password or
+// port in OBS is picked up on the next start without anyone noticing.
+if (config.obs.source === "auto") {
+  const local = readLocalObs()
+  if (local.found && (config.obs.password !== local.password || config.obs.address !== `ws://127.0.0.1:${local.port}`)) {
+    config.obs.address = `ws://127.0.0.1:${local.port}`
+    config.obs.password = local.password
+    writeConfig()
+    log("Using OBS's WebSocket settings from this computer.")
+  }
+}
+
 const googleIcons = createGoogleIcons(path.join(ROOT, "cache"))
 const volumeContext: VolumeContext = { config, obs, saveConfig: writeConfigSoon, setSoundVolume: (level) => player.setVolume(level) }
 
@@ -288,6 +332,7 @@ const routes: Route[] = [
     theme: config.theme.name,
     obsAddress: config.obs.address,
     obsConfigured: Boolean(config.obs.password),
+    obsSource: config.obs.source,
     platform: process.platform
   })),
   route<SettingsSaved>("PUT", "/api/settings", "local", async ({ req }) => {
@@ -297,6 +342,7 @@ const routes: Route[] = [
     if (isHexColor(data.accent)) config.theme.accent = data.accent
     if (isThemeId(data.theme)) config.theme.name = data.theme
     const obsBefore = `${config.obs.address}\n${config.obs.password}`
+    if (typeof data.obsAddress === "string" || typeof data.obsPassword === "string") config.obs.source = "manual"
     if (typeof data.obsAddress === "string" && data.obsAddress.length < 160) config.obs.address = data.obsAddress
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
     if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
@@ -380,6 +426,13 @@ const routes: Route[] = [
   }),
 
   route<AppsResponse>("GET", "/api/apps", "local", () => ({ apps: listApps() })),
+
+  // Takes over OBS's own settings from this computer; nothing to copy.
+  route<ObsDetectResponse>("POST", "/api/obs/detect", "local", () => {
+    const local = readLocalObs()
+    const applied = local.found && applyLocalObs(local)
+    return { found: local.found, enabled: local.enabled, port: local.port, applied }
+  }),
 
   // --- Google icons, browsed from the Control Center only
   route<GoogleIconsResponse>("GET", "/api/icons/google", "local", async () => {

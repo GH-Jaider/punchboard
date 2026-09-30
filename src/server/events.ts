@@ -1,7 +1,7 @@
 // Live state pushed to every connected page over server-sent events: button
 // toggles, fader levels, revisions, sound playback, meters.
 import type { ServerResponse } from "node:http"
-import type { ObsLink, Snapshot, SoundPlayback } from "../shared/api.ts"
+import type { ObsIssue, ObsLink, Snapshot, SoundPlayback } from "../shared/api.ts"
 import type { ThemeId } from "../shared/types.ts"
 import type { Request } from "./http.ts"
 import type { Player } from "./player.ts"
@@ -12,6 +12,7 @@ export interface LiveSettings {
   libraryRev: () => number
   build: () => string
   obs: () => ObsLink
+  obsIssue: () => ObsIssue
   /** A sound's length, so decks can draw its progress; null while unknown. */
   soundDuration: (slot: number) => number | null
   /** The file behind a slot, for the player. */
@@ -39,6 +40,7 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
       playback,
       levels,
       obs: settings.obs(),
+      obsIssue: settings.obsIssue(),
       tablets: new Set([...listeners.values()].filter(Boolean)).size,
       build: settings.build(),
       accent: settings.accent(),

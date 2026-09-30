@@ -37,7 +37,7 @@ function handle(state: Snapshot): void {
   renderNowPlaying(state.playback)
   showPlaying(state.playing)
   showDeviceCount(state.tablets)
-  showObsLink(state.obs)
+  showObsLink(state.obs, state.obsIssue)
 }
 
 export function watchEvents(): void {

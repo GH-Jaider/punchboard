@@ -151,18 +151,35 @@
       <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="dialog-body">
-      <p class="field-help" id="obs-help">Only needed for OBS buttons. In OBS open <strong>Tools &rsaquo; WebSocket Server Settings</strong>, enable the server, then copy its address and password here.</p>
-      <div class="field">
-        <label for="obs-address">Address</label>
-        <input id="obs-address" type="text" placeholder="ws://127.0.0.1:4455" spellcheck="false">
+      <!-- Live: says what is missing, in OBS's own words. -->
+      <div class="obs-status" id="obs-status" role="status" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <div>
+          <strong id="obs-status-title">Not set up</strong>
+          <p class="field-help" id="obs-help">Only needed for OBS buttons and faders.</p>
+        </div>
       </div>
-      <div class="field">
-        <label for="obs-password">Password</label>
-        <input id="obs-password" type="password" placeholder="From the OBS settings panel" autocomplete="off">
-      </div>
-    </div>
-    <div class="dialog-foot">
-      <button class="btn primary" id="obs-save" type="button">Save connection</button>
+      <button class="btn primary wide" id="obs-find" type="button">Find OBS on this computer</button>
+
+      <details class="obs-manual" id="obs-manual">
+        <summary>OBS is on another computer, or enter it by hand</summary>
+        <p class="field-help">In OBS: <strong>Tools &rsaquo; WebSocket Server Settings &rsaquo; Show Connect Info</strong>. Copy each value into the same field here, or paste OBS's whole connect link into any field.</p>
+        <div class="obs-fields">
+          <div class="field">
+            <label for="obs-host">Server IP</label>
+            <input id="obs-host" type="text" placeholder="127.0.0.1" spellcheck="false" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="obs-port">Server Port</label>
+            <input id="obs-port" type="text" inputmode="numeric" placeholder="4455" spellcheck="false" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label for="obs-password">Server Password</label>
+          <input id="obs-password" type="password" placeholder="From Show Connect Info" autocomplete="off">
+        </div>
+        <button class="btn" id="obs-save" type="button">Save connection</button>
+      </details>
     </div>
   </dialog>
 

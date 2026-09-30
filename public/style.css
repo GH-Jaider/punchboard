@@ -543,6 +543,20 @@ select {
 .state-chip.warning { background: var(--warn-soft); color: var(--warn); }
 .state-chip.error { background: var(--danger-soft); color: var(--danger); }
 
+/* ------------------------------------------------------------ OBS window */
+
+.obs-status { display: flex; gap: var(--s-3); align-items: flex-start; padding: var(--s-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); }
+.obs-status .dot { width: 10px; height: 10px; flex: none; margin-top: 5px; border-radius: 50%; background: var(--warn); }
+.obs-status.is-ready .dot { background: var(--ok); }
+.obs-status.is-error .dot { background: var(--danger); }
+.obs-status strong { display: block; font-size: var(--fs-sm); }
+.obs-status .field-help { margin-top: 2px; }
+.obs-manual { display: grid; gap: var(--s-3); padding-top: var(--s-2); border-top: 1px solid var(--border); }
+.obs-manual[open] { gap: var(--s-3); }
+.obs-manual summary { color: var(--text-muted); font-size: var(--fs-sm); cursor: pointer; }
+.obs-manual > :not(summary) { margin-top: var(--s-3); }
+.obs-fields { display: grid; grid-template-columns: minmax(0, 1fr) 110px; gap: var(--s-3); }
+
 /* --------------------------------------------------------------- sounds */
 
 /* One line per slot in the Sounds window: number, name and size, controls. */

@@ -86,6 +86,24 @@ export interface SoundPlayback {
 
 export type ObsLink = "unset" | "disconnected" | "connected"
 
+/** Why the link is down, when it is: nothing answered, OBS's WebSocket server
+    is switched off (read from OBS's settings on this computer), or OBS
+    refused the password. */
+export type ObsIssue = "unreachable" | "server-off" | "wrong-password" | null
+
+/** What Punchboard found in OBS's own settings on this computer. */
+export interface ObsDetected {
+  found: boolean
+  /** Whether OBS's WebSocket server is switched on. */
+  enabled: boolean
+  port: number
+}
+
+export interface ObsDetectResponse extends ObsDetected {
+  /** The settings were taken over and the link restarted. */
+  applied: boolean
+}
+
 /** Live audio levels, sent as the SSE event "meters" at up to 15 Hz while a
     connected deck shows a fader for that input. Keyed by faderLevelKey
     ("obs:<input name>"); values are meter positions 0..1 on OBS's -60..0 dB
@@ -106,6 +124,7 @@ export interface Snapshot {
   playback: Record<string, SoundPlayback>
   /** Whether the companion is talking to OBS at the moment. */
   obs: ObsLink
+  obsIssue: ObsIssue
   /** Paired devices with a live connection right now. */
   tablets: number
   /** Identifies the page code the companion serves; a deck that loaded an
@@ -132,6 +151,8 @@ export interface SettingsResponse {
   theme: ThemeId
   obsAddress: string
   obsConfigured: boolean
+  /** "auto": taken from OBS's settings on this computer; "manual": typed in. */
+  obsSource: "auto" | "manual"
   platform: string
 }
 
