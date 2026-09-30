@@ -67,6 +67,11 @@ async function main() {
   check("Moves, scrolls and clicks are passed on", got.slice(0, 4).join("|") === "m 12 -4|s 0 30|c left|c right", got.join("|"))
   check("Huge moves are capped", got[4] === "m 400 0", got[4])
   check("Unknown messages are dropped", !got.some((line) => /^x|middle|junk/.test(line)), got.join("|"))
+  const before = lines().length
+  for (const message of [["g", 3, "up"], ["z", 1], ["g", 5, "up"], ["g", 3, "sideways"], ["z", 7]]) ws.send(JSON.stringify(message))
+  await wait(300)
+  const gestures = lines().slice(before)
+  check("Gestures and zoom become this system's shortcuts", gestures.length === 2 && gestures.every((line) => /^[kz] /.test(line)), gestures.join("|"))
   ws.close()
   await wait(300)
   check("Closing mid-drag releases the button", lines().slice(-1)[0] === "u", lines().slice(-3).join("|"))

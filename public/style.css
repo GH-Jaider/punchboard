@@ -964,6 +964,11 @@ select {
 .trackpad-preview strong { color: var(--text); font-size: var(--fs-lg, 18px); }
 .trackpad-preview span { max-width: 36ch; font-size: var(--fs-sm); line-height: 1.5; }
 
+.gesture-list { display: grid; gap: 6px; margin: var(--s-2) 0 0; padding: 0; list-style: none; font-size: var(--fs-xs); }
+.gesture-list li { display: grid; gap: 1px; }
+.gesture-list strong { color: var(--text); font-weight: var(--w-medium); }
+.gesture-list span { color: var(--text-muted); }
+
 /* Two-state macros: the option, and a heading over each list. */
 .steps-switch {
   display: flex;

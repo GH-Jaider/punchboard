@@ -154,13 +154,21 @@ export interface StatusResponse extends Snapshot { ok: true }
 
 /** What a trackpad deck sends over /api/pointer, one JSON array per message:
     ["m", dx, dy] move, ["s", dx, dy] scroll (pixels, positive up and left),
-    ["c", "left" | "right"] click, ["d"] / ["u"] left button down / up. */
+    ["c", "left" | "right"] click, ["d"] / ["u"] left button down / up,
+    ["z", ±1] one pinch-zoom step (1 is in), ["g", fingers, gesture] a
+    three- or four-finger gesture, which the companion turns into this
+    system's own shortcut. */
 export type PointerMessage =
   | ["m", number, number]
   | ["s", number, number]
   | ["c", "left" | "right"]
   | ["d"]
   | ["u"]
+  | ["z", 1 | -1]
+  | ["g", 3 | 4, SwipeGesture]
+
+/** A three- or four-finger gesture, named for what the fingers did. */
+export type SwipeGesture = "up" | "down" | "left" | "right" | "tap" | "pinch" | "spread"
 
 /** What the companion may send back on the same socket. */
 export interface PointerNotice {

@@ -174,7 +174,26 @@ function trackpadFields(profile: Profile): HTMLElement {
   natural.appendChild(words)
   field.appendChild(natural)
 
-  field.appendChild(el("p", "inline-note", "On the device: one finger moves, tap clicks, two fingers scroll, a two-finger tap right-clicks, and double-tap then hold drags. On a Mac this uses the same Accessibility permission as key combinations."))
+  const gestures = el("ul", "gesture-list")
+  const rows: ReadonlyArray<[string, string]> = [
+    ["One finger", "move the cursor"],
+    ["Tap · two-finger tap", "click · right-click"],
+    ["Double-tap and hold", "drag"],
+    ["Two fingers", "scroll, with momentum"],
+    ["Pinch", "zoom in or out"],
+    ["Three fingers up · down", "Mission Control · App Exposé (Windows: Task View · desktop)"],
+    ["Three fingers left · right", "next or previous desktop (Windows: switch apps)"],
+    ["Three-finger tap", "Look Up (Windows: Search)"],
+    ["Four fingers", "like three; spread for the desktop, pinch for your apps"]
+  ]
+  for (const row of rows) {
+    const item = el("li")
+    item.appendChild(el("strong", null, row[0]))
+    item.appendChild(el("span", null, row[1]))
+    gestures.appendChild(item)
+  }
+  field.appendChild(gestures)
+  field.appendChild(el("p", "field-help", "On a Mac this uses the same Accessibility permission as key combinations."))
   return field
 }
 

@@ -3,10 +3,12 @@
 // moves a second:
 //   macOS    helpers/mac-pointer.js under the built-in osascript
 //   Windows  a PowerShell loop around user32's mouse_event
-// Both take the same lines: "m dx dy", "s dx dy", "c left|right", "d", "u".
+// Both take the same lines: "m dx dy", "s dx dy", "c left|right", "d", "u",
+// and "k …" for a gesture's shortcut ("z ±1" zooms on Windows).
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import type { ChildProcess } from "node:child_process"
+import { spawn as spawnApp } from "node:child_process"
 import type { PointerMessage } from "../shared/api.ts"
 
 export interface PointerOptions {
@@ -27,6 +29,7 @@ using System;
 using System.Runtime.InteropServices;
 public static class PunchboardPointer {
   [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
+  [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
   public static void Run(string line) {
     var p = line.Split(' ');
     switch (p[0]) {
@@ -42,6 +45,16 @@ public static class PunchboardPointer {
         break;
       case "d": mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero); break;
       case "u": mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero); break;
+      case "z":
+        keybd_event(0x11, 0, 0, UIntPtr.Zero);
+        mouse_event(0x0800, 0, 0, int.Parse(p[1]) * 120, UIntPtr.Zero);
+        keybd_event(0x11, 0, 2, UIntPtr.Zero);
+        break;
+      case "k":
+        var keys = Array.ConvertAll(p[1].Split(','), byte.Parse);
+        foreach (var k in keys) keybd_event(k, 0, 1, UIntPtr.Zero);
+        for (int i = keys.Length - 1; i >= 0; i--) keybd_event(keys[i], 0, 3, UIntPtr.Zero);
+        break;
     }
   }
 }
@@ -54,8 +67,49 @@ while ($null -ne ($line = [Console]::In.ReadLine())) {
 
 const clamp = (value: number, limit: number): number => Math.max(-limit, Math.min(limit, Math.round(value)))
 
-/** Turns one message from a deck into a helper line, or null if it is not one. */
-export function pointerLine(message: PointerMessage | unknown): string | null {
+// ---------------------------------------------------------------- gestures
+//
+// No system lets a program perform a real trackpad gesture, so each one
+// becomes the shortcut that system already has for it. Swipes are named for
+// what the fingers did: fingers moving left bring in what is on the right.
+
+const MAC_FLAGS = { cmd: 0x100000, ctrl: 0x40000, shift: 0x20000, alt: 0x80000, fn: 0x800000 }
+/** macOS key codes. Arrows carry the fn flag, as a real keyboard sends them. */
+const MAC_KEY = { up: 126, down: 125, left: 123, right: 124, d: 2, f11: 103, equal: 24, minus: 27 }
+const mac = (code: number, flags: number): string => `k ${code} ${flags}`
+const macArrow = (code: number): string => mac(code, MAC_FLAGS.ctrl | MAC_FLAGS.fn)
+
+const MAC_GESTURES: Record<string, string> = {
+  up: macArrow(MAC_KEY.up), // Mission Control
+  down: macArrow(MAC_KEY.down), // App Exposé
+  left: macArrow(MAC_KEY.right), // the desktop or full-screen app to the right
+  right: macArrow(MAC_KEY.left), // … and to the left
+  tap: mac(MAC_KEY.d, MAC_FLAGS.ctrl | MAC_FLAGS.cmd), // Look Up
+  spread: mac(MAC_KEY.f11, 0), // Show Desktop
+  pinch: "app" // the app launcher, opened by name below
+}
+
+// Windows virtual keys, pressed in order and released in reverse.
+const VK = { win: 0x5b, ctrl: 0x11, alt: 0x12, shift: 0x10, tab: 0x09, d: 0x44, s: 0x53, left: 0x25, right: 0x27 }
+const win = (...keys: number[]): string => `k ${keys.join(",")}`
+const WINDOWS_GESTURES: Record<string, string> = {
+  up: win(VK.win, VK.tab), // Task View
+  down: win(VK.win, VK.d), // Show Desktop
+  left: win(VK.alt, VK.tab), // the next app
+  right: win(VK.alt, VK.shift, VK.tab), // … the previous one
+  tap: win(VK.win, VK.s), // Search
+  spread: win(VK.win, VK.d),
+  pinch: win(VK.win, VK.tab)
+}
+// Four fingers left and right move between virtual desktops on Windows.
+const WINDOWS_FOUR: Record<string, string> = {
+  left: win(VK.ctrl, VK.win, VK.right),
+  right: win(VK.ctrl, VK.win, VK.left)
+}
+
+/** Turns one message from a deck into a helper line, or null if it is not one.
+    "app" asks for the app launcher, which is opened rather than typed. */
+export function pointerLine(message: PointerMessage | unknown, platform: NodeJS.Platform = process.platform): string | null {
   if (!Array.isArray(message)) return null
   const [kind, a, b] = message as unknown[]
   const x = Number(a)
@@ -64,6 +118,14 @@ export function pointerLine(message: PointerMessage | unknown): string | null {
   if (kind === "s" && Number.isFinite(x) && Number.isFinite(y)) return `s ${clamp(x, 2000)} ${clamp(y, 2000)}`
   if (kind === "c" && (a === "left" || a === "right")) return `c ${a}`
   if (kind === "d" || kind === "u") return kind
+  if (kind === "z" && (x === 1 || x === -1)) {
+    // Pinch zoom: Cmd +/- on a Mac, Ctrl + wheel on Windows.
+    return platform === "darwin" ? mac(x > 0 ? MAC_KEY.equal : MAC_KEY.minus, MAC_FLAGS.cmd) : `z ${x}`
+  }
+  if (kind === "g" && (a === 3 || a === 4) && typeof b === "string" && Object.prototype.hasOwnProperty.call(MAC_GESTURES, b)) {
+    if (platform === "darwin") return MAC_GESTURES[b] ?? null
+    return (a === 4 ? WINDOWS_FOUR[b] : undefined) ?? WINDOWS_GESTURES[b] ?? null
+  }
   return null
 }
 
@@ -121,8 +183,19 @@ export function createPointer(options: PointerOptions) {
     if (line === "d") leftHeld = true
     if (line === "u") leftHeld = false
     if (testLog) return fs.appendFileSync(testLog, `${line}\n`)
+    if (line === "app") return openLauncher()
     const child = start()
     if (child?.stdin?.writable) child.stdin.write(`${line}\n`)
+  }
+
+  /** Four fingers pinching on a Mac: the app launcher (Apps on macOS 26, Launchpad before). */
+  function openLauncher(): void {
+    const tryApp = (names: string[]): void => {
+      const [name, ...rest] = names
+      if (!name) return
+      spawnApp("open", ["-a", name], { stdio: "ignore" }).on("exit", (code) => { if (code !== 0) tryApp(rest) })
+    }
+    tryApp(["Apps", "Launchpad"])
   }
 
   /** A deck went away mid-drag: never leave the button held down. */

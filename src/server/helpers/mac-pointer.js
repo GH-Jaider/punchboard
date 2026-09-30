@@ -6,6 +6,7 @@
 //   s <dx> <dy>     scroll by that many pixels
 //   c left|right    click where the cursor is (a quick second left click is a double click)
 //   d / u           press / release the left button, for dragging
+//   k <code> <flags>  press a key (macOS key code) with modifier flags, for gestures
 //   q               quit
 //
 // Needs the Accessibility permission, like key combinations. Errors go to
@@ -19,6 +20,7 @@ ObjC.import("CoreGraphics")
 ObjC.bindFunction("CGEventCreateScrollWheelEvent2", ["void *", ["void *", "int", "int", "int", "int", "int"]])
 ObjC.bindFunction("CGEventPost", ["void", ["int", "void *"]])
 ObjC.bindFunction("CGEventSetIntegerValueField", ["void", ["void *", "int", "long"]])
+ObjC.bindFunction("CGEventSetFlags", ["void", ["void *", "long"]])
 ObjC.bindFunction("CGPreflightPostEventAccess", ["bool", []])
 ObjC.bindFunction("CGRequestPostEventAccess", ["bool", []])
 
@@ -103,12 +105,23 @@ function click(which) {
   post(LEFT_UP, point, 0, clickCount)
 }
 
+/** A shortcut such as Ctrl+Up (Mission Control): key down and up with its modifiers held. */
+function key(code, flags) {
+  var down = $.CGEventCreateKeyboardEvent(null, code, true)
+  $.CGEventSetFlags(down, flags)
+  $.CGEventPost(HID, down)
+  var up = $.CGEventCreateKeyboardEvent(null, code, false)
+  $.CGEventSetFlags(up, flags)
+  $.CGEventPost(HID, up)
+}
+
 function handle(line) {
   var parts = line.split(" ")
   var cmd = parts[0]
   if (cmd === "m") return move(Number(parts[1]) || 0, Number(parts[2]) || 0)
   if (cmd === "s") return scroll(Number(parts[1]) || 0, Number(parts[2]) || 0)
   if (cmd === "c") return click(parts[1])
+  if (cmd === "k") return key(Number(parts[1]) || 0, Number(parts[2]) || 0)
   if (cmd === "d") { leftDown = true; return post(LEFT_DOWN, here(), 0, 1) }
   if (cmd === "u") { leftDown = false; return post(LEFT_UP, here(), 0, 1) }
   if (cmd === "q") $.exit(0)
