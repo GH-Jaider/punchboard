@@ -1,0 +1,372 @@
+/* ===========================================================================
+   Punchboard — themes
+
+   style.css is the Studio theme. Each other theme overrides its tokens and
+   then restyles the handful of components whose shape changes, keyed on
+   html[data-theme]. The deck rules below keep to the same conservative CSS as
+   style.css: no oklch(), no color-mix(), no container queries.
+
+   Fonts are bundled so a tablet on a LAN without internet still gets them.
+   A browser only downloads the faces the active theme actually uses.
+   =========================================================================== */
+
+/* ------------------------------------------------------------------- fonts */
+
+@font-face { font-family: "IBM Plex Sans"; font-weight: 400; font-display: swap; src: url("/fonts/plex-sans-400.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Sans"; font-weight: 600; font-display: swap; src: url("/fonts/plex-sans-600.woff2") format("woff2"); }
+@font-face { font-family: "IBM Plex Mono"; font-weight: 500; font-display: swap; src: url("/fonts/plex-mono-500.woff2") format("woff2"); }
+@font-face { font-family: "Bricolage Grotesque"; font-weight: 800; font-display: swap; src: url("/fonts/bricolage-800.woff2") format("woff2"); }
+
+@font-face { font-family: "Archivo"; font-weight: 400; font-display: swap; src: url("/fonts/archivo-400.woff2") format("woff2"); }
+@font-face { font-family: "Archivo"; font-weight: 500; font-display: swap; src: url("/fonts/archivo-500.woff2") format("woff2"); }
+@font-face { font-family: "Archivo"; font-weight: 700; font-display: swap; src: url("/fonts/archivo-700.woff2") format("woff2"); }
+@font-face { font-family: "Archivo"; font-weight: 800; font-display: swap; src: url("/fonts/archivo-800.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 500; font-display: swap; src: url("/fonts/jetbrains-mono-500.woff2") format("woff2"); }
+@font-face { font-family: "JetBrains Mono"; font-weight: 700; font-display: swap; src: url("/fonts/jetbrains-mono-700.woff2") format("woff2"); }
+
+@font-face { font-family: "Barlow"; font-weight: 400; font-display: swap; src: url("/fonts/barlow-400.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 500; font-display: swap; src: url("/fonts/barlow-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow"; font-weight: 600; font-display: swap; src: url("/fonts/barlow-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 500; font-display: swap; src: url("/fonts/barlow-condensed-500.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 600; font-display: swap; src: url("/fonts/barlow-condensed-600.woff2") format("woff2"); }
+@font-face { font-family: "Barlow Condensed"; font-weight: 700; font-display: swap; src: url("/fonts/barlow-condensed-700.woff2") format("woff2"); }
+
+[data-theme-switching] *,
+[data-theme-switching] *::before,
+[data-theme-switching] *::after { transition: none !important; }
+
+/* ================================================================ HARDWARE ==
+   A light control box: warm grey chassis, black ink, keycaps with depth, and
+   an LED on each key for live state. Labels read like silkscreen.
+   ========================================================================= */
+
+html[data-theme="hardware"] {
+  --bg: #e4e2dc;
+  --surface-1: #eceae5;
+  --surface-2: #f4f3ef;
+  --surface-3: #dcd9d2;
+  --surface-input: #f8f7f3;
+
+  --text: #161616;
+  --text-muted: #4a4843;
+  --text-subtle: #66635c;
+
+  --border: rgba(22, 22, 22, 0.16);
+  --border-strong: rgba(22, 22, 22, 0.5);
+
+  --appbar-bg: #e4e2dc;
+  --stage-bg: #d3d0c8;
+  --slot-empty: #cbc8c0;
+  --hairline: rgba(22, 22, 22, 0.2);
+  --backdrop: rgba(40, 36, 30, 0.45);
+  --toast-error-bg: #fbe9e6;
+  --toast-error-text: #8a1c14;
+
+  --accent-text: #161616;
+
+  --danger: #c4281f;
+  --danger-soft: rgba(196, 40, 31, 0.1);
+  --danger-line: rgba(196, 40, 31, 0.45);
+  --warn: #a86b00;
+  --warn-soft: rgba(227, 154, 20, 0.16);
+  --ok: #13804a;
+  --ok-soft: rgba(26, 158, 87, 0.14);
+
+  --w-medium: 500;
+  --w-bold: 700;
+  --w-display: 800;
+
+  --r-sm: 3px;
+  --r-md: 8px;
+  --r-lg: 8px;
+  --r-xl: 10px;
+  --r-pill: 3px;
+
+  --shadow-panel: 0 1px 0 rgba(0, 0, 0, 0.05);
+  --shadow-pop: 0 18px 40px rgba(40, 36, 30, 0.25);
+
+  --font: "Archivo", var(--system-font);
+  --font-display: "Archivo", var(--system-font);
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+/* Silkscreen labels */
+[data-theme="hardware"] .rail-section > h3,
+[data-theme="hardware"] .picker-group h3,
+[data-theme="hardware"] .panel-head h2,
+[data-theme="hardware"] .field > label,
+[data-theme="hardware"] .field-label,
+[data-theme="hardware"] .grid-size label,
+[data-theme="hardware"] .state-chip,
+[data-theme="hardware"] .save-chip,
+[data-theme="hardware"] .link-status,
+[data-theme="hardware"] .step-delay-tag,
+[data-theme="hardware"] .tile .step-count,
+[data-theme="hardware"] .btn,
+[data-theme="hardware"] .deck-profiles button {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-theme="hardware"] .appbar,
+[data-theme="hardware"] .deck-bar { border-bottom-color: var(--text); }
+
+[data-theme="hardware"] .panel,
+[data-theme="hardware"] .canvas-head { border-color: var(--border-strong); }
+
+[data-theme="hardware"] .brand-mark { border-radius: 3px; background: var(--text); box-shadow: none; color: var(--bg); }
+
+[data-theme="hardware"] .btn { border-color: var(--text); background: transparent; }
+[data-theme="hardware"] .btn:hover { background: var(--surface-2); }
+[data-theme="hardware"] .btn.primary { border-color: var(--text); background: var(--text); color: var(--surface-input); }
+[data-theme="hardware"] .btn.primary:hover { filter: none; background: #000; }
+[data-theme="hardware"] .btn.ghost { border-color: transparent; }
+[data-theme="hardware"] .btn.danger { border-color: var(--danger); background: transparent; color: var(--danger); }
+[data-theme="hardware"] .icon-btn { background: transparent; border-color: var(--border-strong); color: var(--text); }
+
+[data-theme="hardware"] input:focus,
+[data-theme="hardware"] select:focus,
+[data-theme="hardware"] textarea:focus { border-color: var(--text); box-shadow: 0 0 0 2px var(--accent-line); }
+[data-theme="hardware"] :focus-visible { outline-color: var(--text); }
+
+[data-theme="hardware"] .profile-row.active { border-color: var(--text); background: var(--surface-2); }
+[data-theme="hardware"] .swatch { border-radius: 2px; }
+[data-theme="hardware"] .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
+[data-theme="hardware"] .step.is-open { border-color: var(--text); }
+[data-theme="hardware"] .step.is-open .step-index { background: var(--text); color: var(--surface-input); }
+[data-theme="hardware"] .theme-option[aria-checked="true"] { border-color: var(--text); background: var(--surface-2); }
+
+[data-theme="hardware"] .stage { border-color: #a9a69e; border-radius: 14px; box-shadow: inset 0 1px 0 #e9e7e1; }
+[data-theme="hardware"] .qr-frame { background: var(--surface-input); }
+[data-theme="hardware"] .toast { border: 0; background: var(--text); color: var(--surface-input); }
+[data-theme="hardware"] .toast.is-error { background: var(--toast-error-bg); color: var(--toast-error-text); }
+
+/* Keycaps: a thick bottom edge for depth and a colour strip for identity. The
+   strip is a background image so it needs no pseudo-element. */
+[data-theme="hardware"] .tile {
+  border: 1px solid #b0ada5;
+  border-bottom-width: 5px;
+  border-radius: 8px;
+  background: linear-gradient(var(--tile-color, var(--accent)), var(--tile-color, var(--accent))) 12px 12px / 22px 4px no-repeat, #f8f7f3;
+  color: var(--text);
+}
+[data-theme="hardware"] .tile:hover { border-color: #8f8c84; }
+[data-theme="hardware"] .tile .tile-icon { background: transparent; color: var(--text); }
+[data-theme="hardware"] .tile .tile-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-size: calc(var(--tile-fs, 13px) * 0.8);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-theme="hardware"] .tile .step-count { top: auto; bottom: 8px; left: 10px; border-radius: 2px; }
+[data-theme="hardware"] .tile.selected { border-color: #b0ada5; box-shadow: none; outline: 2px solid var(--text); outline-offset: 3px; }
+[data-theme="hardware"] .tile.unconfigured .tile-icon { background: transparent; color: var(--text-subtle); }
+[data-theme="hardware"] .tile.pressed { transform: translateY(3px); }
+[data-theme="hardware"] .add-slot { border-color: #8f8c84; }
+[data-theme="hardware"] .slot-wrap.drop-target::after { border-color: var(--text); border-radius: 8px; }
+
+/* On the deck: the LED, and a key that actually travels when pressed. */
+[data-theme="hardware"] .deck-grid .tile { border-radius: 10px; border-bottom-width: 7px; }
+[data-theme="hardware"] .deck-grid .tile::before {
+  position: absolute;
+  top: 10px;
+  right: 11px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #cfccc4;
+  content: "";
+}
+[data-theme="hardware"] .deck-grid .tile:active { transform: translateY(4px); border-bottom-width: 3px; }
+[data-theme="hardware"] .deck-grid .tile.is-on {
+  border-color: rgba(0, 0, 0, 0.35);
+  background: var(--tile-color, var(--accent));
+  color: var(--tile-ink, #161616);
+  box-shadow: none;
+}
+[data-theme="hardware"] .deck-grid .tile.is-on .tile-icon { background: transparent; color: var(--tile-ink, #161616); }
+[data-theme="hardware"] .deck-grid .tile.is-on::before { background: var(--tile-ink, #fff); }
+[data-theme="hardware"] .deck-grid .tile.is-busy { opacity: 1; }
+[data-theme="hardware"] .deck-grid .tile.is-busy::before { background: #f0c419; }
+[data-theme="hardware"] .deck-grid .tile.is-error { border-color: var(--danger); box-shadow: none; }
+[data-theme="hardware"] .deck-grid .slot-empty { border-radius: 10px; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08); }
+
+[data-theme="hardware"] .deck-grid .tile.fader::before { display: none; }
+[data-theme="hardware"] .deck-grid .tile.fader:active { border-bottom-width: 7px; }
+
+[data-theme="hardware"] .deck-profiles button { border-color: var(--text); background: transparent; color: var(--text); }
+[data-theme="hardware"] .deck-profiles button.active { background: var(--text); color: var(--surface-input); }
+
+/* =============================================================== BROADCAST ==
+   A video-switcher console: near-black, square edges, hairline rules,
+   condensed capitals, and keys with a coloured label insert along the bottom.
+   ========================================================================= */
+
+html[data-theme="broadcast"] {
+  --bg: #0b0b0b;
+  --surface-1: #111111;
+  --surface-2: #161616;
+  --surface-3: #202020;
+  --surface-input: #0b0b0b;
+
+  --text: #e8e8e8;
+  --text-muted: #bdbdbd;
+  --text-subtle: #8f8f8f;
+
+  --border: #262626;
+  --border-strong: #3a3a3a;
+
+  --appbar-bg: #111111;
+  --stage-bg: linear-gradient(#151515 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, #151515 1px, transparent 1px) 0 0 / 24px 24px, #0b0b0b;
+  --slot-empty: #0a0a0a;
+  --hairline: rgba(255, 255, 255, 0.12);
+  --backdrop: rgba(0, 0, 0, 0.75);
+  --toast-error-bg: #2a0e0c;
+  --toast-error-text: #ffd0cc;
+
+  --danger: #ff5a52;
+  --danger-soft: rgba(215, 38, 30, 0.16);
+  --danger-line: rgba(255, 90, 82, 0.5);
+  --warn: #e8a317;
+  --warn-soft: rgba(232, 163, 23, 0.15);
+  --ok: #27c26a;
+  --ok-soft: rgba(39, 194, 106, 0.14);
+
+  --w-medium: 500;
+  --w-bold: 600;
+  --w-display: 700;
+
+  --r-sm: 0;
+  --r-md: 0;
+  --r-lg: 0;
+  --r-xl: 0;
+  --r-pill: 0;
+
+  --shadow-panel: none;
+  --shadow-pop: 0 24px 64px rgba(0, 0, 0, 0.7);
+
+  --font: "Barlow", var(--system-font);
+  --font-display: "Barlow Condensed", "Arial Narrow", var(--system-font);
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+
+[data-theme="broadcast"] h1,
+[data-theme="broadcast"] h2,
+[data-theme="broadcast"] h3 { letter-spacing: 0.04em; text-transform: uppercase; }
+
+/* Condensed capitals for every label and control */
+[data-theme="broadcast"] .rail-section > h3,
+[data-theme="broadcast"] .picker-group h3,
+[data-theme="broadcast"] .panel-head h2,
+[data-theme="broadcast"] .field > label,
+[data-theme="broadcast"] .field-label,
+[data-theme="broadcast"] .grid-size label,
+[data-theme="broadcast"] .state-chip,
+[data-theme="broadcast"] .save-chip,
+[data-theme="broadcast"] .link-status,
+[data-theme="broadcast"] .btn,
+[data-theme="broadcast"] .brand,
+[data-theme="broadcast"] .deck-profiles button,
+[data-theme="broadcast"] .profile-row strong,
+[data-theme="broadcast"] .theme-option strong {
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+[data-theme="broadcast"] .rail-section > h3,
+[data-theme="broadcast"] .field > label,
+[data-theme="broadcast"] .field-label { color: var(--text-subtle); font-size: 13px; }
+[data-theme="broadcast"] .btn,
+[data-theme="broadcast"] .deck-profiles button { font-size: 14px; }
+[data-theme="broadcast"] .step-delay-tag,
+[data-theme="broadcast"] .tile .step-count,
+[data-theme="broadcast"] .accent-hex { font-family: var(--font-mono); }
+
+[data-theme="broadcast"] .state-chip::before { border-radius: 0; }
+[data-theme="broadcast"] .save-chip .dot,
+[data-theme="broadcast"] .link-status .dot { border-radius: 0; }
+
+[data-theme="broadcast"] .panel { background: #101010; }
+[data-theme="broadcast"] .brand-mark { background: var(--accent); box-shadow: none; color: var(--accent-ink); }
+[data-theme="broadcast"] .btn.primary { font-weight: 700; }
+[data-theme="broadcast"] .profile-row.active { border-color: transparent; border-left: 3px solid var(--accent); background: var(--surface-2); }
+[data-theme="broadcast"] .profile-row.active strong { color: var(--text); }
+[data-theme="broadcast"] .theme-option[aria-checked="true"] { border-color: transparent; border-left: 3px solid var(--accent); background: var(--surface-2); }
+[data-theme="broadcast"] .accent-row input[type="color"],
+[data-theme="broadcast"] .accent-row input[type="color"]::-webkit-color-swatch-wrapper,
+[data-theme="broadcast"] .accent-row input[type="color"]::-webkit-color-swatch,
+[data-theme="broadcast"] .accent-row input[type="color"]::-moz-color-swatch { border-radius: 0; }
+[data-theme="broadcast"] .sound-slot .num,
+[data-theme="broadcast"] .step-index,
+[data-theme="broadcast"] .step-number,
+[data-theme="broadcast"] .swatch { border-radius: 0; }
+[data-theme="broadcast"] .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
+[data-theme="broadcast"] .qr-frame { background: #e8e8e8; }
+
+/* Switcher keys: the icon fills the face and the label sits on a coloured
+   insert strip, like the engraved caps on a vision mixer. */
+[data-theme="broadcast"] .tile {
+  justify-content: flex-start;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #2e2e2e;
+  background: #161616;
+}
+[data-theme="broadcast"] .tile:hover { border-color: #4a4a4a; }
+[data-theme="broadcast"] .tile .tile-icon {
+  width: 100%;
+  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: transparent;
+  color: var(--text);
+}
+[data-theme="broadcast"] .tile .tile-icon svg { width: 34px; height: 34px; width: calc(var(--tile-ico, 42px) * 0.62); height: calc(var(--tile-ico, 42px) * 0.62); }
+[data-theme="broadcast"] .tile .tile-icon img { max-width: 50%; max-height: 70%; }
+[data-theme="broadcast"] .tile .tile-label {
+  width: 100%;
+  max-width: none;
+  flex: none;
+  padding: 0.45em 0.4em;
+  background: var(--tile-dim, #2a2a2a);
+  color: #ffffff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  -webkit-line-clamp: 1;
+}
+[data-theme="broadcast"] .tile .tile-label.is-empty { background: #202020; color: var(--text-subtle); }
+[data-theme="broadcast"] .tile .step-count { top: 0; left: 0; background: #2a2a2a; line-height: 18px; }
+[data-theme="broadcast"] .tile.selected { border-color: #2e2e2e; box-shadow: none; outline: 2px solid var(--accent); outline-offset: 3px; }
+[data-theme="broadcast"] .tile.unconfigured .tile-icon { color: var(--text-subtle); }
+[data-theme="broadcast"] .tile.unconfigured::after { border-radius: 0; }
+[data-theme="broadcast"] .add-slot { border-color: #3a3a3a; }
+
+/* Deck live state: the whole key lights in its colour, with a white tally
+   square in the corner. A press flashes rather than shrinking. */
+[data-theme="broadcast"] .deck-grid .tile:active { transform: none; -webkit-filter: brightness(1.35); filter: brightness(1.35); }
+[data-theme="broadcast"] .deck-grid .tile.is-on {
+  border-color: var(--tile-color, var(--accent));
+  background: var(--tile-color, var(--accent));
+  color: var(--tile-ink, #0b0b0b);
+  box-shadow: none;
+}
+[data-theme="broadcast"] .deck-grid .tile.is-on .tile-icon { background: transparent; color: var(--tile-ink, #0b0b0b); }
+[data-theme="broadcast"] .deck-grid .tile.is-on .tile-label { background: rgba(0, 0, 0, 0.32); color: #ffffff; }
+[data-theme="broadcast"] .deck-grid .tile.is-on::before { top: 0; right: auto; left: 0; width: 12px; height: 12px; border-radius: 0; background: #ffffff; }
+[data-theme="broadcast"] .deck-grid .tile.is-error { border: 3px solid var(--danger); box-shadow: none; }
+
+[data-theme="broadcast"] .tile.fader .tile-label { z-index: 1; }
+[data-theme="broadcast"] .deck-grid .tile.fader:active { -webkit-filter: none; filter: none; }
+
+[data-theme="broadcast"] .deck-bar { background: #111111; }
+[data-theme="broadcast"] .deck-profiles button { border-color: var(--border); background: transparent; color: var(--text-muted); }
+[data-theme="broadcast"] .deck-profiles button.active { border-color: var(--border); border-bottom: 3px solid var(--accent); background: var(--surface-2); color: var(--text); }

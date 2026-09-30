@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+  <meta name="theme-color" content="#0a0c0f">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Punchboard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/themes.css">
+  <!-- Paints the last-used theme before first render; the server's setting
+       takes over once it loads. -->
+  <script>try{var t=localStorage.getItem("punchboard-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body class="deck-page">
+  <header class="deck-bar">
+    <span class="brand">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <span>Punchboard</span>
+    </span>
+    <span class="spacer"></span>
+    <span class="link-status" id="link-status" role="status" aria-live="polite">
+      <span class="dot" aria-hidden="true"></span><span id="link-text">Connecting</span>
+    </span>
+    <button class="btn" id="immersive-btn" type="button" aria-pressed="false">Full screen</button>
+  </header>
+
+  <main class="deck-main">
+    <div class="offline-banner" role="alert">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+      <span>The companion on your computer is not responding. Buttons will not fire until it is back.</span>
+    </div>
+    <nav class="deck-profiles" id="profiles" aria-label="Choose a profile"></nav>
+    <div class="deck-grid" id="grid" role="group" aria-label="Deck buttons"></div>
+  </main>
+
+  <button class="reveal-grip" id="reveal-grip" type="button">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
+    Show controls
+  </button>
+
+  <!-- Shown until this tablet is paired with the companion. -->
+  <section class="pair-screen" aria-labelledby="pair-title">
+    <form class="pair-card" id="pair-form" autocomplete="off">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <h1 id="pair-title">Pair this tablet</h1>
+      <p>On the computer, open <strong>Pair a tablet</strong> in the Control Center and scan the code, or type the 6 digits shown there.</p>
+      <label for="pair-code" class="visually-hidden">Pairing code</label>
+      <input id="pair-code" class="pair-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="000000">
+      <p class="pair-error" id="pair-error" role="alert"></p>
+      <button class="btn primary wide" id="pair-submit" type="submit">Pair</button>
+    </form>
+  </section>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/sign.js"></script>
+  <script src="/deck-shared.js"></script>
+  <script src="/deck.js"></script>
+</body>
+</html>

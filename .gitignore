@@ -1,0 +1,18 @@
+# Installed or downloaded on first run
+node_modules/
+runtime/
+cache/
+
+# Per-computer data: paired-device secrets, OBS password, backups
+data/
+config.json
+profiles/*.bak
+profiles/*.corrupt-*
+profiles/backups/
+*.tmp-*
+
+# Your decks and sounds: created on first run, never shipped
+profiles/
+sounds/*.wav
+sounds/*.mp3
+sounds/sounds.json

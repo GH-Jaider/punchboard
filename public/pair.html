@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0a0c0f">
+  <title>Pair a tablet | Punchboard</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/themes.css">
+  <!-- Paints the last-used theme before first render; the server's setting
+       takes over once it loads. -->
+  <script>try{var t=localStorage.getItem("punchboard-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+</head>
+<body class="pair-page">
+
+  <header class="appbar">
+    <a class="brand" href="/designer">
+      <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg></span>
+      <span>Punchboard <span class="muted hide-sm">Control Center</span></span>
+    </a>
+    <span class="appbar-spacer"></span>
+    <!-- The old pairing screen dropped the app shell entirely, so the only
+         way back was a text button at the bottom of a centred card. -->
+    <a class="btn" href="/designer">Back to the Control Center</a>
+  </header>
+
+  <main class="pair-main">
+    <section class="pair-shell">
+      <div>
+        <h1>Pair a tablet or phone.</h1>
+        <p>Scan the code with the tablet's camera. It opens your deck over the same wifi and pairs it in one step &mdash; no account, no app store.</p>
+        <ol class="pair-steps">
+          <li><span class="step-number">1</span><span>Keep this computer and the tablet on the same wifi network.</span></li>
+          <li><span class="step-number">2</span><span>Scan the code, then tap the link the camera offers.</span></li>
+          <li><span class="step-number">3</span><span>No camera? Open the address below on the tablet and type the 6-digit code.</span></li>
+        </ol>
+        <p class="field-help">Only paired devices can press buttons. Each one gets its own key, and you can remove it below at any time.</p>
+      </div>
+
+      <div class="pair-qr">
+        <div class="qr-frame" id="qr-frame">
+          <img id="qr-image" src="/api/pair-qr.svg" alt="QR code that opens and pairs this deck on your local network">
+        </div>
+        <div class="pair-code-box">
+          <span class="pair-code-label">Pairing code</span>
+          <strong class="pair-code-value" id="pair-code">&middot;&middot;&middot;&middot;&middot;&middot;</strong>
+          <span class="pair-hint" id="pair-expiry"></span>
+        </div>
+        <a class="pair-url" id="deck-url" href="/deck">Finding this computer&hellip;</a>
+        <button class="btn ghost" id="new-code" type="button">Make a new code</button>
+      </div>
+    </section>
+
+    <section class="devices-shell" aria-labelledby="devices-title">
+      <h2 id="devices-title">Paired devices</h2>
+      <div class="device-list" id="device-list"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="/deck-shared.js"></script>
+  <script>
+    (function () {
+      var $ = function (id) { return document.getElementById(id) }
+      var expiresAt = 0
+      var toastTimer = null
+
+      function toast(message, isError) {
+        $("toast").textContent = message
+        $("toast").className = "toast show" + (isError ? " is-error" : "")
+        clearTimeout(toastTimer)
+        toastTimer = setTimeout(function () { $("toast").className = "toast" }, 2600)
+      }
+
+      function api(url, options) {
+        return fetch(url, options).then(function (response) {
+          return response.json().then(function (data) {
+            if (!response.ok) throw new Error(data.error || "Request failed")
+            return data
+          })
+        })
+      }
+
+      function ago(iso) {
+        var minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+        if (minutes < 2) return "just now"
+        if (minutes < 60) return minutes + " minutes ago"
+        var hours = Math.round(minutes / 60)
+        if (hours < 48) return hours + " hours ago"
+        return Math.round(hours / 24) + " days ago"
+      }
+
+      function renderDevices(devices) {
+        var host = $("device-list")
+        host.innerHTML = ""
+        if (!devices.length) {
+          var empty = document.createElement("p")
+          empty.className = "field-help"
+          empty.textContent = "No devices yet. Scan the code above with a tablet to add one."
+          host.appendChild(empty)
+          return
+        }
+        devices.forEach(function (device) {
+          var row = document.createElement("div")
+          row.className = "device-row"
+          var text = document.createElement("div")
+          var name = document.createElement("strong")
+          name.textContent = device.name
+          var meta = document.createElement("small")
+          meta.textContent = "Paired " + ago(device.createdAt) + " · last seen " + ago(device.lastSeen) + (device.ip ? " · " + device.ip.replace(/^::ffff:/, "") : "")
+          text.appendChild(name)
+          text.appendChild(meta)
+          var remove = document.createElement("button")
+          remove.type = "button"
+          remove.className = "btn danger"
+          remove.textContent = "Remove"
+          remove.onclick = function () {
+            remove.disabled = true
+            api("/api/devices/" + encodeURIComponent(device.id), { method: "DELETE" }).then(function (data) {
+              renderDevices(data.devices)
+              toast(device.name + " was removed. It will need to pair again.")
+            }).catch(function (error) {
+              remove.disabled = false
+              toast(error.message, true)
+            })
+          }
+          row.appendChild(text)
+          row.appendChild(remove)
+          host.appendChild(row)
+        })
+      }
+
+      function showCode(data) {
+        $("pair-code").textContent = data.code.slice(0, 3) + " " + data.code.slice(3)
+        expiresAt = data.expiresAt
+        /* The QR carries the code too, so it is refreshed with it. */
+        $("qr-image").src = "/api/pair-qr.svg?v=" + data.code
+      }
+
+      function load() {
+        return api("/api/pair").then(function (data) {
+          $("deck-url").href = data.deckUrl
+          $("deck-url").textContent = data.deckUrl
+          showCode(data)
+          renderDevices(data.devices)
+        }).catch(function (error) {
+          $("deck-url").removeAttribute("href")
+          $("deck-url").textContent = error.message
+        })
+      }
+
+      /* Counts down, and fetches the next code the moment this one lapses. */
+      setInterval(function () {
+        var left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000))
+        $("pair-expiry").textContent = expiresAt ? "Changes in " + Math.floor(left / 60) + ":" + ("0" + (left % 60)).slice(-2) : ""
+        if (expiresAt && left === 0) { expiresAt = 0; load() }
+      }, 1000)
+      /* Picks up a tablet that pairs while this page is open. */
+      setInterval(function () { api("/api/pair").then(function (data) { renderDevices(data.devices) }).catch(function () {}) }, 5000)
+
+      $("new-code").addEventListener("click", function () {
+        api("/api/pair/new-code", { method: "POST" }).then(function (data) {
+          showCode(data)
+          toast("New code ready. The old one no longer works.")
+        }).catch(function (error) { toast(error.message, true) })
+      })
+
+      fetch("/api/settings")
+        .then(function (response) { return response.json() })
+        .then(function (settings) { applyTheme(settings.theme); applyAccent(settings.accent) })
+        .catch(function () {})
+
+      /* A broken-image icon is no help if the QR fails; say what to do instead. */
+      $("qr-image").addEventListener("error", function () {
+        var frame = $("qr-frame")
+        frame.className = "qr-frame is-error"
+        frame.textContent = "The QR code could not be generated. Open the address below on the tablet and type the code."
+      })
+
+      load()
+    })()
+  </script>
+</body>
+</html>
