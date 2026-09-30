@@ -10,6 +10,7 @@
 import { execFile } from "node:child_process"
 import { parseCombo } from "../shared/keys.ts"
 import type { KeyCombo, Modifier } from "../shared/keys.ts"
+import type { MediaKey } from "../shared/types.ts"
 
 // Virtual key codes for the physical keys, as macOS numbers them.
 const MAC_CODES: Record<string, number> = {
@@ -87,4 +88,61 @@ export async function sendKeys(text: string | undefined): Promise<void> {
   if (process.platform === "darwin") return sendMac(combo)
   if (process.platform === "win32") return sendWindows(combo)
   throw new Error("Key combinations work on macOS and Windows only for now.")
+}
+
+// ------------------------------------------------------------- media keys
+
+// The keyboard's music keys are not ordinary keys: macOS sends them as
+// "system defined" events (NX_KEYTYPE_*), Windows as VK_MEDIA_* virtual keys.
+const MAC_MEDIA: Record<MediaKey, number> = { play_pause: 16, next: 17, previous: 18 }
+const WIN_MEDIA: Record<MediaKey, number> = { play_pause: 0xb3, next: 0xb0, previous: 0xb1 }
+
+/** The JXA that presses and releases one media key, exposed for tests.
+    With `dryRun` it builds the events without sending them. */
+export function macMediaScript(key: MediaKey, dryRun = false): string {
+  return `ObjC.import("Cocoa"); ObjC.import("CoreGraphics");
+ObjC.bindFunction("CGPreflightPostEventAccess", ["bool", []]);
+ObjC.bindFunction("CGRequestPostEventAccess", ["bool", []]);
+if (!$.CGPreflightPostEventAccess()) { $.CGRequestPostEventAccess(); throw new Error("not allowed to post events"); }
+function send(down) {
+  var event = $.NSEvent.otherEventWithTypeLocationModifierFlagsTimestampWindowNumberContextSubtypeData1Data2(
+    14, $.NSMakePoint(0, 0), down ? 0xa00 : 0xb00, 0, 0, null, 8, (${MAC_MEDIA[key]} << 16) | ((down ? 0xa : 0xb) << 8), -1);
+  // performSelector hands back the real CGEventRef; the CGEvent property does not survive the bridge.
+  var cg = event.performSelector("CGEvent");
+  if (${dryRun ? "true" : "false"}) return $.CFGetTypeID(cg) === $.CGEventGetTypeID();
+  $.CGEventPost(0, cg);
+  return true;
+}
+String(send(true) && send(false));`
+}
+
+export async function sendMediaKey(key: MediaKey): Promise<void> {
+  if (process.platform === "darwin") {
+    try {
+      await run("osascript", ["-l", "JavaScript", "-e", macMediaScript(key)])
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error)
+      if (/not allowed/i.test(text)) {
+        throw new Error("macOS needs permission first: open System Settings › Privacy & Security › Accessibility, allow Punchboard, then press again.")
+      }
+      throw new Error(`Could not send the music key. (${text})`)
+    }
+    return
+  }
+  if (process.platform === "win32") {
+    const code = WIN_MEDIA[key]
+    // KEYEVENTF_EXTENDEDKEY (1), then with KEYEVENTF_KEYUP (2).
+    const script = [
+      "$k = Add-Type -Name MediaKeys -Namespace Punchboard -PassThru -MemberDefinition '[DllImport(\"user32.dll\")] public static extern void keybd_event(byte vk, byte scan, uint flags, System.UIntPtr extra);'",
+      `$k::keybd_event(${code}, 0, 1, [UIntPtr]::Zero)`,
+      `$k::keybd_event(${code}, 0, 3, [UIntPtr]::Zero)`
+    ].join("; ")
+    try {
+      await run("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script])
+    } catch (error) {
+      throw new Error(`Could not send the music key. (${error instanceof Error ? error.message : String(error)})`)
+    }
+    return
+  }
+  throw new Error("Music controls work on macOS and Windows only for now.")
 }

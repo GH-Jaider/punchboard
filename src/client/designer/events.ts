@@ -6,6 +6,7 @@ import { toast } from "./hub.ts"
 import { request } from "../common/http.ts"
 import { activeTheme, setTheme } from "./appearance.ts"
 import { showObsLink } from "./obs.ts"
+import { noteObsLink } from "./obs-names.ts"
 import { showDeviceCount } from "./pairing.ts"
 import { renderNowPlaying } from "./sound-output.ts"
 import { loadSounds, showPlaying } from "./sounds.ts"
@@ -38,6 +39,7 @@ function handle(state: Snapshot): void {
   showPlaying(state.playing)
   showDeviceCount(state.tablets)
   showObsLink(state.obs, state.obsIssue)
+  noteObsLink(state.obs)
 }
 
 export function watchEvents(): void {

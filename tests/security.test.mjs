@@ -4,77 +4,33 @@
 //   node tests/security.test.mjs
 // "Remote" requests go to this machine's LAN address, which the server
 // treats like any tablet.
-import { spawn } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"
 import http from "node:http"
-import os from "node:os"
 import path from "node:path"
 import { signRequest } from "../src/shared/sign.ts"
+import { checker, JSON_TYPE, LAN, startCompanion } from "./companion.mjs"
 
 const S = { sign: (d, m, p, b, t) => signRequest(d, m, p, b, t, crypto.randomBytes(16).toString("hex")) }
 
-const PORT = 18000 + Math.floor(Math.random() * 1000)
-const LAN = Object.values(os.networkInterfaces()).flat().find((i) => i.family === "IPv4" && !i.internal)?.address
 if (!LAN) {
   console.log("No LAN address on this machine; the remote checks need one.")
   process.exit(1)
 }
-const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-test-"))
-let server = null
-let pass = 0, fail = 0
-const check = (name, ok, detail) => { ok ? pass++ : fail++; console.log(`${ok ? "PASS" : "FAIL"}  ${name}${ok ? "" : "  -> " + detail}`) }
-
-/** Starts the companion and resolves once it says it is listening. */
-function startServer() {
-  return new Promise((resolve, reject) => {
-    server = spawn(process.execPath, ["src/server/main.ts"], {
-      env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(PORT), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1" },
-      stdio: ["pipe", "pipe", "inherit"]
-    })
-    let out = ""
-    const timer = setTimeout(() => reject(new Error(`The companion did not start:\n${out}`)), 20000)
-    server.stdout.on("data", (chunk) => {
-      out += chunk
-      const ready = out.match(/PUNCHBOARD_READY (\d+)/)
-      if (ready) { clearTimeout(timer); resolve(Number(ready[1])) }
-    })
-    server.on("exit", (code) => { clearTimeout(timer); reject(new Error(`The companion exited (${code}):\n${out}`)) })
-  })
-}
-
-/** Asks for the clean exit the desktop app uses, and checks it happens. */
-function stopServer() {
-  return new Promise((resolve) => {
-    if (!server || server.exitCode !== null) return resolve(false)
-    const timer = setTimeout(() => { server.kill(); resolve(false) }, 5000)
-    server.removeAllListeners("exit")
-    server.on("exit", () => { clearTimeout(timer); resolve(true) })
-    server.stdin.write("quit\n")
-  })
-}
-
-function request({ host = "127.0.0.1", method = "GET", path, headers = {}, body, hostHeader }) {
-  return new Promise((resolve, reject) => {
-    const req = http.request({ host, port: PORT, method, path, headers: { Host: hostHeader || `${host}:${PORT}`, ...headers } }, (res) => {
-      let text = ""
-      res.on("data", (c) => (text += c))
-      res.on("end", () => { let json = null; try { json = JSON.parse(text) } catch {} resolve({ status: res.statusCode, json, text, headers: res.headers }) })
-    })
-    req.on("error", reject)
-    if (body !== undefined) req.write(body)
-    req.end()
-  })
-}
+const companion = startCompanion()
+const PORT = companion.port
+const dataDir = companion.dataDir
+const request = companion.request
+const { check, tally } = checker()
+const stopServer = companion.stop
 const remote = (opts) => request({ host: LAN, ...opts })
 function signed(device, method, path, body = "", time = Date.now()) {
   const s = S.sign(device, method, path, body, time)
   return { "X-Punchboard-Device": s.device, "X-Punchboard-Time": s.time, "X-Punchboard-Nonce": s.nonce, "X-Punchboard-Signature": s.signature }
 }
-const JSON_TYPE = { "Content-Type": "application/json" }
 
 async function main() {
-  const port = await startServer()
+  const port = await companion.ready
   check("Companion starts on the port it was given", port === PORT, port)
   console.log(`LAN address used as the remote tablet: ${LAN}\n`)
 
@@ -167,10 +123,10 @@ async function main() {
 }
 
 main()
-  .catch((error) => { console.error(error); fail++ })
+  .catch((error) => { console.error(error); tally.fail++ })
   .finally(async () => {
     await stopServer()
-    fs.rmSync(dataDir, { recursive: true, force: true })
-    console.log(`\n${pass} passed, ${fail} failed`)
-    process.exit(fail ? 1 : 0)
+    companion.cleanup()
+    console.log(`\n${tally.pass} passed, ${tally.fail} failed`)
+    process.exit(tally.fail ? 1 : 0)
   })

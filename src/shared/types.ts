@@ -9,11 +9,18 @@ export type ActionType =
   | "obs_toggle_mute"
   | "obs_start_stop_stream"
   | "obs_toggle_record"
+  | "obs_toggle_filter"
+  | "obs_toggle_virtualcam"
+  | "obs_save_replay"
+  | "obs_studio_transition"
   | "open_url"
   | "launch_app"
   | "play_sound"
   | "hotkey"
+  | "media_key"
+  | "stop_sounds"
   | "browser_tile"
+  | "go_to_deck"
   | "none"
 
 interface StepBase {
@@ -29,6 +36,10 @@ export interface SourceStep extends StepBase { type: "obs_toggle_source"; sceneN
 export interface MuteStep extends StepBase { type: "obs_toggle_mute"; sourceName?: string }
 export interface StreamStep extends StepBase { type: "obs_start_stop_stream" }
 export interface RecordStep extends StepBase { type: "obs_toggle_record" }
+export interface FilterStep extends StepBase { type: "obs_toggle_filter"; sourceName?: string; filterName?: string }
+export interface VirtualcamStep extends StepBase { type: "obs_toggle_virtualcam" }
+export interface ReplayStep extends StepBase { type: "obs_save_replay" }
+export interface StudioTransitionStep extends StepBase { type: "obs_studio_transition" }
 export interface OpenUrlStep extends StepBase { type: "open_url"; url?: string }
 export interface TabletLinkStep extends StepBase { type: "browser_tile"; url?: string }
 /** `appName` is what the picker showed; `appPath` is what gets launched. */
@@ -36,6 +47,12 @@ export interface LaunchAppStep extends StepBase { type: "launch_app"; appPath?: 
 export interface SoundStep extends StepBase { type: "play_sound"; soundId?: number }
 /** `keys` is a canonical combination such as "ctrl+shift+k" (see keys.ts). */
 export interface HotkeyStep extends StepBase { type: "hotkey"; keys?: string }
+/** The music keys a keyboard has, sent to whatever app is playing. */
+export type MediaKey = "play_pause" | "next" | "previous"
+export interface MediaKeyStep extends StepBase { type: "media_key"; mediaKey?: MediaKey }
+export interface StopSoundsStep extends StepBase { type: "stop_sounds" }
+/** Switches the device that pressed it to another deck (profile). */
+export interface GoToDeckStep extends StepBase { type: "go_to_deck"; profileId?: string }
 export interface NoopStep extends StepBase { type: "none" }
 
 /** One action in a button's macro. The fields present depend on `type`. */
@@ -45,15 +62,22 @@ export type Step =
   | MuteStep
   | StreamStep
   | RecordStep
+  | FilterStep
+  | VirtualcamStep
+  | ReplayStep
+  | StudioTransitionStep
   | OpenUrlStep
   | TabletLinkStep
   | LaunchAppStep
   | SoundStep
   | HotkeyStep
+  | MediaKeyStep
+  | StopSoundsStep
+  | GoToDeckStep
   | NoopStep
 
 /** The free-text fields a step can carry, edited through ACTION_FIELDS. */
-export type StepTextField = "sceneName" | "sourceName" | "url" | "appPath"
+export type StepTextField = "sceneName" | "sourceName" | "filterName" | "url" | "appPath"
 
 // ---------------------------------------------------------------- buttons
 

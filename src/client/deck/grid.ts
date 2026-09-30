@@ -27,14 +27,20 @@ export function renderProfiles(): void {
     const tab = el("button", profile.id === state.activeId ? "active" : "", profile.name)
     tab.type = "button"
     tab.setAttribute("aria-pressed", String(profile.id === state.activeId))
-    tab.onclick = () => {
-      state.activeId = profile.id
-      renderProfiles()
-      renderGrid()
-      syncFaders()
-    }
+    tab.onclick = () => { showDeck(profile.id) }
     profilesEl.appendChild(tab)
   }
+}
+
+/** Shows one of the decks; false when there is no such deck. */
+export function showDeck(profileId: string): boolean {
+  const library = state.library
+  if (!library || !library.profiles.some((profile) => profile.id === profileId)) return false
+  state.activeId = profileId
+  renderProfiles()
+  renderGrid()
+  syncFaders()
+  return true
 }
 
 function describe(button: Button): string {

@@ -15,6 +15,8 @@ export interface ObsLinkOptions {
   onMeters: (levels: Record<string, number>) => void
   /** Input names whose meters anyone is looking at right now. */
   wantedInputs: () => Set<string>
+  /** Each fresh connection, for following OBS's events. */
+  onConnected: (socket: OBSWebSocket) => void
 }
 
 export type ObsLink = ReturnType<typeof createObsLink>
@@ -115,6 +117,7 @@ export function createObsLink(options: ObsLinkOptions) {
           scheduleRetry()
         })
         options.log(`Connected to OBS at ${address}.`)
+        options.onConnected(socket)
         options.onStatus()
         return socket
       })

@@ -6,7 +6,8 @@ import { isConfigured } from "../../shared/model.ts"
 import type { PressButton } from "../../shared/types.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, UnpairedError } from "./api.ts"
-import { state, toggleKey } from "./state.ts"
+import { showDeck } from "./grid.ts"
+import { setToggle, state, toggleKey } from "./state.ts"
 import { paintState } from "./tile-state.ts"
 import { buzz, isOffline, toast } from "./ui.ts"
 
@@ -28,6 +29,11 @@ export function press(button: PressButton, tile: HTMLElement): void {
   // blocker eats it. A lone link opens straight away; a macro gets a window
   // now and its address when the companion replies.
   const only = button.steps[0]
+  // Changing decks happens on this device alone; the companion is not needed.
+  if (button.steps.length === 1 && only && only.type === "go_to_deck") {
+    goToDeck(only.profileId ?? null)
+    return
+  }
   if (button.steps.length === 1 && only && only.type === "browser_tile") {
     const address = webAddress(only.url)
     if (address) window.open(address, "_blank", "noopener")
@@ -49,10 +55,11 @@ export function press(button: PressButton, tile: HTMLElement): void {
         else linkWindow.close()
       }
       if (typeof result.active === "boolean") {
-        state.toggles[key] = result.active
+        setToggle(key, result.active)
         paintState(tile, button)
       }
       if (result.message) toast(result.message)
+      if (result.deckId !== undefined && result.deckId !== null) goToDeck(result.deckId)
     })
     .catch((error: unknown) => {
       if (linkWindow) linkWindow.close()
@@ -64,4 +71,12 @@ export function press(button: PressButton, tile: HTMLElement): void {
       toast(errorMessage(error), true)
     })
     .then(() => { delete state.inflight[key] })
+}
+
+function goToDeck(profileId: string | null): void {
+  if (!profileId) {
+    toast("Choose which deck this button opens, in the Control Center.")
+    return
+  }
+  if (!showDeck(profileId)) toast("That deck no longer exists.", true)
 }

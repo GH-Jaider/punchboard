@@ -1,7 +1,7 @@
 // Creating, reading and repairing decks. Anything read from disk, a backup
 // file or the network goes through normalizeLibrary(), which turns unknown
 // input into a valid Library or fills in safe defaults.
-import { isActionType, isFaderTarget, LIMITS, STATEFUL_ACTIONS } from "./actions.ts"
+import { isActionType, isFaderTarget, isMediaKey, LIMITS } from "./actions.ts"
 import { isButtonColorId } from "./colors.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
@@ -35,6 +35,10 @@ export function makeStep(type: ActionType, fields: UnknownRecord = {}): Step {
     case "obs_toggle_mute": return { id, delayMs, type, sourceName: text(fields.sourceName) }
     case "obs_start_stop_stream": return { id, delayMs, type }
     case "obs_toggle_record": return { id, delayMs, type }
+    case "obs_toggle_filter": return { id, delayMs, type, sourceName: text(fields.sourceName), filterName: text(fields.filterName) }
+    case "obs_toggle_virtualcam": return { id, delayMs, type }
+    case "obs_save_replay": return { id, delayMs, type }
+    case "obs_studio_transition": return { id, delayMs, type }
     case "open_url": return { id, delayMs, type, url: text(fields.url) }
     case "browser_tile": return { id, delayMs, type, url: text(fields.url) }
     case "launch_app": return { id, delayMs, type, appPath: text(fields.appPath), appName: text(fields.appName) }
@@ -43,6 +47,9 @@ export function makeStep(type: ActionType, fields: UnknownRecord = {}): Step {
       return { id, delayMs, type, soundId: soundId >= 1 && soundId <= LIMITS.soundSlots ? Math.floor(soundId) : undefined }
     }
     case "hotkey": return { id, delayMs, type, keys: parseCombo(fields.keys) ? String(fields.keys).toLowerCase() : undefined }
+    case "media_key": return { id, delayMs, type, mediaKey: isMediaKey(fields.mediaKey) ? fields.mediaKey : "play_pause" }
+    case "stop_sounds": return { id, delayMs, type }
+    case "go_to_deck": return { id, delayMs, type, profileId: text(fields.profileId) }
     case "none": return { id, delayMs, type }
   }
 }
@@ -160,12 +167,33 @@ export function soundSlotOf(button: Button): number {
   return clamp(Number(only.soundId) || 1, 1, LIMITS.soundSlots)
 }
 
+/** The name of the live state a step reads or changes, shared by every
+    button that touches the same thing: two buttons muting one mic light up
+    together, whichever deck they are on. Null for steps without one. */
+export function stateKeyOf(step: Step): string | null {
+  switch (step.type) {
+    case "obs_scene": return step.sceneName ? `scene:${step.sceneName}` : null
+    case "obs_toggle_mute": return step.sourceName ? `mute:${step.sourceName}` : null
+    case "obs_toggle_source": return step.sceneName && step.sourceName ? `source:${step.sceneName}\n${step.sourceName}` : null
+    case "obs_toggle_filter": return step.sourceName && step.filterName ? `filter:${step.sourceName}\n${step.filterName}` : null
+    case "obs_start_stop_stream": return "stream"
+    case "obs_toggle_record": return "record"
+    case "obs_toggle_virtualcam": return "virtualcam"
+    case "obs_save_replay": return "replaybuffer"
+    default: return null
+  }
+}
+
+/** The state a single-step button shows, or null. A macro has no one state to show. */
+export function buttonStateKey(button: Button): string | null {
+  const only = button.steps[0]
+  if (button.control === "fader" || button.steps.length !== 1 || !only) return null
+  return stateKeyOf(only)
+}
+
 /** Whether the deck can show this button's live on/off state. */
 export function isStateful(button: Button): boolean {
-  if (button.control === "fader") return false
-  if (soundSlotOf(button)) return true
-  const only = button.steps[0]
-  return button.steps.length === 1 && only !== undefined && STATEFUL_ACTIONS.includes(only.type)
+  return Boolean(soundSlotOf(button)) || buttonStateKey(button) !== null
 }
 
 /** Two faders on the same target share one level; this is its key everywhere. */

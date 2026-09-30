@@ -1,12 +1,14 @@
 // The macro editor: a button's steps, each with its action, fields and delay.
 // It re-renders on its own, so editing a macro never disturbs the fields above.
-import { ACTION_FIELDS, ACTION_GROUPS, ACTION_META, ACTION_TYPES, isActionType, LIMITS, stepSummary, stepText } from "../../shared/actions.ts"
+import { ACTION_FIELDS, ACTION_GROUPS, ACTION_META, ACTION_TYPES, isActionType, isMediaKey, LIMITS, MEDIA_KEYS, stepSummary, stepText } from "../../shared/actions.ts"
+import type { FieldSpec } from "../../shared/actions.ts"
 import { clampDelay, createStep, retypeStep } from "../../shared/model.ts"
-import type { Button, SoundStep, Step, StepTextField } from "../../shared/types.ts"
+import type { Button, GoToDeckStep, MediaKey, MediaKeyStep, SoundStep, Step, StepTextField } from "../../shared/types.ts"
 import { el, svg } from "../common/dom.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { audioFilePicker, playSlot, soundSlotLabel, uploadSound } from "./sounds.ts"
-import { touch } from "./state.ts"
+import { activeProfile, library, touch } from "./state.ts"
+import { obsNameField, pickOptions } from "./obs-names.ts"
 import { recordUndo } from "./undo.ts"
 import { appField } from "./app-picker.ts"
 import { keysField } from "./key-recorder.ts"
@@ -116,8 +118,15 @@ function stepCard(button: Button, step: Step, index: number): HTMLElement {
   if (step.type === "hotkey") body.appendChild(keysField(step, title))
   if (step.type === "launch_app") body.appendChild(appField(step, title))
 
+  if (step.type === "media_key") body.appendChild(mediaKeyField(step, title))
+  if (step.type === "go_to_deck") body.appendChild(deckField(step, title))
+
   // The fields this action needs, from one table.
   for (const spec of ACTION_FIELDS[step.type] ?? []) {
+    if (spec.pick) {
+      body.appendChild(pickField(button, step, spec, title))
+      continue
+    }
     const field = el("div", "field")
     const label = el("label", null, spec.label)
     const input = document.createElement("input")
@@ -231,6 +240,76 @@ function soundField(step: SoundStep, title: HTMLElement): HTMLElement {
 
   field.appendChild(label)
   field.appendChild(row)
-  field.appendChild(el("p", "field-help", "WAV or MP3, up to 8 MB. Plays through this computer's speakers — the tablet never downloads the file."))
+  field.appendChild(el("p", "field-help", "WAV or MP3, up to 8 MB. Plays through this computer's speakers — the device never downloads the file."))
+  return field
+}
+
+/** The field a choice depends on: a scene's sources, a source's filters. */
+const CHILD_OF: Partial<Record<StepTextField, StepTextField>> = { sceneName: "sourceName", sourceName: "filterName" }
+
+function pickField(button: Button, step: Step, spec: FieldSpec, title: HTMLElement): HTMLElement {
+  const pick = spec.pick!
+  return obsNameField({
+    id: `step-${spec.key}-${step.id}`,
+    label: spec.label,
+    placeholder: spec.placeholder,
+    pick,
+    value: () => stepText(step, spec.key) ?? "",
+    context: () => ({ sceneName: stepText(step, "sceneName"), sourceName: stepText(step, "sourceName") }),
+    onChange: (value) => {
+      setStepText(step, spec.key, value)
+      title.textContent = stepSummary(step)
+      touch()
+      view.refreshTile(button)
+      // A new scene or source changes what the next list offers: drop a choice it no longer has.
+      const child = CHILD_OF[spec.key]
+      const childSpec = child ? ACTION_FIELDS[step.type]?.find((candidate) => candidate.key === child) : undefined
+      if (!child || !childSpec?.pick) return
+      const offered = pickOptions(childSpec.pick, { sceneName: stepText(step, "sceneName"), sourceName: stepText(step, "sourceName") })
+      const current = stepText(step, child)
+      if (offered && current && offered.indexOf(current) === -1) setStepText(step, child, "")
+      renderSteps(button)
+    }
+  })
+}
+
+function mediaKeyField(step: MediaKeyStep, title: HTMLElement): HTMLElement {
+  const field = el("div", "field")
+  const label = el("label", null, "Key")
+  const select = document.createElement("select")
+  label.htmlFor = select.id = `step-media-${step.id}`
+  for (const key of Object.keys(MEDIA_KEYS) as MediaKey[]) select.add(new Option(MEDIA_KEYS[key], key))
+  select.value = step.mediaKey ?? "play_pause"
+  select.addEventListener("change", () => {
+    if (!isMediaKey(select.value)) return
+    step.mediaKey = select.value
+    title.textContent = stepSummary(step)
+    touch()
+  })
+  field.appendChild(label)
+  field.appendChild(select)
+  field.appendChild(el("p", "field-help", "Works with the app that is playing, even in the background. On a Mac the first press asks for the same permission as key combinations."))
+  return field
+}
+
+function deckField(step: GoToDeckStep, title: HTMLElement): HTMLElement {
+  const field = el("div", "field")
+  const label = el("label", null, "Deck")
+  const select = document.createElement("select")
+  label.htmlFor = select.id = `step-deck-${step.id}`
+  const here = activeProfile().id
+  const others = library().profiles.filter((profile) => profile.id !== here)
+  select.add(new Option(others.length ? "Choose…" : "Add another deck first", ""))
+  for (const profile of others) select.add(new Option(profile.name, profile.id))
+  if (step.profileId && !library().profiles.some((profile) => profile.id === step.profileId)) select.add(new Option("A deck that was deleted", step.profileId))
+  select.value = step.profileId ?? ""
+  select.disabled = !others.length && !step.profileId
+  select.addEventListener("change", () => {
+    step.profileId = select.value || undefined
+    title.textContent = stepSummary(step)
+    touch()
+  })
+  field.appendChild(label)
+  field.appendChild(select)
   return field
 }

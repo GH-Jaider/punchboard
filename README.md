@@ -43,7 +43,7 @@ Click a dashed slot to add a button, then give it a label, a colour and an icon.
 
 **Themes.** Three looks under **Appearance**, applied to the Control Center and every paired deck at once: *Studio* (dark and soft), *Hardware* (a light chassis with physical keys and LED state) and *Broadcast* (a switcher console with hard edges). Fonts ship in `public/fonts`, so decks look right without internet.
 
-**Faders.** Set a button's **Type** to **Volume fader** and it becomes a slider on the deck: drag up or down anywhere on the tile. A fader controls an OBS input's volume (on OBS's own fader curve), the volume of Punchboard's sounds, or this computer's output volume (macOS only for now). Every deck shows the same level, read from the source when the deck opens.
+**Faders.** Set a button's **Type** to **Volume fader** and it becomes a slider on the deck: drag up or down anywhere on the tile. A fader controls an OBS input's volume (on OBS's own fader curve), the volume of Punchboard's sounds, or this computer's output volume (macOS and Windows). Every deck shows the same level, read from the source when the deck opens.
 
 **Interface colour.** One accent colour for the Control Center and every paired deck. Button colours stay independent — aqua, blue, indigo, violet, pink, rose, red, orange, amber, yellow, lime, green, mint, cyan, slate and white.
 
@@ -56,14 +56,28 @@ Click a dashed slot to add a button, then give it a label, a colour and an icon.
 | Switch scene | OBS |
 | Show / hide source | OBS |
 | Mute / unmute input | OBS |
+| Turn a filter on / off | OBS (a voice changer, a blur, a colour correction…) |
 | Start / stop stream | OBS |
 | Start / stop recording | OBS |
+| Start / stop virtual camera | OBS |
+| Save replay | OBS's replay buffer (start the buffer in OBS first) |
+| Studio Mode: send preview live | OBS, with its current transition |
 | Open link on computer | this computer's default browser (`twitch.tv/you` is enough; https:// is added) |
 | Launch an app | this computer (picked from the installed applications, or a typed path) |
 | Play a sound | this computer's speakers |
-| Open link on the tablet | the tablet's own browser |
+| Stop all sounds | this computer's speakers |
+| Music controls | play / pause, next and previous track, for whatever plays music on this computer |
+| Key combination | this computer, as if typed |
+| Go to another deck | the device that pressed it, like a folder |
+| Open link on the device | the device's own browser |
 
-Buttons whose action has an on/off state — mute, stream, recording, source visibility — light up fully while that state is active, reported back from OBS rather than guessed. Sound slots accept WAV and MP3 up to 8 MB. Sounds play from the companion itself through this computer's speakers, so nothing needs to be open or in front. Pressing a sound button again stops it; while it plays the button drains and counts down on the deck, and **Stop sound** with the time left appears in the Control Center's top bar. The **Punchboard sounds** fader changes the volume of what is playing on macOS (a small helper that ships with Punchboard plays the sounds there); on Windows it applies to the next sound that starts. The tablet never downloads the audio.
+With OBS connected, scenes, sources, audio inputs and filters are chosen from lists of what OBS really has, so a typo cannot break a button mid-stream. A name OBS no longer has (renamed, or another scene collection) stays in the list marked *not found in OBS*. Without OBS the fields fall back to typing the exact name.
+
+Buttons follow OBS live, including changes made in OBS itself: a scene button is lit while that scene is on air, and mute, filter, source visibility, stream, recording, virtual camera and replay buffer buttons are lit while that state is on. Two buttons on the same thing (the same mic on two decks, say) always agree, and OBS faders move when the volume changes in OBS's mixer. When OBS closes, every OBS light goes out rather than showing a state that may no longer be true. A macro that fails part-way stops there and says which step failed and why.
+
+Sound slots accept WAV and MP3 up to 8 MB. Sounds play from the companion itself through this computer's speakers, so nothing needs to be open or in front. Pressing a sound button again stops it; while it plays the button drains and counts down on the deck, and **Stop sound** with the time left appears in the Control Center's top bar. The **Punchboard sounds** fader changes the volume of what is playing on macOS (a small helper that ships with Punchboard plays the sounds there); on Windows it applies to the next sound that starts. The device never downloads the audio.
+
+Music controls and key combinations need macOS's Accessibility permission for Punchboard, asked for on the first press.
 
 ## On the tablet
 

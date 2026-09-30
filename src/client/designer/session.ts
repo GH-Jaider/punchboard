@@ -54,7 +54,7 @@ async function importBackup(file: File): Promise<void> {
 async function shutdown(): Promise<void> {
   const yes = await confirmAction({
     title: "Stop the companion?",
-    text: "Every paired tablet will show as offline until you start it again from your computer.",
+    text: "Every paired device will show as offline until you start it again from your computer.",
     confirm: "Stop companion"
   })
   if (!yes) return

@@ -4,6 +4,7 @@
 // revision it was edited from, so two windows can never silently overwrite
 // each other's work.
 import type { LibraryResponse, SaveLibraryResponse } from "../../shared/api.ts"
+import { nameDecksWith } from "../../shared/actions.ts"
 import { normalizeLibrary } from "../../shared/model.ts"
 import type { Button, Library, Profile } from "../../shared/types.ts"
 import { byId } from "../common/dom.ts"
@@ -19,6 +20,9 @@ interface Store {
 }
 
 export const store: Store = { library: null, activeId: "", selectedSlot: null, libraryRev: null, saving: false }
+
+// "Go to another deck" steps show the deck's current name.
+nameDecksWith((id) => store.library?.profiles.find((profile) => profile.id === id)?.name)
 
 let saveTimer: number | null = null
 

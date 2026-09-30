@@ -4,6 +4,8 @@ import { execFile } from "node:child_process"
 import type { Fader } from "../shared/types.ts"
 import type { ObsLink } from "./obs.ts"
 import type { Config } from "./config.ts"
+import { faderPosition } from "./obs-state.ts"
+import { readWindowsVolume, writeWindowsVolume } from "./win-volume.ts"
 
 export { faderLevelKey as levelKey } from "../shared/model.ts"
 
@@ -23,12 +25,23 @@ function osascript(script: string): Promise<string> {
   })
 }
 
-function requireMac(): void {
-  if (process.platform !== "darwin") throw new Error("Computer volume can only be controlled on macOS for now.")
+async function readSystem(): Promise<number> {
+  if (process.platform === "darwin") return clamp01(Number(await osascript("output volume of (get volume settings)")) / 100)
+  if (process.platform === "win32") return readWindowsVolume()
+  throw new Error("The computer's volume can be controlled on macOS and Windows only.")
+}
+
+async function writeSystem(level: number): Promise<number> {
+  if (process.platform === "darwin") {
+    await osascript(`set volume output volume ${Math.round(level * 100)}`)
+    return level
+  }
+  if (process.platform === "win32") return writeWindowsVolume(level)
+  throw new Error("The computer's volume can be controlled on macOS and Windows only.")
 }
 
 function requireInput(fader: Fader): string {
-  if (!fader.inputName) throw new Error("Add the exact OBS input name first.")
+  if (!fader.inputName) throw new Error("Choose the OBS audio input first.")
   return fader.inputName
 }
 
@@ -39,12 +52,11 @@ export async function readLevel(fader: Fader, context: VolumeContext): Promise<n
     case "sounds":
       return clamp01(context.config.soundVolume)
     case "system":
-      requireMac()
-      return clamp01(Number(await osascript("output volume of (get volume settings)")) / 100)
+      return readSystem()
     case "obs_input": {
       const obs = await context.obs.connect()
       const { inputVolumeMul } = await obs.call("GetInputVolume", { inputName: requireInput(fader) })
-      return clamp01(Math.cbrt(inputVolumeMul))
+      return faderPosition(inputVolumeMul)
     }
   }
 }
@@ -58,8 +70,7 @@ export async function writeLevel(fader: Fader, level: unknown, context: VolumeCo
       context.setSoundVolume(value)
       return value
     case "system":
-      requireMac()
-      await osascript(`set volume output volume ${Math.round(value * 100)}`)
+      await writeSystem(value)
       return value
     case "obs_input": {
       const obs = await context.obs.connect()

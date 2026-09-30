@@ -18,18 +18,21 @@ import qrcodeTerminal from "qrcode-terminal"
 import type {
   ObsIssue,
   ObsDetectResponse,
+  ObsNames,
   AppsResponse,
   ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
   SoundsChanged, SoundsResponse, StatusResponse
 } from "../shared/api.ts"
 import { isHexColor } from "../shared/colors.ts"
-import { faderLevelKey, isLibraryShape, normalizeLibrary } from "../shared/model.ts"
+import { buttonStateKey, faderLevelKey, isLibraryShape, normalizeLibrary } from "../shared/model.ts"
 import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
 import { listApps } from "./apps.ts"
 import { createObsLink } from "./obs.ts"
+import { createObsState, readObsNames } from "./obs-state.ts"
+import { stopWindowsVolume } from "./win-volume.ts"
 import { readLocalObs } from "./obs-config.ts"
 import { createPlayer } from "./player.ts"
 import { AuthError, createAuth } from "./auth.ts"
@@ -113,11 +116,21 @@ const live = createLive({
   soundDuration: (slot) => sounds.durationMs(slot),
   soundFile: (slot) => sounds.file(slot).file
 }, player, config.soundVolume)
+// What OBS is doing (live scene, mutes, stream…), followed from its events.
+const obsState = createObsState({ library: library.get, setToggles: live.setToggles, setLevels: live.setLevels })
 // Meters are only read for OBS inputs that a fader on a connected page shows.
 const obs = createObsLink({
   config,
   log,
-  onStatus: () => live.broadcast(),
+  onConnected: (socket) => obsState.attach(socket),
+  onStatus: () => {
+    // Whatever OBS reported stops being true the moment it goes away.
+    if (obs.status() !== "connected") {
+      obsState.detach()
+      live.clearToggles()
+    }
+    live.broadcast()
+  },
   onMeters: (levels) => live.broadcastMeters(levels),
   wantedInputs: () => {
     const wanted = new Set<string>()
@@ -323,6 +336,8 @@ const routes: Route[] = [
     }
     const libraryRev = library.save(normalizeLibrary(data))
     live.broadcast()
+    // New buttons may point at OBS states nobody was reading yet.
+    obsState.refresh()
     return { ok: true, libraryRev }
   }),
 
@@ -360,12 +375,14 @@ const routes: Route[] = [
     const steps = prepareSteps(button)
     let result
     try {
-      result = await runSteps(steps, { config, obs, onSound: live.toggleSound })
+      result = await runSteps(steps, { config, obs, onSound: live.toggleSound, stopSounds: live.stopAllSounds })
     } catch (error) {
       throw new HttpError(400, errorText(error))
     }
-    if (typeof result.active === "boolean") live.setToggle(`${String(data.profileId)}:${String(data.buttonId)}`, result.active)
-    const response: PressResponse = { ok: true, tabletUrl: result.tabletUrl }
+    // OBS reports the change as an event too; this just gets there first.
+    const stateKey = buttonStateKey(button)
+    if (stateKey && typeof result.active === "boolean") live.setToggles({ [stateKey]: result.active })
+    const response: PressResponse = { ok: true, tabletUrl: result.tabletUrl, deckId: result.deckId }
     if (typeof result.active === "boolean") response.active = result.active
     if (steps.length > 1) response.message = `Ran ${steps.length} steps`
     return response
@@ -426,6 +443,16 @@ const routes: Route[] = [
   }),
 
   route<AppsResponse>("GET", "/api/apps", "local", () => ({ apps: listApps() })),
+
+  // Scene, source, input and filter names for the Control Center's pickers.
+  route<ObsNames>("GET", "/api/obs/names", "local", async () => {
+    if (obs.status() !== "connected") return { connected: false, scenes: [], sceneItems: {}, audioInputs: [], filters: {} }
+    try {
+      return await readObsNames(await obs.connect())
+    } catch (error) {
+      throw new HttpError(502, `Could not read the names from OBS. (${errorText(error)})`)
+    }
+  }),
 
   // Takes over OBS's own settings from this computer; nothing to copy.
   route<ObsDetectResponse>("POST", "/api/obs/detect", "local", () => {
@@ -543,6 +570,7 @@ if (DESKTOP) {
 /** Stops sounds and OBS, saves what is pending, closes streams, exits. */
 function shutdown(): void {
   player.dispose()
+  stopWindowsVolume()
   obs.stop()
   auth.flush()
   live.closeAll()

@@ -1,5 +1,5 @@
 // Live state pushed to every connected page over server-sent events: button
-// toggles, fader levels, revisions, sound playback, meters.
+// states from OBS, fader levels, revisions, sound playback, meters.
 import type { ServerResponse } from "node:http"
 import type { ObsIssue, ObsLink, Snapshot, SoundPlayback } from "../shared/api.ts"
 import type { ThemeId } from "../shared/types.ts"
@@ -124,10 +124,47 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     player.stopAll()
   }
 
-  function setToggle(key: string, active: boolean): void {
-    // Written when it turns off too, so a tile can never latch on for good.
-    toggles.set(key, active)
+  /** Records live states reported by OBS or a press. Only one scene is live
+      at a time, so a scene turning on turns every other scene off. */
+  function setToggles(changes: Record<string, boolean>): void {
+    let changed = false
+    for (const key of Object.keys(changes)) {
+      const value = changes[key]
+      if (value === undefined) continue
+      if (value && key.startsWith("scene:")) {
+        for (const other of toggles.keys()) {
+          if (other !== key && other.startsWith("scene:") && toggles.get(other)) {
+            toggles.set(other, false)
+            changed = true
+          }
+        }
+      }
+      // Written when it turns off too, so a tile can never latch on for good.
+      if (toggles.get(key) !== value) {
+        toggles.set(key, value)
+        changed = true
+      }
+    }
+    if (changed) broadcast()
+  }
+
+  /** OBS went away: nothing it reported can be trusted to still be true. */
+  function clearToggles(): void {
+    if (!toggles.size) return
+    toggles.clear()
     broadcast()
+  }
+
+  /** Fader levels changed outside Punchboard (in OBS's mixer, say). */
+  function setLevels(changes: Record<string, number>): void {
+    let changed = false
+    for (const key of Object.keys(changes)) {
+      const value = changes[key]
+      if (value === undefined || levels[key] === value) continue
+      levels[key] = value
+      changed = true
+    }
+    if (changed) broadcast()
   }
 
   function soundsChanged(): void {
@@ -135,5 +172,5 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     broadcast()
   }
 
-  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggle, soundsChanged }
+  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, setLevels, soundsChanged }
 }

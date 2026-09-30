@@ -104,6 +104,19 @@ export interface ObsDetectResponse extends ObsDetected {
   applied: boolean
 }
 
+/** Names read from OBS for the Control Center's pickers, in OBS's own order.
+    Empty lists and connected: false when OBS is not connected. */
+export interface ObsNames {
+  connected: boolean
+  scenes: string[]
+  /** Source names in each scene, by scene name. */
+  sceneItems: Record<string, string[]>
+  /** Inputs that carry audio: the ones mute and faders can act on. */
+  audioInputs: string[]
+  /** Filter names by source or scene name; sources without filters are left out. */
+  filters: Record<string, string[]>
+}
+
 /** Live audio levels, sent as the SSE event "meters" at up to 15 Hz while a
     connected deck shows a fader for that input. Keyed by faderLevelKey
     ("obs:<input name>"); values are meter positions 0..1 on OBS's -60..0 dB
@@ -116,6 +129,7 @@ export interface MetersEvent {
 export interface Snapshot {
   libraryRev: number
   soundsRev: number
+  /** Live on/off states by stateKeyOf() ("mute:Mic", "scene:Intro", "stream"…). */
   toggles: Record<string, boolean>
   /** Slots playing on this computer right now. */
   playing: number[]
@@ -178,6 +192,8 @@ export interface PressRequest {
 export interface PressResponse extends Ok {
   active?: boolean
   tabletUrl?: string | null
+  /** A "Go to another deck" step: the deck the pressing device should show. */
+  deckId?: string | null
   message?: string
 }
 

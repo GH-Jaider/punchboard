@@ -1,6 +1,7 @@
 // Keeping the deck in step with the companion: the library, and live state
 // pushed over a signed EventSource (or polled where there is none).
 import type { LibraryResponse, MetersEvent, Snapshot, StatusResponse } from "../../shared/api.ts"
+import { nameDecksWith } from "../../shared/actions.ts"
 import { isStateful, normalizeLibrary } from "../../shared/model.ts"
 import type { Button } from "../../shared/types.ts"
 import { applyAccent, applyTheme } from "../common/dom.ts"
@@ -16,6 +17,7 @@ export async function loadLibrary(): Promise<void> {
   const next = await api<LibraryResponse>("/api/library")
   const library = normalizeLibrary(next)
   state.library = library
+  nameDecksWith((id) => library.profiles.find((profile) => profile.id === id)?.name)
   if (!library.profiles.some((profile) => profile.id === state.activeId)) state.activeId = library.activeProfileId
   renderProfiles()
   renderGrid()
@@ -34,11 +36,18 @@ export function applyState(snapshot: Snapshot): void {
   if (snapshot.accent) applyAccent(snapshot.accent)
   if (snapshot.theme) applyTheme(snapshot.theme)
   if (snapshot.toggles) {
-    // Never overwrite a key whose press is still in the air.
+    // The companion's list is complete: a state it no longer reports (OBS
+    // closed) is off. A key whose press is still in the air keeps its value.
+    const next: Record<string, boolean> = {}
     for (const key of Object.keys(snapshot.toggles)) {
       const value = snapshot.toggles[key]
-      if (!state.inflight[key] && value !== undefined) state.toggles[key] = value
+      if (value !== undefined) next[key] = value
     }
+    for (const key of Object.keys(state.inflight)) {
+      const current = state.toggles[key]
+      if (current !== undefined) next[key] = current
+    }
+    state.toggles = next
   }
   if (snapshot.playing) state.playing = snapshot.playing
   if (snapshot.playback) updatePlayback(snapshot.playback)
