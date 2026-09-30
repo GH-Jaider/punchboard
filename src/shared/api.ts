@@ -1,7 +1,8 @@
 // Every request and response body the companion speaks. The server and the
 // clients both type against these, so a changed field breaks the build on
 // both sides instead of at runtime.
-import type { Glyph, Library, ThemeId } from "./types.ts"
+import type { TouchFrame, TouchpadEvent } from "./touchpad/types.ts"
+import type { Glyph, Library, ThemeId, TrackpadSettings } from "./types.ts"
 
 export interface ErrorResponse {
   error: string
@@ -173,6 +174,21 @@ export type SwipeGesture = "up" | "down" | "left" | "right" | "tap" | "pinch" | 
 /** What the companion may send back on the same socket. */
 export interface PointerNotice {
   error: string
+}
+
+/** What a trackpad deck in debug mode (#trackpad-debug) sends to keep a
+    recording: its last 30 s of fingers and what the engine made of them. The
+    companion writes it in the shape tests/touchpad-traces replays. */
+export interface TraceUpload {
+  settings: TrackpadSettings
+  frames: TouchFrame[]
+  events: TouchpadEvent[]
+  userAgent?: string
+}
+
+export interface TraceSaved extends Ok {
+  /** The file's name inside the data folder's trackpad-traces. */
+  file: string
 }
 
 // ---------------------------------------------------------------- library

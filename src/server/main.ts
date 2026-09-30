@@ -23,10 +23,12 @@ import type {
   AppsResponse,
   ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
-  SoundsChanged, SoundsResponse, StatusResponse
+  SoundsChanged, SoundsResponse, StatusResponse, TraceSaved
 } from "../shared/api.ts"
 import { isHexColor } from "../shared/colors.ts"
-import { buttonStateKey, faderLevelKey, isLibraryShape, isSwitch, normalizeLibrary } from "../shared/model.ts"
+import { buttonStateKey, faderLevelKey, isLibraryShape, isSwitch, normalizeLibrary, normalizeTrackpad } from "../shared/model.ts"
+import { isTouchFrame, isTouchpadEvent, summarize, TRACE_LIMITS } from "../shared/touchpad/index.ts"
+import type { TouchpadTrace } from "../shared/touchpad/index.ts"
 import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
@@ -58,6 +60,8 @@ import { DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
 const PUBLIC_DIR = paths.public
 // Libraries carry custom icons as data URIs, so they can be large.
 const LIBRARY_LIMIT = 24 * 1024 * 1024
+// Thirty seconds of fingers at 120 Hz, with what the engine made of them.
+const TRACE_LIMIT = 1024 * 1024
 
 const log = (message: string): void => console.log(`[punchboard] ${message}`)
 
@@ -229,7 +233,7 @@ const header = (req: Request, name: string): string | undefined => {
 const STREAMS = new Set(["/api/events", "/api/pointer"])
 
 /** The paired device a request is signed by, or null for this computer. */
-async function requireDeck(req: Request, url: URL): Promise<Device | null> {
+async function requireDeck(req: Request, url: URL, bodyLimit = JSON_LIMIT): Promise<Device | null> {
   if (isLocal(req)) return null
   const query = url.searchParams
   // EventSource and WebSocket cannot send headers, so streams are signed in their address.
@@ -237,7 +241,7 @@ async function requireDeck(req: Request, url: URL): Promise<Device | null> {
     ? { device: query.get("d") ?? undefined, time: query.get("t") ?? undefined, nonce: query.get("n") ?? undefined, signature: query.get("s") ?? undefined }
     : { device: header(req, "x-punchboard-device"), time: header(req, "x-punchboard-time"), nonce: header(req, "x-punchboard-nonce"), signature: header(req, "x-punchboard-signature") }
   const method = req.method ?? "GET"
-  const body = method === "GET" || method === "HEAD" ? "" : (await rawBody(req, JSON_LIMIT)).toString("utf8")
+  const body = method === "GET" || method === "HEAD" ? "" : (await rawBody(req, bodyLimit)).toString("utf8")
   try {
     return auth.verify(signed, method, url.pathname, body, req.socket.remoteAddress)
   } catch (error) {
@@ -282,11 +286,13 @@ interface Route {
   pattern: string | RegExp
   access: Access
   handler: (context: Context) => unknown
+  /** How large a signed body may be, when more than JSON_LIMIT. */
+  bodyLimit?: number
 }
 
 /** Declares a route; `T` is the response body type from src/shared/api.ts. */
-function route<T>(method: Route["method"], pattern: string | RegExp, access: Access, handler: (context: Context) => T | Promise<T>): Route {
-  return { method, pattern, access, handler }
+function route<T>(method: Route["method"], pattern: string | RegExp, access: Access, handler: (context: Context) => T | Promise<T>, options: { bodyLimit?: number } = {}): Route {
+  return { method, pattern, access, handler, bodyLimit: options.bodyLimit }
 }
 
 const routes: Route[] = [
@@ -493,6 +499,30 @@ const routes: Route[] = [
     }
   }),
 
+  // --- trackpad traces: a deck in debug mode keeps its last 30 s for the touchpad tests
+  route<TraceSaved>("POST", "/api/trackpad/traces", "deck", async ({ req, device }) => {
+    const data = await jsonBody(req, TRACE_LIMIT)
+    const frames = Array.isArray(data.frames) ? data.frames : []
+    const events = Array.isArray(data.events) ? data.events : []
+    const wellFormed = frames.length > 0 && frames.length <= TRACE_LIMITS.frames && events.length <= TRACE_LIMITS.events
+      && frames.every(isTouchFrame) && events.every(isTouchpadEvent)
+    if (!wellFormed) throw new HttpError(400, "That is not a trackpad trace.")
+    const trace: TouchpadTrace = {
+      version: 1,
+      recordedAt: new Date().toISOString(),
+      settings: normalizeTrackpad(data.settings),
+      frames,
+      events,
+      expected: summarize(events)
+    }
+    if (typeof data.userAgent === "string" && data.userAgent) trace.userAgent = data.userAgent.slice(0, 300)
+    fs.mkdirSync(paths.traces, { recursive: true })
+    const file = `trace-${trace.recordedAt.replace(/[:.]/g, "-")}.json`
+    fs.writeFileSync(path.join(paths.traces, file), JSON.stringify(trace))
+    log(`Saved a trackpad trace from ${device?.name ?? "this computer"}: ${path.join(paths.traces, file)}`)
+    return { ok: true, file }
+  }, { bodyLimit: TRACE_LIMIT }),
+
   route<void>("POST", "/api/shutdown", "local", ({ res }) => {
     sendJson(res, 200, { ok: true } satisfies Ok)
     res.once("finish", shutdown)
@@ -526,7 +556,7 @@ async function handle(req: Request, res: ServerResponse): Promise<void> {
     if (found.route.access === "local" && !isLocal(req)) {
       throw new HttpError(403, `That is only available on the computer running the companion, at http://localhost:${PORT}.`)
     }
-    const device = found.route.access === "deck" ? await requireDeck(req, url) : null
+    const device = found.route.access === "deck" ? await requireDeck(req, url, found.route.bodyLimit) : null
     const body = await found.route.handler({ req, res, url, params: found.params, device })
     if (body !== undefined && !res.headersSent) sendJson(res, 200, body)
     return

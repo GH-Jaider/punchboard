@@ -23,6 +23,11 @@ function signedPath(device, pathname) {
   return `${pathname}?d=${encodeURIComponent(s.device)}&t=${s.time}&n=${s.nonce}&s=${s.signature}`
 }
 
+function signedHeaders(device, method, pathname, body) {
+  const s = signRequest(device, method, pathname, body, Date.now(), crypto.randomBytes(16).toString("hex"))
+  return { "X-Punchboard-Device": s.device, "X-Punchboard-Time": s.time, "X-Punchboard-Nonce": s.nonce, "X-Punchboard-Signature": s.signature }
+}
+
 /** Opens a socket and reports how it ended up: "open", or the HTTP status that refused it. */
 function connect(urlPath, { host = LAN, origin = `http://${host}:${port}` } = {}) {
   return new Promise((resolve) => {
@@ -79,6 +84,25 @@ async function main() {
   r = await connect("/api/pointer", { host: "127.0.0.1", origin: `http://127.0.0.1:${port}` })
   check("This computer's own page may use the trackpad", r.result === "open", r.result)
   r.ws?.close()
+
+  // --- traces from a deck's debug mode
+  const tracePath = "/api/trackpad/traces"
+  const trace = JSON.stringify({
+    settings: { speed: 1.5, naturalScroll: true },
+    frames: [{ time: 0, contacts: [{ id: 1, x: 10, y: 10 }] }, { time: 60, contacts: [] }],
+    events: [{ type: "button", button: "left", state: "down" }, { type: "button", button: "left", state: "up" }],
+    userAgent: "test"
+  })
+  r = await request({ host: LAN, method: "POST", path: tracePath, headers: JSON_TYPE, body: trace })
+  check("An unpaired device cannot save a trace", r.status === 401, r.status)
+  r = await request({ host: LAN, method: "POST", path: tracePath, headers: { ...JSON_TYPE, ...signedHeaders(device, "POST", tracePath, trace) }, body: trace })
+  check("A paired device can save a trace", r.status === 200 && /^trace-[\dTZ-]+\.json$/.test(r.json?.file ?? ""), r.text)
+  const file = r.json?.file ? path.join(companion.dataDir, "trackpad-traces", r.json.file) : null
+  const saved = file && fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf8")) : null
+  check("The trace is written with its expected summary filled in", saved !== null && saved.frames.length === 2 && saved.expected.join("|") === "click left" && saved.settings.speed === 1.5, saved ? JSON.stringify(saved.expected) : "no file")
+  const junk = JSON.stringify({ settings: {}, frames: [{ time: "soon", contacts: [] }], events: [] })
+  r = await request({ host: LAN, method: "POST", path: tracePath, headers: { ...JSON_TYPE, ...signedHeaders(device, "POST", tracePath, junk) }, body: junk })
+  check("A malformed trace is refused", r.status === 400, r.status)
 
   const open = await connect(signedPath(device, "/api/pointer"))
   const cut = new Promise((resolve) => { open.ws.on("close", () => resolve(true)); setTimeout(() => resolve(false), 2000) })
