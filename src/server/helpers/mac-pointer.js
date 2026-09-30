@@ -92,6 +92,8 @@ function here() {
 
 function post(type, point, button, clicks) {
   var event = sourced($.CGEventCreateMouseEvent(null, type, point, button))
+  // No modifier rides along: a shortcut must never turn a click into a ⌘-click.
+  $.CGEventSetFlags(event, 0)
   if (clicks) $.CGEventSetIntegerValueField(event, CLICK_STATE, clicks)
   $.CGEventPost(HID, event)
 }
@@ -104,7 +106,9 @@ function move(dx, dy) {
 
 function scroll(dx, dy) {
   // Pixel units, vertical then horizontal; positive is up and left.
-  $.CGEventPost(HID, sourced($.CGEventCreateScrollWheelEvent2(null, 0, 2, Math.round(dy), Math.round(dx), 0)))
+  var event = sourced($.CGEventCreateScrollWheelEvent2(null, 0, 2, Math.round(dy), Math.round(dx), 0))
+  $.CGEventSetFlags(event, 0)
+  $.CGEventPost(HID, event)
 }
 
 function click(which) {
@@ -126,14 +130,42 @@ function click(which) {
   post(LEFT_UP, point, 0, clickCount)
 }
 
-/** A shortcut such as Ctrl+Up (Mission Control): key down and up with its modifiers held. */
+// Modifier keys, pressed as keys rather than only named in a flag: macOS
+// tracks their state for the hardware's event source, and a modifier that is
+// never released stays down for every click after it (a pinch's ⌘+ left
+// every tap a ⌘-click). fn is only a flag on arrow keys, never pressed.
+var MODIFIERS = [
+  { flag: 0x40000, code: 59 }, // control
+  { flag: 0x80000, code: 58 }, // option
+  { flag: 0x20000, code: 56 }, // shift
+  { flag: 0x100000, code: 55 } // command
+]
+var FN = 0x800000
+
+function keyEvent(code, down, flags) {
+  var event = sourced($.CGEventCreateKeyboardEvent(null, code, down))
+  $.CGEventSetFlags(event, flags)
+  $.CGEventPost(HID, event)
+}
+
+/** A shortcut such as Ctrl+Up (Mission Control), typed the way a keyboard
+    does: modifiers down, the key, then the modifiers up again in reverse. */
 function key(code, flags) {
-  var down = sourced($.CGEventCreateKeyboardEvent(null, code, true))
-  $.CGEventSetFlags(down, flags)
-  $.CGEventPost(HID, down)
-  var up = sourced($.CGEventCreateKeyboardEvent(null, code, false))
-  $.CGEventSetFlags(up, flags)
-  $.CGEventPost(HID, up)
+  var held = 0
+  var pressed = []
+  for (var i = 0; i < MODIFIERS.length; i++) {
+    var modifier = MODIFIERS[i]
+    if (!(flags & modifier.flag)) continue
+    held |= modifier.flag
+    keyEvent(modifier.code, true, held)
+    pressed.push(modifier)
+  }
+  keyEvent(code, true, held | (flags & FN))
+  keyEvent(code, false, held | (flags & FN))
+  for (var j = pressed.length - 1; j >= 0; j--) {
+    held &= ~pressed[j].flag
+    keyEvent(pressed[j].code, false, held)
+  }
 }
 
 function handle(line) {
