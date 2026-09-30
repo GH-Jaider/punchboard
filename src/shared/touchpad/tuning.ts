@@ -31,8 +31,19 @@ export const TUNING = {
   decidePx: 10,
   /** A finger that has moved less than this is still standing still. */
   laggingPx: 4,
+  /** Two fingers are a pinch when the gap between them changes more than this
+      many times as far as the pair moves together. A pinch with one finger
+      still changes the gap twice as much; a scroll barely changes it. */
+  pinchBias: 1,
+  /** A scroll becomes a pinch after all once the gap has changed this much,
+      and this many times as much as the pair has moved. */
+  pinchSwitchPx: 30,
+  pinchSwitchBias: 2,
   /** Three or four fingers travelling this far along one axis is a swipe. */
   swipePx: 70,
+  /** Three fingers whose spread changes by more than this factor are pinching,
+      not swiping. */
+  swipeSpreadRatio: 1.3,
   /** Four fingers whose spread grows or shrinks by these factors. */
   spreadRatio: 1.4,
   pinchRatio: 0.7,

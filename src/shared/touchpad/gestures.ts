@@ -189,9 +189,14 @@ export function createGestureMachine(initial: TrackpadSettings): GestureMachine 
   }
 
   /** Two fingers: are they sliding together (scroll) or apart (pinch)? Decided
-      from each finger's own path once the leading one has gone far enough;
-      while one finger stands still the other must go twice as far, since a
-      finger that lags at the start of a scroll looks like a pinch. */
+      once the leading finger has gone far enough, by comparing how much the
+      gap between them changed with how far the pair as a whole moved. In a
+      scroll the gap hardly changes. In the usual pinch one finger (a thumb)
+      barely moves and the other goes towards or away from it: the gap then
+      changes twice as much as the pair moves, and a finger that drifts along
+      with the pinch does not change that. While one finger stands still the
+      other must go twice as far, since a finger that lags at the start of a
+      scroll could otherwise look like a pinch. */
   function decideTwo(contacts: TouchContact[], centre: Centre, time: number, dt: number, out: TouchpadEvent[]): void {
     const a = trackedFor(contacts[0]!.id)
     const b = trackedFor(contacts[1]!.id)
@@ -206,22 +211,14 @@ export function createGestureMachine(initial: TrackpadSettings): GestureMachine 
     const lag = Math.min(ma, mb)
     if (lead < TUNING.decidePx) return
     const slide = length(centre.x - origin.x, centre.y - origin.y)
-    const stretch = Math.abs(centre.spread - origin.spread)
     if (slide > TUNING.jumpPx || lead > TUNING.jumpPx) {
       // Nothing moves that far in one go: start again from here.
       rebase(contacts, time)
       return
     }
-    let pinch: boolean
-    if (lag >= TUNING.laggingPx) {
-      const cosine = (ax * bx + ay * by) / (ma * mb)
-      pinch = cosine < -0.5 ? true : cosine > 0.5 ? false : stretch > slide
-    } else if (lead >= TUNING.decidePx * 2) {
-      // One finger anchored: the other moving along the line between them stretches it.
-      pinch = stretch >= slide * 0.9
-    } else {
-      return
-    }
+    if (lag < TUNING.laggingPx && lead < TUNING.decidePx * 2) return
+    // Spread is the fingers' distance from their centre: for two, half the gap.
+    const pinch = gapChange(centre) > slide * TUNING.pinchBias
     if (pinch) {
       kind = "pinch"
       out.push({ type: "pinch", phase: "begin", scale: centre.spread / origin.spread })
@@ -232,8 +229,28 @@ export function createGestureMachine(initial: TrackpadSettings): GestureMachine 
     last = centre
   }
 
+  /** How much the gap between two fingers has changed since the gesture began. */
+  function gapChange(centre: Centre): number {
+    return Math.abs(centre.spread - origin.spread) * 2
+  }
+
+  /** A scroll that turns out to be a pinch (the gap kept changing far more than
+      the fingers travelled together) becomes one, without coasting. */
+  function pinchAfterAll(contacts: TouchContact[], centre: Centre, out: TouchpadEvent[]): boolean {
+    if (contacts.length !== 2) return false
+    const gap = gapChange(centre)
+    if (gap < TUNING.pinchSwitchPx || gap < length(centre.x - origin.x, centre.y - origin.y) * TUNING.pinchSwitchBias) return false
+    out.push({ type: "scroll", phase: "end", dx: 0, dy: 0 })
+    scrollSpeed.reset()
+    kind = "pinch"
+    out.push({ type: "pinch", phase: "begin", scale: centre.spread / origin.spread })
+    return true
+  }
+
   /** Three or four fingers: a spread or pinch (four only), else a swipe along
-      the axis they travelled most. One gesture per touch, then nothing more. */
+      the axis they travelled most. One gesture per touch, then nothing more.
+      Three fingers closing or opening are no swipe: they are someone pinching
+      with an extra finger, and must not open App Exposé. */
   function decideMany(count: number, centre: Centre, out: TouchpadEvent[]): void {
     const ratio = centre.spread / origin.spread
     if (count === 4 && ratio > TUNING.spreadRatio) {
@@ -243,6 +260,10 @@ export function createGestureMachine(initial: TrackpadSettings): GestureMachine 
     }
     if (count === 4 && ratio < TUNING.pinchRatio) {
       out.push({ type: "fingers", fingers: 4, gesture: "pinch" })
+      kind = "done"
+      return
+    }
+    if (count === 3 && (ratio > TUNING.swipeSpreadRatio || ratio < 1 / TUNING.swipeSpreadRatio)) {
       kind = "done"
       return
     }
@@ -330,7 +351,7 @@ export function createGestureMachine(initial: TrackpadSettings): GestureMachine 
       }
       case "scroll": {
         const centre = centreOf(contacts)
-        scrollBy(centre.x - last.x, centre.y - last.y, time, dt, "change", out)
+        if (!pinchAfterAll(contacts, centre, out)) scrollBy(centre.x - last.x, centre.y - last.y, time, dt, "change", out)
         last = centre
         break
       }
