@@ -71,6 +71,10 @@ Click a dashed slot to add a button, then give it a label, a colour and an icon.
 | Go to another deck | the device that pressed it, like a folder |
 | Open link on the device | the device's own browser |
 
+**Two-state macros.** A macro can have a second list that runs when the button is pressed again (Stream Deck calls this a multi action switch): tick **Press again to run a second list** under the steps. The first press runs the first list and leaves the button lit; the next runs the second list and turns it off. A Break button, say, switches to BRB and mutes the mic, then goes back to Main and unmutes it.
+
+On/off actions (mute, source, filter, stream, recording, virtual camera) have **Each press**: toggle, or always on, or always off. A single button usually toggles; in a macro, *Mute* rather than *Mute / unmute* does the same thing whatever state the mic was in.
+
 With OBS connected, scenes, sources, audio inputs and filters are chosen from lists of what OBS really has, so a typo cannot break a button mid-stream. A name OBS no longer has (renamed, or another scene collection) stays in the list marked *not found in OBS*. Without OBS the fields fall back to typing the exact name.
 
 Buttons follow OBS live, including changes made in OBS itself: a scene button is lit while that scene is on air, and mute, filter, source visibility, stream, recording, virtual camera and replay buffer buttons are lit while that state is on. Two buttons on the same thing (the same mic on two decks, say) always agree, and OBS faders move when the volume changes in OBS's mixer. When OBS closes, every OBS light goes out rather than showing a state that may no longer be true. A macro that fails part-way stops there and says which step failed and why.

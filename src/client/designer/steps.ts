@@ -1,9 +1,12 @@
 // The macro editor: a button's steps, each with its action, fields and delay.
 // It re-renders on its own, so editing a macro never disturbs the fields above.
-import { ACTION_FIELDS, ACTION_GROUPS, ACTION_META, ACTION_TYPES, isActionType, isMediaKey, LIMITS, MEDIA_KEYS, stepSummary, stepText } from "../../shared/actions.ts"
+import {
+  ACTION_FIELDS, ACTION_GROUPS, ACTION_META, ACTION_TYPES, isActionType, isMediaKey, isSetMode, LIMITS, MEDIA_KEYS,
+  SET_LABELS, SET_MODES, setModeOf, stepSummary, stepText
+} from "../../shared/actions.ts"
 import type { FieldSpec } from "../../shared/actions.ts"
-import { clampDelay, createStep, retypeStep } from "../../shared/model.ts"
-import type { Button, GoToDeckStep, MediaKey, MediaKeyStep, SoundStep, Step, StepTextField } from "../../shared/types.ts"
+import { clampDelay, createStep, isSwitch, retypeStep } from "../../shared/model.ts"
+import type { Button, GoToDeckStep, MediaKey, MediaKeyStep, SetMode, SoundStep, Step, StepTextField } from "../../shared/types.ts"
 import { el, svg } from "../common/dom.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { audioFilePicker, playSlot, soundSlotLabel, uploadSound } from "./sounds.ts"
@@ -14,6 +17,8 @@ import { appField } from "./app-picker.ts"
 import { keysField } from "./key-recorder.ts"
 
 const STEPS_HOST_ID = "steps-host"
+const OFF_HOST_ID = "steps-off-host"
+const SWITCH_ROW_ID = "steps-switch-row"
 
 /** Sets a text field only on step types that have it, per ACTION_FIELDS. */
 function setStepText(step: Step, key: StepTextField, value: string): void {
@@ -21,43 +26,74 @@ function setStepText(step: Step, key: StepTextField, value: string): void {
   ;(step as Partial<Record<StepTextField, string>>)[key] = value
 }
 
-function swapSteps(button: Button, a: number, b: number): void {
-  const first = button.steps[a]
-  const second = button.steps[b]
+function swapSteps(button: Button, list: Step[], a: number, b: number): void {
+  const first = list[a]
+  const second = list[b]
   if (!first || !second) return
-  button.steps[a] = second
-  button.steps[b] = first
+  list[a] = second
+  list[b] = first
   touch()
   renderSteps(button)
 }
 
-/** The macro section of the inspector: heading, step list host and add button. */
+function addStepButton(button: Button, list: () => Step[], text: string): HTMLElement {
+  const add = el("button", "step-add")
+  add.type = "button"
+  add.innerHTML = `${svg(UI_ICONS.plus, 14)}<span>${text}</span>`
+  add.onclick = () => {
+    const steps = list()
+    if (steps.length >= LIMITS.maxSteps) return toast(`A macro can hold at most ${LIMITS.maxSteps} steps.`)
+    steps.push(createStep("none"))
+    touch()
+    view.refreshTile(button)
+    renderSteps(button)
+  }
+  return add
+}
+
+/** The macro section of the inspector: the steps, and for a macro the
+    option of a second list that runs when the button is pressed again. */
 export function stepsField(button: Button): HTMLElement {
   const field = el("div", "field")
   const head = el("div")
   head.style.cssText = "display:flex;align-items:center;gap:8px"
   head.appendChild(el("span", "field-label", "What it does"))
-  const spacer = el("span")
-  spacer.style.flex = "1 1 auto"
-  head.appendChild(spacer)
-  head.appendChild(el("span", "subtle", button.steps.length > 1 ? `${button.steps.length} steps, in order` : ""))
   field.appendChild(head)
 
+  const two = isSwitch(button)
+  if (two) field.appendChild(el("p", "steps-phase", "First press · turns the button on"))
   const host = el("div", "steps")
   host.id = STEPS_HOST_ID
   field.appendChild(host)
+  field.appendChild(addStepButton(button, () => button.steps, "Add another step"))
 
-  const add = el("button", "step-add")
-  add.type = "button"
-  add.innerHTML = `${svg(UI_ICONS.plus, 14)}<span>Add another step</span>`
-  add.onclick = () => {
-    if (button.steps.length >= LIMITS.maxSteps) return toast(`A macro can hold at most ${LIMITS.maxSteps} steps.`)
-    button.steps.push(createStep("none"))
+  // Stream Deck calls this a multi action switch. Offered once there is a macro.
+  const row = el("label", "steps-switch")
+  row.id = SWITCH_ROW_ID
+  const box = document.createElement("input")
+  box.type = "checkbox"
+  box.checked = two
+  box.addEventListener("change", () => {
+    if (box.checked) button.offSteps = [createStep("none")]
+    else delete button.offSteps
     touch()
     view.refreshTile(button)
-    renderSteps(button)
+    view.renderInspector()
+  })
+  row.appendChild(box)
+  const words = el("span")
+  words.appendChild(el("strong", null, "Press again to run a second list"))
+  words.appendChild(el("span", "field-help", "The button stays lit until it is pressed again, like a Stream Deck multi action switch. Choose Mute rather than Mute / unmute in these lists, so each press does the same thing every time."))
+  row.appendChild(words)
+  field.appendChild(row)
+
+  if (two) {
+    field.appendChild(el("p", "steps-phase", "Second press · turns it off again"))
+    const offHost = el("div", "steps")
+    offHost.id = OFF_HOST_ID
+    field.appendChild(offHost)
+    field.appendChild(addStepButton(button, () => button.offSteps ?? (button.offSteps = []), "Add a step to the second list"))
   }
-  field.appendChild(add)
   return field
 }
 
@@ -65,10 +101,18 @@ export function renderSteps(button: Button): void {
   const host = document.getElementById(STEPS_HOST_ID)
   if (!host) return
   host.innerHTML = ""
-  button.steps.forEach((step, index) => host.appendChild(stepCard(button, step, index)))
+  button.steps.forEach((step, index) => host.appendChild(stepCard(button, button.steps, step, index)))
+  const offHost = document.getElementById(OFF_HOST_ID)
+  const offSteps = button.offSteps
+  if (offHost && offSteps) {
+    offHost.innerHTML = ""
+    offSteps.forEach((step, index) => offHost.appendChild(stepCard(button, offSteps, step, index)))
+  }
+  const row = document.getElementById(SWITCH_ROW_ID)
+  if (row) row.hidden = !isSwitch(button) && button.steps.length < 2
 }
 
-function stepCard(button: Button, step: Step, index: number): HTMLElement {
+function stepCard(button: Button, list: Step[], step: Step, index: number): HTMLElement {
   const card = el("div", `step${step.open ? " is-open" : ""}`)
 
   const head = el("button", "step-head")
@@ -105,7 +149,7 @@ function stepCard(button: Button, step: Step, index: number): HTMLElement {
     // Keeps the id, delay and open state; drops fields that no longer apply.
     const next = retypeStep(step, select.value)
     next.open = step.open
-    button.steps[index] = next
+    list[index] = next
     touch()
     view.refreshTile(button)
     renderSteps(button)
@@ -114,6 +158,9 @@ function stepCard(button: Button, step: Step, index: number): HTMLElement {
   typeField.appendChild(select)
   typeField.appendChild(el("p", "field-help", ACTION_META[step.type].hint))
   body.appendChild(typeField)
+
+  const modeLabels = SET_LABELS[step.type]
+  if (modeLabels) body.appendChild(modeField(button, step, modeLabels, title))
 
   if (step.type === "hotkey") body.appendChild(keysField(step, title))
   if (step.type === "launch_app") body.appendChild(appField(step, title))
@@ -166,13 +213,13 @@ function stepCard(button: Button, step: Step, index: number): HTMLElement {
   delayField.appendChild(el("p", "field-help", "Milliseconds. 0 fires immediately."))
   body.appendChild(delayField)
 
-  if (button.steps.length > 1) body.appendChild(reorderRow(button, index))
+  if (list.length > 1 || list !== button.steps) body.appendChild(reorderRow(button, list, index))
 
   card.appendChild(body)
   return card
 }
 
-function reorderRow(button: Button, index: number): HTMLElement {
+function reorderRow(button: Button, list: Step[], index: number): HTMLElement {
   const row = el("div")
   row.style.cssText = "display:flex;gap:8px;align-items:center"
   const up = el("button", "icon-btn")
@@ -180,22 +227,22 @@ function reorderRow(button: Button, index: number): HTMLElement {
   up.innerHTML = svg(UI_ICONS.up)
   up.setAttribute("aria-label", "Move this step earlier")
   up.disabled = index === 0
-  up.onclick = () => swapSteps(button, index, index - 1)
+  up.onclick = () => swapSteps(button, list, index, index - 1)
   const down = el("button", "icon-btn")
   down.type = "button"
   down.innerHTML = svg(UI_ICONS.down)
   down.setAttribute("aria-label", "Move this step later")
-  down.disabled = index === button.steps.length - 1
-  down.onclick = () => swapSteps(button, index, index + 1)
+  down.disabled = index === list.length - 1
+  down.onclick = () => swapSteps(button, list, index, index + 1)
   const grow = el("span")
   grow.style.flex = "1 1 auto"
   const drop = el("button", "btn ghost danger-text", "Remove step")
   drop.type = "button"
   drop.onclick = () => {
-    const removed = button.steps.splice(index, 1)[0]
+    const removed = list.splice(index, 1)[0]
     if (!removed) return
     recordUndo("Step removed", () => {
-      button.steps.splice(Math.min(index, button.steps.length), 0, removed)
+      list.splice(Math.min(index, list.length), 0, removed)
     })
     touch()
     view.refreshTile(button)
@@ -308,6 +355,28 @@ function deckField(step: GoToDeckStep, title: HTMLElement): HTMLElement {
     step.profileId = select.value || undefined
     title.textContent = stepSummary(step)
     touch()
+  })
+  field.appendChild(label)
+  field.appendChild(select)
+  return field
+}
+
+/** Toggle, or always on, or always off, for the actions that have a state. */
+function modeField(button: Button, step: Step, labels: Readonly<Record<SetMode, string>>, title: HTMLElement): HTMLElement {
+  const field = el("div", "field")
+  const label = el("label", null, "Each press")
+  const select = document.createElement("select")
+  label.htmlFor = select.id = `step-set-${step.id}`
+  for (const mode of SET_MODES) select.add(new Option(labels[mode], mode))
+  select.value = setModeOf(step) ?? "toggle"
+  select.addEventListener("change", () => {
+    if (!isSetMode(select.value)) return
+    const target = step as { set?: SetMode }
+    if (select.value === "toggle") delete target.set
+    else target.set = select.value
+    title.textContent = stepSummary(step)
+    touch()
+    view.refreshTile(button)
   })
   field.appendChild(label)
   field.appendChild(select)

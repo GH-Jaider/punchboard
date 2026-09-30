@@ -5,7 +5,7 @@
 import { FADER_TARGETS, LIMITS, stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
-import { createEmptyButton, isConfigured, nextId, parkedButtons } from "../../shared/model.ts"
+import { createEmptyButton, isConfigured, isSwitch, nextId, parkedButtons } from "../../shared/model.ts"
 import type { Button, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
@@ -20,12 +20,14 @@ let dragFrom: number | null = null
 /** Faders and macros say so on the tile, so they are spotted at a glance. */
 function tileBadge(button: Button): string {
   if (button.control === "fader") return "Fader"
+  if (isSwitch(button)) return "On / off"
   return button.steps.length > 1 ? `${button.steps.length} steps` : ""
 }
 
 function describeButton(button: Button): string {
   if (!isConfigured(button)) return "no action yet"
   if (button.control === "fader") return FADER_TARGETS[button.fader.target].label
+  if (isSwitch(button)) return "two-state macro"
   return stepSummary(button.steps[0])
 }
 
@@ -145,6 +147,7 @@ export function duplicateButton(button: Button): void {
   copy.id = nextId("btn")
   copy.slot = slot
   for (const step of copy.steps) step.id = nextId("step")
+  for (const step of copy.offSteps ?? []) step.id = nextId("step")
   profile.buttons.push(copy)
   touch()
   store.selectedSlot = slot

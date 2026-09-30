@@ -1,7 +1,7 @@
 // Creating, reading and repairing decks. Anything read from disk, a backup
 // file or the network goes through normalizeLibrary(), which turns unknown
 // input into a valid Library or fills in safe defaults.
-import { isActionType, isFaderTarget, isMediaKey, LIMITS } from "./actions.ts"
+import { isActionType, isFaderTarget, isMediaKey, isSetMode, LIMITS } from "./actions.ts"
 import { isButtonColorId } from "./colors.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
@@ -29,14 +29,16 @@ export const clampDelay = (value: unknown): number => clamp(Number(value) || 0, 
 export function makeStep(type: ActionType, fields: UnknownRecord = {}): Step {
   const id = text(fields.id) || nextId("step")
   const delayMs = clampDelay(fields.delayMs)
+  // "toggle" is the default, so it is left out rather than stored.
+  const set = isSetMode(fields.set) && fields.set !== "toggle" ? fields.set : undefined
   switch (type) {
     case "obs_scene": return { id, delayMs, type, sceneName: text(fields.sceneName) }
-    case "obs_toggle_source": return { id, delayMs, type, sceneName: text(fields.sceneName), sourceName: text(fields.sourceName) }
-    case "obs_toggle_mute": return { id, delayMs, type, sourceName: text(fields.sourceName) }
-    case "obs_start_stop_stream": return { id, delayMs, type }
-    case "obs_toggle_record": return { id, delayMs, type }
-    case "obs_toggle_filter": return { id, delayMs, type, sourceName: text(fields.sourceName), filterName: text(fields.filterName) }
-    case "obs_toggle_virtualcam": return { id, delayMs, type }
+    case "obs_toggle_source": return { id, delayMs, type, sceneName: text(fields.sceneName), sourceName: text(fields.sourceName), set }
+    case "obs_toggle_mute": return { id, delayMs, type, sourceName: text(fields.sourceName), set }
+    case "obs_start_stop_stream": return { id, delayMs, type, set }
+    case "obs_toggle_record": return { id, delayMs, type, set }
+    case "obs_toggle_filter": return { id, delayMs, type, sourceName: text(fields.sourceName), filterName: text(fields.filterName), set }
+    case "obs_toggle_virtualcam": return { id, delayMs, type, set }
     case "obs_save_replay": return { id, delayMs, type }
     case "obs_studio_transition": return { id, delayMs, type }
     case "open_url": return { id, delayMs, type, url: text(fields.url) }
@@ -83,7 +85,8 @@ export function normalizeButton(raw: unknown): Button {
     color: isButtonColorId(fields.color) ? fields.color : "accent" as const,
     steps: rawSteps.slice(0, LIMITS.maxSteps).map(normalizeStep)
   }
-  const extras: Pick<Button, "iconData" | "glyph"> = {}
+  const extras: Pick<Button, "iconData" | "glyph" | "offSteps"> = {}
+  if (Array.isArray(fields.offSteps)) extras.offSteps = fields.offSteps.slice(0, LIMITS.maxSteps).map(normalizeStep)
   if (isSafeIconData(fields.iconData)) extras.iconData = fields.iconData
   const glyph = safeGlyph(fields.glyph)
   if (glyph) extras.glyph = glyph
@@ -109,6 +112,7 @@ export function withControl(button: Button, control: Button["control"]): Button 
   }
   // Built field by field so the fader settings cannot ride along.
   const press: PressButton = { id: button.id, slot: button.slot, label: button.label, icon: button.icon, color: button.color, steps: button.steps, control: "press" }
+  if (button.offSteps) press.offSteps = button.offSteps
   if (button.iconData !== undefined) press.iconData = button.iconData
   if (button.glyph) press.glyph = hasDefaultIcon(button) ? DEFAULT_PRESS_GLYPH : button.glyph
   return press
@@ -157,13 +161,13 @@ export const parkedButtons = (profile: Profile): Button[] => profile.buttons.fil
 
 export function isConfigured(button: Button): boolean {
   if (button.control === "fader") return button.fader.target !== "obs_input" || Boolean(button.fader.inputName)
-  return button.steps.some((step) => step.type !== "none")
+  return button.steps.some((step) => step.type !== "none") || Boolean(button.offSteps?.some((step) => step.type !== "none"))
 }
 
 /** The sound slot a single-step "Play a sound" button toggles, or 0. Those light up while playing. */
 export function soundSlotOf(button: Button): number {
   const only = button.steps[0]
-  if (button.control === "fader" || button.steps.length !== 1 || !only || only.type !== "play_sound") return 0
+  if (button.control === "fader" || isSwitch(button) || button.steps.length !== 1 || !only || only.type !== "play_sound") return 0
   return clamp(Number(only.soundId) || 1, 1, LIMITS.soundSlots)
 }
 
@@ -184,10 +188,16 @@ export function stateKeyOf(step: Step): string | null {
   }
 }
 
-/** The state a single-step button shows, or null. A macro has no one state to show. */
+/** Whether a button is a two-state macro: press for `steps`, press again for `offSteps`. */
+export const isSwitch = (button: Button): boolean => button.control === "press" && Array.isArray(button.offSteps)
+
+/** The state a button shows, or null: a two-state macro shows its own on/off,
+    a single step the state it acts on. A plain macro has no one state to show. */
 export function buttonStateKey(button: Button): string | null {
+  if (button.control === "fader") return null
+  if (isSwitch(button)) return `switch:${button.id}`
   const only = button.steps[0]
-  if (button.control === "fader" || button.steps.length !== 1 || !only) return null
+  if (button.steps.length !== 1 || !only) return null
   return stateKeyOf(only)
 }
 

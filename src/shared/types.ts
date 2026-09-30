@@ -23,6 +23,11 @@ export type ActionType =
   | "go_to_deck"
   | "none"
 
+/** What an on/off step does: flip the state, or set it whatever it was.
+    Absent means "toggle". A macro wants "on" or "off", so it does the same
+    thing every time. */
+export type SetMode = "toggle" | "on" | "off"
+
 interface StepBase {
   id: string
   /** Wait before this step runs, 0..60000 ms. */
@@ -32,12 +37,12 @@ interface StepBase {
 }
 
 export interface SceneStep extends StepBase { type: "obs_scene"; sceneName?: string }
-export interface SourceStep extends StepBase { type: "obs_toggle_source"; sceneName?: string; sourceName?: string }
-export interface MuteStep extends StepBase { type: "obs_toggle_mute"; sourceName?: string }
-export interface StreamStep extends StepBase { type: "obs_start_stop_stream" }
-export interface RecordStep extends StepBase { type: "obs_toggle_record" }
-export interface FilterStep extends StepBase { type: "obs_toggle_filter"; sourceName?: string; filterName?: string }
-export interface VirtualcamStep extends StepBase { type: "obs_toggle_virtualcam" }
+export interface SourceStep extends StepBase { type: "obs_toggle_source"; sceneName?: string; sourceName?: string; set?: SetMode }
+export interface MuteStep extends StepBase { type: "obs_toggle_mute"; sourceName?: string; set?: SetMode }
+export interface StreamStep extends StepBase { type: "obs_start_stop_stream"; set?: SetMode }
+export interface RecordStep extends StepBase { type: "obs_toggle_record"; set?: SetMode }
+export interface FilterStep extends StepBase { type: "obs_toggle_filter"; sourceName?: string; filterName?: string; set?: SetMode }
+export interface VirtualcamStep extends StepBase { type: "obs_toggle_virtualcam"; set?: SetMode }
 export interface ReplayStep extends StepBase { type: "obs_save_replay" }
 export interface StudioTransitionStep extends StepBase { type: "obs_studio_transition" }
 export interface OpenUrlStep extends StepBase { type: "open_url"; url?: string }
@@ -118,6 +123,10 @@ interface ButtonBase {
   glyph?: Glyph
   /** Kept on faders too, so switching back to a button restores its macro. */
   steps: Step[]
+  /** Present on a two-state macro (Stream Deck's "multi action switch"): the
+      first press runs `steps` and leaves the button on, the next runs these
+      and turns it off. */
+  offSteps?: Step[]
 }
 
 export interface PressButton extends ButtonBase { control: "press" }

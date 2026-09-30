@@ -2,7 +2,7 @@
 // on the computer.
 import type { PressRequest, PressResponse } from "../../shared/api.ts"
 import { webAddress } from "../../shared/links.ts"
-import { isConfigured } from "../../shared/model.ts"
+import { isConfigured, isSwitch } from "../../shared/model.ts"
 import type { PressButton } from "../../shared/types.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, UnpairedError } from "./api.ts"
@@ -28,7 +28,8 @@ export function press(button: PressButton, tile: HTMLElement): void {
   // "Open link on the tablet" has to open inside the tap itself, or the popup
   // blocker eats it. A lone link opens straight away; a macro gets a window
   // now and its address when the companion replies.
-  const only = button.steps[0]
+  // A lone step of these runs on this device alone; a two-state macro always asks the companion.
+  const only = isSwitch(button) ? undefined : button.steps[0]
   // Changing decks happens on this device alone; the companion is not needed.
   if (button.steps.length === 1 && only && only.type === "go_to_deck") {
     goToDeck(only.profileId ?? null)
@@ -40,7 +41,8 @@ export function press(button: PressButton, tile: HTMLElement): void {
     else toast("This button's link is not a web address.", true)
     return
   }
-  const linkWindow = button.steps.some((step) => step.type === "browser_tile") ? window.open("", "_blank") : null
+  const allSteps = button.steps.concat(button.offSteps ?? [])
+  const linkWindow = allSteps.some((step) => step.type === "browser_tile") ? window.open("", "_blank") : null
 
   const key = toggleKey(button)
   state.inflight[key] = true

@@ -148,12 +148,19 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     if (changed) broadcast()
   }
 
-  /** OBS went away: nothing it reported can be trusted to still be true. */
+  /** OBS went away: nothing it reported can be trusted to still be true.
+      Two-state macros keep theirs; that state is Punchboard's own. */
   function clearToggles(): void {
-    if (!toggles.size) return
-    toggles.clear()
-    broadcast()
+    let changed = false
+    for (const key of [...toggles.keys()]) {
+      if (key.startsWith("switch:")) continue
+      toggles.delete(key)
+      changed = true
+    }
+    if (changed) broadcast()
   }
+
+  const toggleValue = (key: string): boolean => toggles.get(key) === true
 
   /** Fader levels changed outside Punchboard (in OBS's mixer, say). */
   function setLevels(changes: Record<string, number>): void {
@@ -172,5 +179,5 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     broadcast()
   }
 
-  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, setLevels, soundsChanged }
+  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, toggleValue, setLevels, soundsChanged }
 }

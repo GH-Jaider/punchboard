@@ -4,7 +4,7 @@
 import { stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
-import { isStateful, soundSlotOf } from "../../shared/model.ts"
+import { isStateful, isSwitch, soundSlotOf } from "../../shared/model.ts"
 import type { Button, PressButton } from "../../shared/types.ts"
 import { applyTileColor, byId, el } from "../common/dom.ts"
 import { faderMarkup, syncFaders } from "./faders.ts"
@@ -44,6 +44,7 @@ export function showDeck(profileId: string): boolean {
 }
 
 function describe(button: Button): string {
+  if (isSwitch(button)) return "On / off macro"
   if (button.steps.length > 1) return `${button.steps.length}-step macro`
   return stepSummary(button.steps[0])
 }

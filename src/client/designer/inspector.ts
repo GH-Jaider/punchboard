@@ -184,6 +184,7 @@ function duplicateProfile(profile: Profile): void {
   for (const button of copy.buttons) {
     button.id = nextId("btn")
     for (const step of button.steps) step.id = nextId("step")
+    for (const step of button.offSteps ?? []) step.id = nextId("step")
   }
   loaded.profiles.splice(loaded.profiles.indexOf(profile) + 1, 0, copy)
   store.activeId = copy.id

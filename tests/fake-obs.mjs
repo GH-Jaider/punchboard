@@ -63,6 +63,10 @@ export function startFakeObs() {
       emit("InputMuteStateChanged", { inputName, inputMuted: entry.muted })
       return { inputMuted: entry.muted }
     },
+    SetInputMute: ({ inputName, inputMuted }) => {
+      audioInput(inputName).muted = inputMuted
+      emit("InputMuteStateChanged", { inputName, inputMuted })
+    },
     GetInputVolume: ({ inputName }) => ({ inputVolumeMul: audioInput(inputName).volumeMul, inputVolumeDb: 0 }),
     SetInputVolume: ({ inputName, inputVolumeMul }) => {
       audioInput(inputName).volumeMul = inputVolumeMul
@@ -86,6 +90,10 @@ export function startFakeObs() {
     StopStream: () => { obs.outputs.stream = false; emit("StreamStateChanged", { outputActive: false, outputState: "OBS_WEBSOCKET_OUTPUT_STOPPED" }) },
     GetRecordStatus: () => ({ outputActive: obs.outputs.record }),
     GetVirtualCamStatus: () => ({ outputActive: obs.outputs.virtualcam }),
+    StartVirtualCam: () => { obs.outputs.virtualcam = true; emit("VirtualcamStateChanged", { outputActive: true, outputState: "" }) },
+    StopVirtualCam: () => { obs.outputs.virtualcam = false; emit("VirtualcamStateChanged", { outputActive: false, outputState: "" }) },
+    StartRecord: () => { obs.outputs.record = true; emit("RecordStateChanged", { outputActive: true, outputState: "" }) },
+    StopRecord: () => { obs.outputs.record = false; emit("RecordStateChanged", { outputActive: false, outputState: "" }) },
     ToggleVirtualCam: () => {
       obs.outputs.virtualcam = !obs.outputs.virtualcam
       emit("VirtualcamStateChanged", { outputActive: obs.outputs.virtualcam, outputState: "" })

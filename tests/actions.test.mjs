@@ -34,6 +34,8 @@ const library = {
         press("studio", [step("obs_studio_transition")], 7),
         press("broken", [step("stop_sounds"), step("obs_scene", { sceneName: "Nope" }), step("obs_toggle_virtualcam")], 8),
         press("toMusic", [step("stop_sounds"), step("go_to_deck", { profileId: "music" })], 9),
+        { ...press("break", [step("obs_scene", { sceneName: "BRB" }), step("obs_toggle_mute", { sourceName: "Mic", set: "on" })], 11),
+          offSteps: [step("obs_scene", { sceneName: "Main" }), step("obs_toggle_mute", { sourceName: "Mic", set: "off" })] },
         { id: "micFader", slot: 10, label: "Mic", icon: "tune", color: "accent", control: "fader", fader: { target: "obs_input", inputName: "Mic" }, steps: [] }
       ]
     },
@@ -108,6 +110,23 @@ async function main() {
   s = await until("the stream from OBS", (x) => x.toggles.stream === true)
   check("Going live from OBS lights stream buttons", s.toggles.stream === true, JSON.stringify(s.toggles))
 
+  // --- a two-state macro, with steps that set rather than flip
+  const saved2 = (await request({ path: "/api/library" })).json
+  check("A second list survives saving", saved2.profiles[0].buttons.find((b) => b.id === "break")?.offSteps?.length === 2, "offSteps lost")
+  fake.obs.inputs.Mic.muted = true
+  fake.emit("InputMuteStateChanged", { inputName: "Mic", inputMuted: true })
+  await until("the mic muted in OBS", (x) => x.toggles["mute:Mic"] === true)
+  r = await pressButton("break")
+  s = await status()
+  check("First press runs the first list and lights the button", r.json?.active === true && s.toggles["switch:break"] === true && fake.obs.currentScene === "BRB", `${r.text} ${JSON.stringify(s.toggles)}`)
+  check("\"Mute\" keeps a muted mic muted instead of flipping it", fake.obs.inputs.Mic.muted === true, "the mic was unmuted")
+  r = await pressButton("break")
+  s = await status()
+  check("Second press runs the second list and turns the button off", r.json?.active === false && s.toggles["switch:break"] === false && fake.obs.currentScene === "Main", `${r.text} ${JSON.stringify(s.toggles)}`)
+  check("\"Unmute\" unmutes", fake.obs.inputs.Mic.muted === false, "still muted")
+  r = await pressButton("break")
+  check("Third press runs the first list again", r.json?.active === true && fake.obs.currentScene === "BRB", r.text)
+
   // --- helpful failures
   r = await pressButton("replay")
   check("Save replay explains a stopped buffer", r.status === 400 && /replay buffer is off/i.test(r.json?.error ?? ""), r.text)
@@ -130,7 +149,8 @@ async function main() {
   // --- OBS going away
   await fake.close()
   s = await until("the link to drop", (x) => x.obs !== "connected")
-  check("States clear when OBS closes, so nothing stays falsely lit", Object.keys(s.toggles).length === 0, JSON.stringify(s.toggles))
+  check("OBS states clear when OBS closes, so nothing stays falsely lit", Object.keys(s.toggles).every((key) => key.startsWith("switch:")), JSON.stringify(s.toggles))
+  check("A two-state macro remembers it is on", s.toggles["switch:break"] === true, JSON.stringify(s.toggles))
   const empty = (await request({ path: "/api/obs/names" })).json
   check("Pickers fall back to typing without OBS", empty.connected === false && empty.scenes.length === 0, JSON.stringify(empty))
 }

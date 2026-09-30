@@ -25,7 +25,7 @@ import type {
   SoundsChanged, SoundsResponse, StatusResponse
 } from "../shared/api.ts"
 import { isHexColor } from "../shared/colors.ts"
-import { buttonStateKey, faderLevelKey, isLibraryShape, normalizeLibrary } from "../shared/model.ts"
+import { buttonStateKey, faderLevelKey, isLibraryShape, isSwitch, normalizeLibrary } from "../shared/model.ts"
 import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
@@ -372,16 +372,24 @@ const routes: Route[] = [
     const button = library.findButton(data.profileId, data.buttonId)
     if (!button) throw new HttpError(404, "That button no longer exists. The deck will refresh.")
     if (button.control === "fader") throw new HttpError(400, "That is a fader; drag it instead.")
-    const steps = prepareSteps(button)
+    // A two-state macro runs its first list when off and its second when on.
+    const stateKey = buttonStateKey(button)
+    const switchedOn = isSwitch(button) && stateKey !== null && live.toggleValue(stateKey)
+    const steps = prepareSteps(switchedOn ? button.offSteps ?? [] : button.steps)
     let result
     try {
       result = await runSteps(steps, { config, obs, onSound: live.toggleSound, stopSounds: live.stopAllSounds })
     } catch (error) {
       throw new HttpError(400, errorText(error))
     }
-    // OBS reports the change as an event too; this just gets there first.
-    const stateKey = buttonStateKey(button)
-    if (stateKey && typeof result.active === "boolean") live.setToggles({ [stateKey]: result.active })
+    if (isSwitch(button) && stateKey) {
+      // Only a list that ran to the end flips the switch.
+      result.active = !switchedOn
+      live.setToggles({ [stateKey]: result.active })
+    } else if (stateKey && typeof result.active === "boolean") {
+      // OBS reports the change as an event too; this just gets there first.
+      live.setToggles({ [stateKey]: result.active })
+    }
     const response: PressResponse = { ok: true, tabletUrl: result.tabletUrl, deckId: result.deckId }
     if (typeof result.active === "boolean") response.active = result.active
     if (steps.length > 1) response.message = `Ran ${steps.length} steps`

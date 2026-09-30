@@ -1,7 +1,7 @@
 // What each action is called, where it runs, and which fields it needs. The
 // Control Center builds its editors from these tables instead of if-chains.
 import { formatCombo, isMacLike } from "./keys.ts"
-import type { ActionType, FaderTarget, MediaKey, Step, StepTextField } from "./types.ts"
+import type { ActionType, FaderTarget, MediaKey, SetMode, Step, StepTextField } from "./types.ts"
 
 export type ActionGroup = "OBS" | "This computer" | "On the deck" | "Other"
 
@@ -38,6 +38,24 @@ export const STATEFUL_ACTIONS: readonly ActionType[] = [
   "obs_scene", "obs_toggle_mute", "obs_start_stop_stream", "obs_toggle_record", "obs_toggle_source",
   "obs_toggle_filter", "obs_toggle_virtualcam", "obs_save_replay"
 ]
+
+/** How each on/off action words its three modes. */
+export const SET_LABELS: Readonly<Partial<Record<ActionType, Readonly<Record<SetMode, string>>>>> = {
+  obs_toggle_mute: { toggle: "Mute / unmute", on: "Mute", off: "Unmute" },
+  obs_toggle_source: { toggle: "Show / hide", on: "Show source", off: "Hide source" },
+  obs_toggle_filter: { toggle: "Turn on / off", on: "Turn filter on", off: "Turn filter off" },
+  obs_start_stop_stream: { toggle: "Start / stop", on: "Start stream", off: "Stop stream" },
+  obs_toggle_record: { toggle: "Start / stop", on: "Start recording", off: "Stop recording" },
+  obs_toggle_virtualcam: { toggle: "Start / stop", on: "Start virtual camera", off: "Stop virtual camera" }
+}
+export const SET_MODES: readonly SetMode[] = ["toggle", "on", "off"]
+export const isSetMode = (value: unknown): value is SetMode => value === "toggle" || value === "on" || value === "off"
+
+/** A step's mode, for the actions that have one; null for the rest. */
+export function setModeOf(step: Step): SetMode | null {
+  if (!SET_LABELS[step.type]) return null
+  return (step as { set?: SetMode }).set ?? "toggle"
+}
 
 export const MEDIA_KEYS: Readonly<Record<MediaKey, string>> = { play_pause: "Play / pause", next: "Next track", previous: "Previous track" }
 export const isMediaKey = (value: unknown): value is MediaKey => typeof value === "string" && Object.prototype.hasOwnProperty.call(MEDIA_KEYS, value)
@@ -91,7 +109,10 @@ function stepDetail(step: Step): string {
 export function stepSummary(step: Step | undefined): string {
   if (!step) return "Empty step"
   const detail = stepDetail(step)
-  return detail ? `${ACTION_META[step.type].label} · ${detail}` : ACTION_META[step.type].label
+  // "Mute · Mic" says more than "Mute / unmute input · Mic" once the mode is fixed.
+  const mode = setModeOf(step)
+  const label = mode && mode !== "toggle" ? SET_LABELS[step.type]![mode] : ACTION_META[step.type].label
+  return detail ? `${label} · ${detail}` : label
 }
 
 export interface FaderTargetMeta { label: string; hint: string }

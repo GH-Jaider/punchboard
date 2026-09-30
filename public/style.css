@@ -947,6 +947,30 @@ select {
 .step-add:hover { border-color: var(--accent); color: var(--accent-text); }
 .step-add svg { width: 14px; height: 14px; }
 
+/* Two-state macros: the option, and a heading over each list. */
+.steps-switch {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-2);
+  margin-top: var(--s-2);
+  padding: var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  cursor: pointer;
+}
+.steps-switch[hidden] { display: none; }
+.steps-switch input { flex: none; margin-top: 2px; accent-color: var(--accent); }
+.steps-switch span { display: grid; gap: 2px; }
+.steps-switch strong { font-size: var(--fs-sm); font-weight: var(--w-medium); }
+.steps-switch .field-help { font-weight: normal; }
+.steps-phase {
+  margin: var(--s-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--fs-xs);
+  font-weight: var(--w-medium);
+  letter-spacing: 0.02em;
+}
+
 /* Application picker (Launch an app). */
 .app-trigger {
   display: grid;
