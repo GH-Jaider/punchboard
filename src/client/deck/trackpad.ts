@@ -22,7 +22,7 @@ import type { PointerMessage, PointerNotice, TraceSaved, TraceUpload } from "../
 import { createTouchpad, summarize } from "../../shared/touchpad/index.ts"
 import type { Touchpad, TouchFrame, TouchpadEvent, TouchpadState } from "../../shared/touchpad/index.ts"
 import type { Profile, TrackpadSettings } from "../../shared/types.ts"
-import { el } from "../common/dom.ts"
+import { el, storage } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, streamUrl } from "./api.ts"
 import { toast } from "./ui.ts"
@@ -32,6 +32,11 @@ import { toast } from "./ui.ts"
 const ZOOM_STEP = 0.3
 /** How much the debug overlay keeps for a trace. */
 const TRACE_MS = 30000
+/** Touches that start this close to the screen's sides or bottom are left to
+    the system (home, back, app switching) instead of becoming a gesture that
+    the system then takes away halfway. */
+const EDGE_PX = 24
+const HINT_KEY = "punchboard-trackpad-hint"
 
 let socket: WebSocket | null = null
 let shown = false
@@ -222,19 +227,48 @@ function letGo(): void {
   }
 }
 
+/** Touches that began in the system's edge zone, ignored until they lift. */
+let edgeTouches: Record<number, boolean> = {}
+
+function nearEdge(touch: Touch): boolean {
+  return touch.clientX < EDGE_PX || touch.clientX > window.innerWidth - EDGE_PX || touch.clientY > window.innerHeight - EDGE_PX
+}
+
 function readFrame(touches: TouchList): TouchFrame {
   const contacts = []
   for (let i = 0; i < touches.length; i += 1) {
     const touch = touches[i]!
+    if (edgeTouches[touch.identifier]) continue
     contacts.push({ id: touch.identifier, x: touch.clientX, y: touch.clientY })
   }
   return { time: Date.now(), contacts }
+}
+
+/** Once per device: the system's own gestures can still leave the page, and
+    only the device can stop that. */
+function suggestLock(): void {
+  if (storage.get(HINT_KEY)) return
+  storage.set(HINT_KEY, "1")
+  const agent = navigator.userAgent
+  const apple = /iPad|iPhone|Macintosh.*Mobile/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)
+  const tip = apple
+    ? "Tip: turn on Guided Access (Settings › Accessibility) and triple-click to lock the device to the trackpad, so a swipe from the edge cannot leave it."
+    : /Android/.test(agent)
+      ? "Tip: use Full screen, and pin the browser (Settings › Security › App pinning) so a swipe from the edge cannot leave the trackpad."
+      : "Tip: use Full screen, so a swipe from the edge does not leave the trackpad."
+  toast(tip, false, { label: "Got it", onClick: () => { /* dismissed */ } })
 }
 
 function bindSurface(surface: HTMLElement): void {
   const onTouch = (event: TouchEvent): void => {
     event.preventDefault()
     if (!engine) return
+    const changed = event.changedTouches
+    for (let i = 0; i < changed.length; i += 1) {
+      const touch = changed[i]!
+      if (event.type === "touchstart" && nearEdge(touch)) edgeTouches[touch.identifier] = true
+      else if (event.type === "touchend" && edgeTouches[touch.identifier]) delete edgeTouches[touch.identifier]
+    }
     const frame = readFrame(event.targetTouches)
     if (debug) debug.frame(frame)
     handle(engine.frame(frame))
@@ -246,6 +280,7 @@ function bindSurface(surface: HTMLElement): void {
   surface.addEventListener("touchend", onTouch)
   surface.addEventListener("touchcancel", (event: TouchEvent) => {
     event.preventDefault()
+    edgeTouches = {}
     if (!engine) return
     // The system took the touches (a notification pulled down, say): nothing is clicked or dropped.
     const frame: TouchFrame = { time: Date.now(), contacts: [], cancelled: true }
@@ -379,7 +414,9 @@ export function showTrackpad(profile: Profile, host: HTMLElement): void {
   host.appendChild(pad)
 
   shown = true
+  edgeTouches = {}
   open()
+  suggestLock()
 }
 
 /** Leaving the trackpad (another deck, or the page going away) closes its socket. */

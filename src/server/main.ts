@@ -62,6 +62,8 @@ const PUBLIC_DIR = paths.public
 const LIBRARY_LIMIT = 24 * 1024 * 1024
 // Thirty seconds of fingers at 120 Hz, with what the engine made of them.
 const TRACE_LIMIT = 1024 * 1024
+/** Traces kept on disk; older ones go, so a device left recording cannot fill it. */
+const TRACES_KEPT = 50
 
 const log = (message: string): void => console.log(`[punchboard] ${message}`)
 
@@ -519,6 +521,8 @@ const routes: Route[] = [
     fs.mkdirSync(paths.traces, { recursive: true })
     const file = `trace-${trace.recordedAt.replace(/[:.]/g, "-")}.json`
     fs.writeFileSync(path.join(paths.traces, file), JSON.stringify(trace))
+    const kept = fs.readdirSync(paths.traces).filter((name) => /^trace-.+\.json$/.test(name)).sort()
+    for (const old of kept.slice(0, Math.max(0, kept.length - TRACES_KEPT))) fs.rmSync(path.join(paths.traces, old), { force: true })
     log(`Saved a trackpad trace from ${device?.name ?? "this computer"}: ${path.join(paths.traces, file)}`)
     return { ok: true, file }
   }, { bodyLimit: TRACE_LIMIT }),

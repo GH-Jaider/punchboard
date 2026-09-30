@@ -106,6 +106,7 @@
 * { box-sizing: border-box; }
 
 html { background: var(--bg); }
+html.deck-html { overscroll-behavior: none; }
 
 body {
   margin: 0;
@@ -1135,6 +1136,9 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
    ========================================================================= */
 
 .deck-page {
+  /* No pull-to-refresh, no rubber band, no swiping the page back: fingers on
+     a deck are meant for the deck. Browsers that do not know it ignore it. */
+  overscroll-behavior: none;
   display: flex;
   /* Height, not just min-height: the grid's rows are written in pixels by JS,
      and with only a min-height the flex chain would grow to fit them and push

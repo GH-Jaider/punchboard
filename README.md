@@ -39,6 +39,7 @@ On a Mac, key combinations, music controls and the trackpad need a one-time perm
 
 - Only paired devices can press buttons, and only this computer can edit decks. Remove a device in **Pair a device** to cut it off.
 - Your decks, sounds and paired devices live in their own folder, so updates never touch them: `~/Library/Application Support/Punchboard` on Mac, `%APPDATA%\Punchboard` on Windows. **Back up** in the Control Center saves everything to a file.
+- **Lock the device to the deck**, so a swipe from the edge cannot leave it mid-stream: **Guided Access** on iPad and iPhone (Settings › Accessibility, then triple-click), **App pinning** on Android (Settings › Security). Full screen helps too.
 - **Keep the device's screen on yourself**: a page on your local wifi cannot do it. On iPad and iPhone set **Settings › Display & Brightness › Auto-Lock** to Never; on Android set **Settings › Display › Screen timeout** (or *Sleep*) to the longest.
 
 ## For developers
