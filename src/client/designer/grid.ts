@@ -178,7 +178,7 @@ export function renderGrid(): void {
     // The deck itself is the trackpad; nothing to arrange here.
     const preview = el("div", "trackpad-preview")
     preview.appendChild(el("strong", null, "Trackpad"))
-    preview.appendChild(el("span", null, "On your devices this deck is one big trackpad for this computer's mouse, with Left and Right keys below it."))
+    preview.appendChild(el("span", null, "On your devices this deck is one big trackpad for this computer's mouse, like a Magic Trackpad."))
     gridEl.appendChild(preview)
     layoutStage()
     byId("parked-notice").innerHTML = ""

@@ -1236,7 +1236,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 }
 .deck-grid .tile:active { transform: scale(0.97); }
 
-/* Trackpad decks: one surface and two mouse keys. Flexbox only, for the
+/* Trackpad decks: the whole deck is one surface. Flexbox only, for the
    same old tablets as the grid. */
 .trackpad {
   display: -webkit-box;
@@ -1257,7 +1257,6 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   justify-content: center;
   flex: 1 1 auto;
   min-height: 0;
-  margin-bottom: var(--deck-gap, 10px);
   border: 1px solid var(--border);
   border-radius: var(--r-md);
   background: var(--surface-1);
@@ -1283,36 +1282,6 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   text-align: center;
   pointer-events: none;
 }
-.trackpad-keys {
-  display: -webkit-box;
-  display: flex;
-  flex: none;
-  height: 22%;
-  min-height: 64px;
-  max-height: 140px;
-}
-.trackpad-key {
-  display: -webkit-box;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-box-align: center;
-  -webkit-box-pack: center;
-  flex: 1 1 0;
-  -webkit-box-flex: 1;
-  text-align: center;
-  border: 1px solid var(--border);
-  border-radius: var(--r-md);
-  background: var(--surface-2);
-  color: var(--text-muted);
-  font-size: 15px;
-  font-weight: var(--w-medium);
-  touch-action: none;
-  -webkit-user-select: none;
-  user-select: none;
-}
-.trackpad-key + .trackpad-key { margin-left: var(--deck-gap, 10px); }
-.trackpad-key.is-down { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
 
 /* Live state. Filled, not outlined: "am I muted right now" has to read from
    across the room, which a 3px ring never did. */

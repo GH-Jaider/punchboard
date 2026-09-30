@@ -3,7 +3,9 @@
 //   one finger        moves the cursor (faster flicks go further)
 //   tap               left click; two fingers tapping: right click
 //   two fingers       scroll
-//   double tap, hold  drag (release to drop), or hold Left and move
+//   double tap, hold  drag (release to drop)
+//
+// Like a Magic Trackpad: no keys, the whole deck is the surface.
 //
 // Movement is gathered for a frame and sent over a signed WebSocket, so a
 // finger never waits for a request. Touch events only: pointer events are
@@ -202,41 +204,6 @@ function bindSurface(surface: HTMLElement): void {
   surface.addEventListener("touchcancel", end)
 }
 
-/** Held down, the Left key drags with a finger on the surface; tapped, it clicks. */
-function mouseKey(text: string, which: "left" | "right"): HTMLElement {
-  const key = el("button", "trackpad-key", text)
-  key.type = "button"
-  let downAt = 0
-  let held = false
-  key.addEventListener("touchstart", (event: TouchEvent) => {
-    event.preventDefault()
-    downAt = Date.now()
-    key.classList.add("is-down")
-    if (which === "left") {
-      held = true
-      send(["d"])
-    }
-  })
-  const release = (event: TouchEvent): void => {
-    event.preventDefault()
-    key.classList.remove("is-down")
-    if (which === "left") {
-      if (held) send(["u"])
-      held = false
-    } else if (Date.now() - downAt < 600) {
-      send(["c", "right"])
-    }
-  }
-  key.addEventListener("touchend", release)
-  key.addEventListener("touchcancel", release)
-  // A mouse, for trying the deck from a computer's browser.
-  key.addEventListener("click", (event: MouseEvent) => {
-    if (event.detail === 0 || downAt) return
-    send(["c", which])
-  })
-  return key
-}
-
 /** Replaces the grid's contents with the trackpad. */
 export function showTrackpad(profile: Profile, host: HTMLElement): void {
   settings = profile.trackpad ?? settings
@@ -249,14 +216,9 @@ export function showTrackpad(profile: Profile, host: HTMLElement): void {
   surface.setAttribute("aria-label", "Trackpad: moves this computer's mouse")
   statusEl = el("span", "trackpad-status", "Connecting…")
   surface.appendChild(statusEl)
-  surface.appendChild(el("span", "trackpad-hint", "Tap to click · two fingers to scroll · two-finger tap to right-click"))
+  surface.appendChild(el("span", "trackpad-hint", "Tap to click · two fingers to scroll · two-finger tap to right-click · double-tap and hold to drag"))
   bindSurface(surface)
   pad.appendChild(surface)
-
-  const keys = el("div", "trackpad-keys")
-  keys.appendChild(mouseKey("Left", "left"))
-  keys.appendChild(mouseKey("Right", "right"))
-  pad.appendChild(keys)
   host.appendChild(pad)
 
   shown = true
