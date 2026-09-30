@@ -38,6 +38,15 @@ bindSoundOutput()
 bindAppearance()
 bindObs()
 bindPairing()
+
+// The desktop app's "Pair a device…" opens /designer#pair.
+function openPairingFromHash(): void {
+  if (location.hash !== "#pair") return
+  history.replaceState(null, "", location.pathname)
+  byId("pair-btn").click()
+}
+window.addEventListener("hashchange", openPairingFromHash)
+openPairingFromHash()
 bindSession()
 bindDialogChrome()
 

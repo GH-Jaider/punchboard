@@ -453,13 +453,7 @@ const routes: Route[] = [
 
   route<void>("POST", "/api/shutdown", "local", ({ res }) => {
     sendJson(res, 200, { ok: true } satisfies Ok)
-    res.once("finish", () => {
-      auth.flush()
-      obs.stop()
-      player.dispose()
-      live.closeAll()
-      server.close(() => process.exit(0))
-    })
+    res.once("finish", shutdown)
   })
 ]
 
@@ -529,9 +523,37 @@ function openControlCenter(port: number): void {
   open(`http://localhost:${port}/designer`).catch(() => { /* the printed link still works */ })
 }
 
+// The desktop app runs the companion as a child process: it reads the port
+// from this line and asks for a clean exit by writing "quit" to stdin.
+const DESKTOP = process.env.PUNCHBOARD_DESKTOP === "1"
+function desktopReady(port: number): void {
+  if (DESKTOP) console.log(`PUNCHBOARD_READY ${port}`)
+}
+if (DESKTOP) {
+  let input = ""
+  process.stdin.setEncoding("utf8")
+  process.stdin.on("data", (chunk: string) => {
+    input += chunk
+    if (input.includes("quit")) shutdown()
+  })
+  // The app went away without saying so: follow it.
+  process.stdin.on("end", () => shutdown())
+}
+
+/** Stops sounds and OBS, saves what is pending, closes streams, exits. */
+function shutdown(): void {
+  player.dispose()
+  obs.stop()
+  auth.flush()
+  live.closeAll()
+  server.close()
+  setTimeout(() => process.exit(0), 200).unref()
+}
+
 async function start(): Promise<void> {
   const outcome = await claimPort(server, PORT)
   if (outcome.kind === "already-running") {
+    desktopReady(outcome.port)
     console.log(`\n  Punchboard is already running at http://localhost:${outcome.port}/designer`)
     console.log("  Opening it instead of starting a second copy.\n")
     openControlCenter(outcome.port)
@@ -554,6 +576,7 @@ async function start(): Promise<void> {
   PORT = outcome.port
   announce()
   obs.start()
+  desktopReady(PORT)
   openControlCenter(PORT)
 }
 
@@ -562,8 +585,5 @@ start().catch((error: unknown) => {
   process.exit(1)
 })
 
-process.on("SIGINT", () => {
-  player.dispose()
-  auth.flush()
-  process.exit(0)
-})
+process.on("SIGINT", shutdown)
+process.on("SIGTERM", shutdown)

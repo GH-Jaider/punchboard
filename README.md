@@ -98,6 +98,16 @@ The keys go to whatever is in front on that computer at the time, so global hotk
 
 **Stop companion** sits in the footer, asks for confirmation, and shuts down the local process. Paired tablets show as offline until you start it again.
 
+## The desktop app
+
+`npm run app:build` builds **Punchboard.app** (Tauri). The app carries its own Node and runs the companion bundled into one file (`dist/server/server.mjs`); its window shows the Control Center, and a menu-bar icon offers *Open Control Center*, *Pair a device…*, *Open at login* and *Quit*. Closing the window keeps Punchboard running; quitting stops the companion cleanly. `npm run app:dev` runs it without packaging.
+
+- `scripts/fetch-node.mjs` downloads the Node binary for a target and checks it against nodejs.org's checksums (`src-tauri/binaries`, not committed).
+- `scripts/build-server.mjs` bundles the server.
+- `src-tauri/src/main.rs` is the whole shell: start and stop the companion, the window, the menu bar.
+
+Windows builds need a Windows machine (or CI); the same project builds there.
+
 ## Working on Punchboard
 
 Punchboard is written in strict TypeScript.

@@ -20,3 +20,9 @@ sounds/sounds.json
 
 # Backups the companion keeps beside its files
 *.bak
+
+# Built for the desktop app
+dist/
+src-tauri/target/
+src-tauri/binaries/
+src-tauri/gen/

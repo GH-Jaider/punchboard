@@ -1,0 +1,247 @@
+// Punchboard's desktop shell. The companion itself is the Node server in
+// src/server, bundled as server.mjs and run here with a Node binary that
+// ships inside the app. This file only starts and stops it, shows the
+// Control Center in a window, and keeps an icon in the menu bar.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::net::TcpStream;
+use std::sync::Mutex;
+use std::time::Duration;
+
+use tauri::image::Image;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::TrayIconBuilder;
+use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder, WindowEvent};
+use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
+
+/// Passed when the app starts at login: stay in the menu bar, no window.
+const HIDDEN_ARG: &str = "--hidden";
+
+#[derive(Default)]
+struct Companion {
+    child: Mutex<Option<CommandChild>>,
+    port: Mutex<Option<u16>>,
+    quitting: Mutex<bool>,
+}
+
+fn port(app: &AppHandle) -> Option<u16> {
+    *app.state::<Companion>().port.lock().unwrap()
+}
+
+fn control_center_url(port: u16, page: &str) -> Url {
+    Url::parse(&format!("http://localhost:{port}{page}")).expect("a valid local address")
+}
+
+/// Shows the Control Center (or the starting screen, until the companion has
+/// said which port it is on), creating the window the first time.
+fn open_window(app: &AppHandle, page: &str) {
+    let target = port(app).map(|port| control_center_url(port, page));
+    if let Some(window) = app.get_webview_window("main") {
+        if let Some(url) = target {
+            let _ = window.navigate(url);
+        }
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+        return;
+    }
+    let source = match target {
+        Some(url) => WebviewUrl::External(url),
+        None => WebviewUrl::App("index.html".into()),
+    };
+    let downloads = app.path().download_dir().ok();
+    let opener = app.clone();
+    let built = WebviewWindowBuilder::new(app, "main", source)
+        .title("Punchboard")
+        .inner_size(1440.0, 900.0)
+        .min_inner_size(960.0, 640.0)
+        // "Open deck" and other new-window links belong in the real browser.
+        .on_new_window(move |url, _features| {
+            #[allow(deprecated)]
+            let _ = opener.shell().open(url.as_str(), None);
+            tauri::webview::NewWindowResponse::Deny
+        })
+        // "Back up" saves to Downloads, next to any earlier backup rather than over it.
+        .on_download(move |_webview, event| {
+            if let tauri::webview::DownloadEvent::Requested { destination, .. } = event {
+                if let Some(folder) = &downloads {
+                    let name = destination
+                        .file_name()
+                        .map(|n| n.to_string_lossy().to_string())
+                        .filter(|n| !n.is_empty() && n != "Unknown")
+                        .unwrap_or_else(|| "punchboard-backup.json".to_string());
+                    *destination = unique_path(folder, &name);
+                }
+            }
+            true
+        })
+        .build();
+    if let Ok(window) = built {
+        keep_running_on_close(&window);
+    }
+}
+
+/// "name.json", or "name (2).json" and so on if that is taken.
+fn unique_path(folder: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let candidate = folder.join(name);
+    if !candidate.exists() {
+        return candidate;
+    }
+    let path = std::path::Path::new(name);
+    let stem = path.file_stem().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
+    (2..).map(|n| folder.join(format!("{stem} ({n}){ext}"))).find(|p| !p.exists()).expect("a free name")
+}
+
+/// Closing the window hides it; Punchboard keeps serving decks from the menu bar.
+fn keep_running_on_close(window: &WebviewWindow) {
+    let handle = window.clone();
+    window.on_window_event(move |event| {
+        if let WindowEvent::CloseRequested { api, .. } = event {
+            api.prevent_close();
+            let _ = handle.hide();
+        }
+    });
+}
+
+/// Starts the companion and follows what it prints.
+fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std::error::Error>> {
+    let resources = app.path().resource_dir()?;
+    let script = resources.join("server.mjs");
+    let (mut events, child) = app
+        .shell()
+        .sidecar("node")?
+        .args([script.to_string_lossy().to_string()])
+        .env("PUNCHBOARD_APP_DIR", resources.to_string_lossy().to_string())
+        .env("PUNCHBOARD_DESKTOP", "1")
+        .env("PUNCHBOARD_NO_OPEN", "1")
+        .spawn()?;
+    *app.state::<Companion>().child.lock().unwrap() = Some(child);
+
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let mut buffered = String::new();
+        while let Some(event) = events.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    buffered.push_str(&String::from_utf8_lossy(&bytes));
+                    while let Some(end) = buffered.find('\n') {
+                        let line: String = buffered.drain(..=end).collect();
+                        let line = line.trim();
+                        println!("{line}");
+                        if let Some(value) = line.strip_prefix("PUNCHBOARD_READY ") {
+                            if let Ok(ready) = value.trim().parse::<u16>() {
+                                *app.state::<Companion>().port.lock().unwrap() = Some(ready);
+                                if show_window || app.get_webview_window("main").is_some() {
+                                    open_window(&app, "/designer");
+                                }
+                            }
+                        }
+                    }
+                }
+                CommandEvent::Stderr(bytes) => eprint!("{}", String::from_utf8_lossy(&bytes)),
+                CommandEvent::Terminated(status) => {
+                    if *app.state::<Companion>().quitting.lock().unwrap() {
+                        break;
+                    }
+                    // A Punchboard already running (say, from the starter
+                    // script) keeps serving; this app just shows it.
+                    let still_served = port(&app)
+                        .map(|p| TcpStream::connect_timeout(&([127, 0, 0, 1], p).into(), Duration::from_millis(500)).is_ok())
+                        .unwrap_or(false);
+                    if !still_served {
+                        eprintln!("The companion stopped ({status:?}); quitting.");
+                        app.exit(1);
+                    }
+                    break;
+                }
+                _ => {}
+            }
+        }
+    });
+    Ok(())
+}
+
+/// Asks the companion to stop cleanly (sounds, OBS, pending saves), then makes sure.
+fn stop_companion(app: &AppHandle) {
+    let state = app.state::<Companion>();
+    *state.quitting.lock().unwrap() = true;
+    let child = state.child.lock().unwrap().take();
+    if let Some(mut child) = child {
+        let _ = child.write(b"quit\n");
+        std::thread::sleep(Duration::from_millis(600));
+        let _ = child.kill();
+    }
+}
+
+fn build_tray(app: &AppHandle) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Open Control Center", true, None::<&str>)?;
+    let pair = MenuItem::with_id(app, "pair", "Pair a device…", true, None::<&str>)?;
+    let login_enabled = app.autolaunch().is_enabled().unwrap_or(false);
+    let login = CheckMenuItem::with_id(app, "login", "Open at login", true, login_enabled, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Punchboard", true, None::<&str>)?;
+    let menu = Menu::with_items(
+        app,
+        &[&open, &pair, &PredefinedMenuItem::separator(app)?, &login, &PredefinedMenuItem::separator(app)?, &quit],
+    )?;
+
+    let login_item = login.clone();
+    TrayIconBuilder::with_id("punchboard")
+        .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
+        .icon_as_template(true)
+        .tooltip("Punchboard")
+        .menu(&menu)
+        .on_menu_event(move |app, event| match event.id().as_ref() {
+            "open" => open_window(app, "/designer"),
+            "pair" => open_window(app, "/designer#pair"),
+            "login" => {
+                let autolaunch = app.autolaunch();
+                let enable = !autolaunch.is_enabled().unwrap_or(false);
+                let _ = if enable { autolaunch.enable() } else { autolaunch.disable() };
+                let _ = login_item.set_checked(autolaunch.is_enabled().unwrap_or(false));
+            }
+            "quit" => {
+                stop_companion(app);
+                app.exit(0);
+            }
+            _ => {}
+        })
+        .build(app)?;
+    Ok(())
+}
+
+fn main() {
+    let app = tauri::Builder::default()
+        // A second launch brings this one forward instead of starting a second companion.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_window(app, "/designer")))
+        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
+        .manage(Companion::default())
+        .setup(|app| {
+            let handle = app.handle().clone();
+            let show_window = !std::env::args().any(|arg| arg == HIDDEN_ARG);
+            build_tray(&handle)?;
+            if show_window {
+                open_window(&handle, "/designer");
+            }
+            start_companion(&handle, show_window)?;
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("Punchboard could not start");
+
+    app.run(|app, event| match event {
+        // Cmd+Q or the Dock's Quit: stop the companion before going.
+        RunEvent::ExitRequested { .. } => {
+            if !*app.state::<Companion>().quitting.lock().unwrap() {
+                stop_companion(app);
+            }
+        }
+        // Clicking the Dock icon with the window hidden shows it again.
+        #[cfg(target_os = "macos")]
+        RunEvent::Reopen { has_visible_windows: false, .. } => open_window(app, "/designer"),
+        _ => {}
+    });
+}

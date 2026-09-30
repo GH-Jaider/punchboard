@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The starting screen only; the Control Center itself is served by the companion and needs no app access.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}
