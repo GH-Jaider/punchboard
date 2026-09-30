@@ -1289,6 +1289,64 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   pointer-events: none;
 }
 
+/* Debug mode (#trackpad-debug): where the fingers are, what the engine
+   decided, and a button that keeps the last 30 s as a trace. Margins rather
+   than gap, which the oldest Safari ignores. */
+.trackpad-dots {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.trackpad-dot {
+  position: absolute;
+  top: -22px;
+  left: -22px;
+  width: 44px;
+  height: 44px;
+  border: 2px solid var(--accent);
+  border-radius: 50%;
+  background: var(--accent-soft);
+}
+.trackpad-debug {
+  display: -webkit-box;
+  display: flex;
+  flex: 0 0 auto;
+  max-height: 34%;
+  margin-top: 8px;
+}
+.trackpad-log {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 8px 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--text-muted);
+  font: 11px/1.4 Menlo, Consolas, monospace;
+  white-space: pre-wrap;
+}
+.trackpad-debug-side {
+  display: -webkit-box;
+  display: flex;
+  -webkit-box-orient: vertical;
+  flex-direction: column;
+  flex: 0 0 auto;
+  justify-content: space-between;
+  margin-left: 10px;
+}
+.trackpad-state {
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: var(--w-medium);
+}
+
 /* Live state. Filled, not outlined: "am I muted right now" has to read from
    across the room, which a 3px ring never did. */
 .deck-grid .tile.is-on {

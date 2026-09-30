@@ -178,7 +178,7 @@ function trackpadFields(profile: Profile): HTMLElement {
   const rows: ReadonlyArray<[string, string]> = [
     ["One finger", "move the cursor"],
     ["Tap · two-finger tap", "click · right-click"],
-    ["Double-tap and hold", "drag"],
+    ["Tap, then touch and hold", "drag; lift to drop"],
     ["Two fingers", "scroll, with momentum"],
     ["Pinch", "zoom in or out"],
     ["Three fingers up · down", "Mission Control · App Exposé (Windows: Task View · desktop)"],
