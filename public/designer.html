@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a0c0f">
   <title>Control Center | Punchboard</title>
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/punchboard.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <!-- Paints the last-used theme before first render; the server's setting
@@ -89,8 +89,8 @@
       <div id="parked-notice"></div>
 
       <!-- A landscape tablet, sized with the same maths the real deck uses. -->
-      <div class="stage">
-        <div class="tablet-frame">
+      <div class="stage" id="stage">
+        <div class="tablet-frame" id="tablet-frame">
           <div class="tablet-screen" id="tablet-screen">
             <div class="design-grid" id="grid"></div>
           </div>

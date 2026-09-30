@@ -6,8 +6,9 @@
 export const TILE_MIN = 56
 /** Hard floor: below this a touch target is unusable. */
 export const TOUCH_MIN = 44
-/** Tallest a tile may get relative to its width. */
-export const MAX_ASPECT = 2
+/** Tallest a tile may get relative to its width. Past this a tile reads as a
+    bar, not a key, and a one-row deck turned into five tall slabs. */
+export const MAX_ASPECT = 1.25
 
 export interface GridBox {
   width: number

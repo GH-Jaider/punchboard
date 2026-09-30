@@ -55,7 +55,7 @@ html[data-theme="hardware"] {
   --border-strong: rgba(22, 22, 22, 0.5);
 
   --appbar-bg: #e4e2dc;
-  --stage-bg: #d3d0c8;
+  --frame-bg: #cfccc4;
   --slot-empty: #cbc8c0;
   --hairline: rgba(22, 22, 22, 0.2);
   --backdrop: rgba(40, 36, 30, 0.45);
@@ -139,7 +139,7 @@ html[data-theme="hardware"] {
 [data-theme="hardware"] .step.is-open .step-index { background: var(--text); color: var(--surface-input); }
 [data-theme="hardware"] .theme-card[aria-checked="true"] { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
 
-[data-theme="hardware"] .stage { border-color: #a9a69e; border-radius: 14px; box-shadow: inset 0 1px 0 #e9e7e1; }
+[data-theme="hardware"] .tablet-frame { border-color: #a9a69e; }
 [data-theme="hardware"] .qr-frame { background: var(--surface-input); }
 [data-theme="hardware"] .toast { border: 0; background: var(--text); color: var(--surface-input); }
 [data-theme="hardware"] .toast.is-error { background: var(--toast-error-bg); color: var(--toast-error-text); }
@@ -163,8 +163,8 @@ html[data-theme="hardware"] {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-[data-theme="hardware"] .tile .step-count { top: auto; bottom: 8px; left: 10px; border-radius: 2px; }
-[data-theme="hardware"] .tile.selected { border-color: #b0ada5; box-shadow: none; outline: 2px solid var(--text); outline-offset: 3px; }
+[data-theme="hardware"] .tile .step-count { border-radius: 2px; background: #e4e2dc; color: #4a4843; }
+[data-theme="hardware"] .tile.selected { outline-color: var(--text); }
 [data-theme="hardware"] .tile.unconfigured .tile-icon { background: transparent; color: var(--text-subtle); }
 [data-theme="hardware"] .tile.pressed { transform: translateY(3px); }
 [data-theme="hardware"] .add-slot { border-color: #8f8c84; }
@@ -222,7 +222,7 @@ html[data-theme="broadcast"] {
   --border-strong: #3a3a3a;
 
   --appbar-bg: #111111;
-  --stage-bg: linear-gradient(#151515 1px, transparent 1px) 0 0 / 24px 24px, linear-gradient(90deg, #151515 1px, transparent 1px) 0 0 / 24px 24px, #0b0b0b;
+  --frame-bg: #161616;
   --slot-empty: #0a0a0a;
   --hairline: rgba(255, 255, 255, 0.12);
   --backdrop: rgba(0, 0, 0, 0.75);
@@ -345,10 +345,10 @@ html[data-theme="broadcast"] {
   -webkit-line-clamp: 1;
 }
 [data-theme="broadcast"] .tile .tile-label.is-empty { background: #202020; color: var(--text-subtle); }
-[data-theme="broadcast"] .tile .step-count { top: 0; left: 0; background: #2a2a2a; line-height: 18px; }
-[data-theme="broadcast"] .tile.selected { border-color: #2e2e2e; box-shadow: none; outline: 2px solid var(--accent); outline-offset: 3px; }
+[data-theme="broadcast"] .tile .step-count { top: 0; right: 0; border-radius: 0; background: #2a2a2a; color: #bdbdbd; }
+[data-theme="broadcast"] .tablet-frame,
+[data-theme="broadcast"] .tablet-screen { border-radius: 0; }
 [data-theme="broadcast"] .tile.unconfigured .tile-icon { color: var(--text-subtle); }
-[data-theme="broadcast"] .tile.unconfigured::after { border-radius: 0; }
 [data-theme="broadcast"] .add-slot { border-color: #3a3a3a; }
 
 /* Deck live state: the whole key lights in its colour, with a white tally

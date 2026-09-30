@@ -13,7 +13,8 @@ import { activeProfile, store, touch } from "./state.ts"
 import { recordUndo, undoLast } from "./undo.ts"
 
 const gridEl = byId("grid")
-const screenEl = byId("tablet-screen")
+const stageEl = byId("stage")
+const frameEl = byId("tablet-frame")
 let dragFrom: number | null = null
 
 /** Faders and macros say so on the tile, so they are spotted at a glance. */
@@ -203,17 +204,37 @@ export function renderGrid(): void {
 
 /** Sizes the grid inside the tablet frame with the same maths the tablet
     uses on its screen, so the preview shows the deck the way it will look. */
+/** An iPad's grid area in landscape (its screen minus the deck bar). */
+const FRAME_ASPECT = 1154 / 750
+const FRAME_MAX_WIDTH = 920
+const FRAME_MIN_HEIGHT = 240
+
 export function layoutStage(): void {
   const profile = activeProfile()
-  const width = screenEl.clientWidth
-  const height = screenEl.clientHeight
+  // The frame keeps the tablet's proportions and fits whatever room the
+  // stage has, so a one-row deck never leaves a frame taller than the window.
+  const roomWidth = Math.min(stageEl.clientWidth, FRAME_MAX_WIDTH)
+  const roomHeight = Math.max(FRAME_MIN_HEIGHT, stageEl.clientHeight)
+  if (!roomWidth || !roomHeight) return
+  let frameWidth = roomWidth
+  let frameHeight = Math.round(frameWidth / FRAME_ASPECT)
+  if (frameHeight > roomHeight) {
+    frameHeight = roomHeight
+    frameWidth = Math.round(frameHeight * FRAME_ASPECT)
+  }
+  frameEl.style.width = `${frameWidth}px`
+  frameEl.style.height = `${frameHeight}px`
+
+  const width = gridEl.clientWidth
+  const height = gridEl.clientHeight
   if (!width || !height) return
   const layout = layoutGrid({ width, height, columns: profile.columns, rows: profile.rows })
   gridEl.style.gap = `${layout.gap}px`
   gridEl.style.gridTemplateColumns = `repeat(${profile.columns},minmax(0,1fr))`
   gridEl.style.gridTemplateRows = `repeat(${profile.rows},${layout.rowHeight}px)`
   gridEl.style.alignContent = layout.alignContent
-  gridEl.style.overflowY = layout.scrolls ? "auto" : "hidden"
+  // Hidden overflow would clip the selection ring on the outer tiles.
+  gridEl.style.overflowY = layout.scrolls ? "auto" : "visible"
   gridEl.style.setProperty("--tile-ico", `${layout.iconSize}px`)
   gridEl.style.setProperty("--tile-fs", `${layout.fontSize}px`)
   gridEl.querySelectorAll<HTMLElement>(".tile-label").forEach((label) => {

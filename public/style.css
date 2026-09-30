@@ -31,7 +31,7 @@
 
   /* Values a theme has to be able to flip, which used to be hardcoded dark. */
   --appbar-bg: rgba(13, 14, 17, 0.92);
-  --stage-bg: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.035), transparent 60%), var(--bg);
+  --frame-bg: #1c1f26;
   --slot-empty: rgba(255, 255, 255, 0.012);
   --hairline: rgba(255, 255, 255, 0.16);
   --backdrop: rgba(4, 6, 8, 0.7);
@@ -599,31 +599,32 @@ select {
 .canvas-head h1 { font-size: 26px; }
 .canvas-head .sub { margin-top: 4px; color: var(--text-muted); font-size: var(--fs-sm); }
 
+/* The stage is the room left in the column; layoutStage() fits a landscape
+   tablet frame into it, keeping the tablet's proportions. */
 .stage {
-  display: grid;
-  flex: none;
-  place-items: center;
-  padding: clamp(16px, 2.5vw, 28px);
-  border: 1px solid var(--border);
-  border-radius: var(--r-lg);
-  background: var(--stage-bg);
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: var(--s-2) 0;
 }
 
-/* A landscape tablet. Its screen is what layoutStage() measures, so the tiles
-   get the same size and shape the real deck gives them. */
+/* The frame is the bezel; the screen inside is the deck page itself, so the
+   tiles get the size and shape the real deck gives them. */
 .tablet-frame {
   box-sizing: border-box;
-  width: min(100%, 920px);
-  aspect-ratio: 4 / 3;
-  padding: 14px;
+  flex: none;
+  padding: 12px;
   border: 1px solid var(--border-strong);
   border-radius: 22px;
-  background: var(--bg);
+  background: var(--frame-bg);
+  box-shadow: 0 1px 0 var(--hairline) inset;
 }
-.tablet-screen { width: 100%; height: 100%; min-height: 0; }
+.tablet-screen { box-sizing: border-box; width: 100%; height: 100%; min-height: 0; padding: 12px; border-radius: 10px; background: var(--bg); }
 .design-grid { display: grid; width: 100%; height: 100%; min-height: 0; }
 
-.stage-hint { margin: calc(var(--s-4) * -1) 0 0; color: var(--text-subtle); font-size: var(--fs-xs); text-align: center; }
+.stage-hint { flex: none; margin: 0; color: var(--text-subtle); font-size: var(--fs-xs); text-align: center; }
 
 /* ---------------------------------------------------------------- the tiles */
 
@@ -678,36 +679,26 @@ select {
 
 /* Editing selection in the designer. Deliberately a different language from
    the deck's live state below, which the old build conflated. */
-.tile.selected {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-soft);
-}
+.tile.selected { outline: 2px solid var(--accent); outline-offset: 3px; }
 
 /* A tile with no action yet reads as unfinished rather than looking done. */
 .tile.unconfigured .tile-icon { background: var(--surface-3); color: var(--text-subtle); }
-.tile.unconfigured::after {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--warn);
-  content: "";
-}
 
 /* Multi-step tiles say so, so a macro is visible at a glance. */
 .tile .step-count {
   position: absolute;
-  top: 5px;
-  left: 6px;
+  top: 6px;
+  right: 6px;
   padding: 0 5px;
-  border-radius: var(--r-pill);
+  border-radius: 4px;
   background: var(--surface-3);
   color: var(--text-muted);
+  font-family: var(--font-mono);
   font-size: 10px;
-  font-weight: var(--w-bold);
-  line-height: 15px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  line-height: 16px;
+  text-transform: uppercase;
 }
 
 .add-slot {
