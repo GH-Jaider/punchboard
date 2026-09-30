@@ -137,7 +137,7 @@ html[data-theme="hardware"] {
 [data-theme="hardware"] .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--text); }
 [data-theme="hardware"] .step.is-open { border-color: var(--text); }
 [data-theme="hardware"] .step.is-open .step-index { background: var(--text); color: var(--surface-input); }
-[data-theme="hardware"] .theme-option[aria-checked="true"] { border-color: var(--text); background: var(--surface-2); }
+[data-theme="hardware"] .theme-card[aria-checked="true"] { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
 
 [data-theme="hardware"] .stage { border-color: #a9a69e; border-radius: 14px; box-shadow: inset 0 1px 0 #e9e7e1; }
 [data-theme="hardware"] .qr-frame { background: var(--surface-input); }
@@ -273,7 +273,7 @@ html[data-theme="broadcast"] {
 [data-theme="broadcast"] .brand,
 [data-theme="broadcast"] .deck-profiles button,
 [data-theme="broadcast"] .profile-row strong,
-[data-theme="broadcast"] .theme-option strong {
+[data-theme="broadcast"] .theme-text strong {
   font-family: var(--font-display);
   font-weight: 600;
   letter-spacing: 0.06em;
@@ -292,12 +292,13 @@ html[data-theme="broadcast"] {
 [data-theme="broadcast"] .save-chip .dot,
 [data-theme="broadcast"] .link-status .dot { border-radius: 0; }
 
-[data-theme="broadcast"] .panel { background: #101010; }
+[data-theme="broadcast"] .rail,
+[data-theme="broadcast"] .inspector,
+[data-theme="broadcast"] .inspector .panel-head { background: #101010; }
 [data-theme="broadcast"] .brand-mark { background: var(--accent); box-shadow: none; color: var(--accent-ink); }
 [data-theme="broadcast"] .btn.primary { font-weight: 700; }
 [data-theme="broadcast"] .profile-row.active { border-color: transparent; border-left: 3px solid var(--accent); background: var(--surface-2); }
 [data-theme="broadcast"] .profile-row.active strong { color: var(--text); }
-[data-theme="broadcast"] .theme-option[aria-checked="true"] { border-color: transparent; border-left: 3px solid var(--accent); background: var(--surface-2); }
 [data-theme="broadcast"] .accent-row input[type="color"],
 [data-theme="broadcast"] .accent-row input[type="color"]::-webkit-color-swatch-wrapper,
 [data-theme="broadcast"] .accent-row input[type="color"]::-webkit-color-swatch,

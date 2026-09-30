@@ -10,21 +10,29 @@ let currentTheme: ThemeId = DEFAULT_THEME
 
 export const activeTheme = (): ThemeId => currentTheme
 
+/** A miniature deck in the theme's own colours: six keys, one of them lit. */
+function themePreview(themeId: ThemeId): HTMLElement {
+  const preview = el("span", `theme-preview ${themeId}`)
+  preview.setAttribute("aria-hidden", "true")
+  for (let key = 0; key < 6; key += 1) preview.appendChild(el("span", key === 1 ? "k on" : "k"))
+  return preview
+}
+
 function renderThemes(): void {
   const host = byId("theme-list")
   host.innerHTML = ""
   for (const theme of THEMES) {
-    const option = el("button", "theme-option")
-    option.type = "button"
-    option.setAttribute("role", "radio")
-    option.setAttribute("aria-checked", String(theme.id === currentTheme))
-    option.appendChild(el("span", `theme-swatch ${theme.id}`))
-    const text = el("span")
+    const card = el("button", "theme-card")
+    card.type = "button"
+    card.setAttribute("role", "radio")
+    card.setAttribute("aria-checked", String(theme.id === currentTheme))
+    card.appendChild(themePreview(theme.id))
+    const text = el("span", "theme-text")
     text.appendChild(el("strong", null, theme.label))
     text.appendChild(el("small", null, theme.hint))
-    option.appendChild(text)
-    option.onclick = () => void chooseTheme(theme.id)
-    host.appendChild(option)
+    card.appendChild(text)
+    card.onclick = () => void chooseTheme(theme.id)
+    host.appendChild(card)
   }
 }
 
@@ -55,6 +63,9 @@ export function showAccent(accent: string): void {
 }
 
 export function bindAppearance(): void {
+  const dialog = byId<HTMLDialogElement>("dlg-appearance")
+  byId("appearance-btn").addEventListener("click", () => dialog.showModal())
+
   const picker = byId<HTMLInputElement>("accent-picker")
   picker.addEventListener("input", () => {
     byId("accent-hex").textContent = picker.value

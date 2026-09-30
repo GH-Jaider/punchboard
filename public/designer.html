@@ -29,102 +29,81 @@
     </span>
     <nav class="appbar-actions" aria-label="Control Center">
       <a class="btn" href="/pair">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20h1M17 20v1"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20h1M17 20v1"/></svg>
         <span class="hide-sm">Pair a tablet</span>
       </a>
       <a class="btn primary" href="/deck" target="_blank" rel="noopener">Open deck</a>
     </nav>
   </header>
 
-  <div class="workspace">
+  <!-- Three columns that scroll on their own, so the deck never scrolls away. -->
+  <div class="shell">
 
-    <!-- Shown until dismissed, instead of a permanent marketing header. -->
-    <section class="intro-card" id="intro-card" hidden>
-      <span class="intro-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
-      <div style="flex:1 1 auto;min-width:0">
-        <h2>Three steps to a working deck</h2>
-        <ol>
-          <li>Click an empty slot to add a button, then name it and pick an icon.</li>
-          <li>Give it an action &mdash; or chain several into a macro with delays between them.</li>
-          <li>Open <strong>Pair a tablet</strong> and scan the code. Changes reach the tablet as you make them.</li>
-        </ol>
-      </div>
-      <button class="icon-btn" id="intro-dismiss" type="button" aria-label="Dismiss these instructions">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
-      </button>
-    </section>
-
-    <!-- ------------------------------------------------------------ rail -->
-    <aside class="panel rail" aria-label="Profiles and setup">
-      <div class="panel-head">
-        <h2>Profiles</h2>
-        <span class="spacer"></span>
-        <button class="icon-btn" id="new-profile" type="button" aria-label="Create a profile">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        </button>
-      </div>
-      <div class="panel-body">
+    <aside class="rail" aria-label="Profiles and setup">
+      <div class="rail-scroll">
+        <div class="rail-head">
+          <h2>Profiles</h2>
+          <button class="icon-btn" id="new-profile" type="button" aria-label="Create a profile">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+          </button>
+        </div>
         <div class="profile-list" id="profile-list"></div>
-        <div style="display:flex;gap:8px;margin-top:12px">
-          <button class="btn" id="rename-profile" type="button" style="flex:1">Rename</button>
-          <button class="btn danger" id="delete-profile" type="button" style="flex:1">Delete</button>
+        <div class="rail-row-actions">
+          <button class="btn ghost" id="rename-profile" type="button">Rename</button>
+          <button class="btn ghost danger-text" id="delete-profile" type="button">Delete</button>
         </div>
       </div>
 
-      <div class="rail-section">
-        <h3>Appearance</h3>
-        <div class="theme-list" id="theme-list" role="radiogroup" aria-label="Theme"></div>
-        <label class="accent-row" for="accent-picker">
-          <span>Accent</span>
-          <span class="accent-hex" id="accent-hex">#5fd0d6</span>
-          <input id="accent-picker" type="color" aria-label="Choose the interface colour">
-        </label>
-        <p class="field-help" style="margin-top:8px">Theme and accent apply here and on every paired deck.</p>
-      </div>
-
-      <div class="rail-section">
-        <h3>Sounds</h3>
-        <button class="obs-summary" id="sounds-toggle" type="button" aria-expanded="false" aria-controls="sounds-body">
-          <span class="obs-name">Sound slots</span>
+      <!-- Set once and left alone, so each opens in its own window. -->
+      <nav class="rail-setup" aria-label="Setup">
+        <h3>Setup</h3>
+        <button class="setup-item" id="sounds-toggle" type="button" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+          <span class="setup-name">Sounds</span>
           <span class="state-chip" id="sounds-state">8 slots</span>
-          <span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
         </button>
-        <div class="obs-body" id="sounds-body" hidden>
-          <p class="field-help">Replace any slot with your own WAV or MP3, up to 8 MB. Sounds play through this computer's speakers &mdash; the tablet never downloads them.</p>
-          <div class="sound-list" id="sound-list"></div>
-        </div>
-      </div>
-
-      <div class="rail-section">
-        <h3>Connections</h3>
-        <button class="obs-summary" id="obs-toggle" type="button" aria-expanded="false" aria-controls="obs-body">
-          <span class="obs-name">OBS Studio</span>
+        <button class="setup-item" id="obs-toggle" type="button" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 8 5-3v14l-5-3"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
+          <span class="setup-name">OBS Studio</span>
           <span class="state-chip warning" id="obs-state">Not set up</span>
-          <span class="chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></span>
         </button>
-        <div class="obs-body" id="obs-body" hidden>
-          <p class="field-help" id="obs-help">Only needed for OBS buttons. In OBS open <strong>Tools &rsaquo; WebSocket Server Settings</strong>, enable the server, then copy its address and password here.</p>
-          <div class="field">
-            <label for="obs-address">Address</label>
-            <input id="obs-address" type="text" placeholder="ws://127.0.0.1:4455" spellcheck="false">
-          </div>
-          <div class="field">
-            <label for="obs-password">Password</label>
-            <input id="obs-password" type="password" placeholder="From the OBS settings panel" autocomplete="off">
-          </div>
-          <button class="btn wide" id="obs-save" type="button">Save connection</button>
-        </div>
+        <button class="setup-item" id="appearance-btn" type="button" aria-haspopup="dialog">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 10c0-4.4-4.5-8-10-8z"/></svg>
+          <span class="setup-name">Appearance</span>
+          <span class="accent-dot" aria-hidden="true"></span>
+        </button>
+      </nav>
+
+      <div class="rail-foot">
+        <button class="btn ghost" id="export-btn" type="button">Back up</button>
+        <button class="btn ghost" id="import-btn" type="button">Restore</button>
+        <input type="file" id="import-input" accept="application/json" hidden>
+        <button class="btn ghost danger-text" id="shutdown-btn" type="button" title="Stops Punchboard; paired tablets go offline">Stop</button>
       </div>
     </aside>
 
-    <!-- ---------------------------------------------------------- canvas -->
-    <section class="canvas-col" aria-label="Deck layout">
-      <div class="canvas-head">
-        <div style="min-width:0">
-          <h2 id="profile-title">Your deck</h2>
-          <div class="sub">This is what the tablet shows. Drag a button to move it.</div>
+    <main class="canvas-col" aria-label="Deck layout">
+      <!-- Shown until dismissed, instead of a permanent marketing header. -->
+      <section class="intro-card" id="intro-card" hidden>
+        <span class="intro-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+        <div class="intro-text">
+          <h2>Three steps to a working deck</h2>
+          <ol>
+            <li>Click an empty slot to add a button, then name it and pick an icon.</li>
+            <li>Give it an action &mdash; or chain several into a macro with delays between them.</li>
+            <li>Choose <strong>Pair a tablet</strong> and scan the code. Changes reach the tablet as you make them.</li>
+          </ol>
         </div>
-        <span class="spacer"></span>
+        <button class="icon-btn" id="intro-dismiss" type="button" aria-label="Dismiss these instructions">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </section>
+
+      <div class="canvas-head">
+        <div class="canvas-title">
+          <h1 id="profile-title">Your deck</h1>
+          <div class="sub">What the tablet shows, slot for slot. Drag a button to move it.</div>
+        </div>
         <div class="grid-size">
           <label for="cols">Columns <input class="num-input" id="cols" type="number" min="2" max="8" step="1"></label>
           <label for="rows">Rows <input class="num-input" id="rows" type="number" min="1" max="6" step="1"></label>
@@ -138,24 +117,14 @@
           <div class="design-grid" id="grid"></div>
         </div>
       </div>
-    </section>
+    </main>
 
-    <!-- ------------------------------------------------------- inspector -->
-    <aside class="panel inspector" id="inspector" aria-label="Button settings"></aside>
+    <aside class="inspector" id="inspector" aria-label="Button settings"></aside>
   </div>
 
-  <footer class="session-foot">
-    <button class="btn ghost" id="export-btn" type="button">Back up to a file</button>
-    <button class="btn ghost" id="import-btn" type="button">Restore from a file</button>
-    <input type="file" id="import-input" accept="application/json" hidden>
-    <span class="spacer"></span>
-    <span>Stopping the companion takes every paired tablet offline.</span>
-    <button class="btn danger" id="shutdown-btn" type="button">Stop companion</button>
-  </footer>
-
   <!-- --------------------------------------------------------- dialogs -->
-  <!-- Replaces the five native prompt()/confirm()/alert() calls the old build
-       used, which broke straight through the dark theme. -->
+  <!-- In-page dialogs, so nothing breaks out of the theme the way native
+       prompt()/confirm() would. -->
   <dialog id="dlg-ask">
     <form method="dialog">
       <div class="dialog-head"><h2 id="ask-title">Name</h2></div>
@@ -181,6 +150,56 @@
         <button class="btn danger" value="ok" type="submit" id="confirm-ok">Delete</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="dlg-sounds" class="wide" aria-labelledby="sounds-title">
+    <div class="dialog-head">
+      <h2 id="sounds-title">Sounds</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="dialog-body">
+      <p class="field-help">Eight slots for <strong>Play a sound</strong> buttons. Replace any with your own WAV or MP3, up to 8 MB. Sounds play through this computer's speakers; tablets never download them.</p>
+      <div class="sound-list" id="sound-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-obs" aria-labelledby="obs-title">
+    <div class="dialog-head">
+      <h2 id="obs-title">OBS Studio</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="dialog-body">
+      <p class="field-help" id="obs-help">Only needed for OBS buttons. In OBS open <strong>Tools &rsaquo; WebSocket Server Settings</strong>, enable the server, then copy its address and password here.</p>
+      <div class="field">
+        <label for="obs-address">Address</label>
+        <input id="obs-address" type="text" placeholder="ws://127.0.0.1:4455" spellcheck="false">
+      </div>
+      <div class="field">
+        <label for="obs-password">Password</label>
+        <input id="obs-password" type="password" placeholder="From the OBS settings panel" autocomplete="off">
+      </div>
+    </div>
+    <div class="dialog-foot">
+      <button class="btn primary" id="obs-save" type="button">Save connection</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-appearance" class="wide" aria-labelledby="appearance-title">
+    <div class="dialog-head">
+      <h2 id="appearance-title">Appearance</h2>
+      <button class="icon-btn" type="button" id="appearance-close" data-close aria-label="Close">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="dialog-body">
+      <div class="theme-cards" id="theme-list" role="radiogroup" aria-label="Theme"></div>
+      <label class="accent-row" for="accent-picker">
+        <span>Accent colour</span>
+        <span class="accent-hex" id="accent-hex">#5fd0d6</span>
+        <input id="accent-picker" type="color" aria-label="Choose the interface colour">
+      </label>
+      <p class="field-help">Theme and accent apply here and on every paired deck.</p>
+    </div>
   </dialog>
 
   <dialog id="dlg-icons" class="wide">

@@ -1,0 +1,14 @@
+{
+  "port": 8787,
+  "profileFile": "./profiles/current-profile.json",
+  "theme": {
+    "name": "broadcast",
+    "accent": "#fd8312",
+    "accentPreset": "custom"
+  },
+  "soundVolume": 1,
+  "obs": {
+    "address": "ws://127.0.0.1:4455",
+    "password": ""
+  }
+}

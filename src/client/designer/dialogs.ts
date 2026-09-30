@@ -45,3 +45,15 @@ export function confirmAction(options: ConfirmOptions): Promise<boolean> {
     dialog.showModal()
   })
 }
+
+/** Every settings window closes from its [data-close] button or a click on the
+    backdrop (which lands on the dialog element itself). Escape is built in. */
+export function bindDialogChrome(): void {
+  for (const dialog of Array.from(document.querySelectorAll<HTMLDialogElement>("dialog"))) {
+    for (const button of Array.from(dialog.querySelectorAll<HTMLElement>("[data-close]"))) {
+      button.addEventListener("click", () => dialog.close())
+    }
+    if (dialog.querySelector("form[method=dialog]")) continue
+    dialog.addEventListener("click", (event) => { if (event.target === dialog) dialog.close() })
+  }
+}

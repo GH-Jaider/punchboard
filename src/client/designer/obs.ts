@@ -20,12 +20,8 @@ export function showObsSettings(settings: SettingsResponse): void {
 }
 
 export function bindObs(): void {
-  const toggle = byId("obs-toggle")
-  toggle.addEventListener("click", () => {
-    const open = toggle.getAttribute("aria-expanded") === "true"
-    toggle.setAttribute("aria-expanded", String(!open))
-    byId("obs-body").hidden = open
-  })
+  const dialog = byId<HTMLDialogElement>("dlg-obs")
+  byId("obs-toggle").addEventListener("click", () => dialog.showModal())
 
   byId("obs-save").addEventListener("click", async () => {
     const address = byId<HTMLInputElement>("obs-address").value.trim()

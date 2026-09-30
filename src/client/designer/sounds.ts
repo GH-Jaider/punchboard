@@ -212,11 +212,7 @@ function renderSoundList(): void {
 }
 
 export function bindSounds(): void {
-  const toggle = byId("sounds-toggle")
-  toggle.addEventListener("click", () => {
-    const open = toggle.getAttribute("aria-expanded") === "true"
-    toggle.setAttribute("aria-expanded", String(!open))
-    byId("sounds-body").hidden = open
-  })
+  const dialog = byId<HTMLDialogElement>("dlg-sounds")
+  byId("sounds-toggle").addEventListener("click", () => dialog.showModal())
   document.addEventListener("pointerdown", () => { playback.unlocked = true }, { once: true })
 }

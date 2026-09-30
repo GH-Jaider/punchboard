@@ -16,6 +16,7 @@ import { bindSoundOutput } from "./sound-output.ts"
 import { bindSounds, loadSounds } from "./sounds.ts"
 import { activeProfile, fetchLibrary, setSaveState, store } from "./state.ts"
 import { renderSteps } from "./steps.ts"
+import { bindDialogChrome } from "./dialogs.ts"
 
 function renderAll(): void {
   renderProfiles()
@@ -37,6 +38,7 @@ bindSoundOutput()
 bindAppearance()
 bindObs()
 bindSession()
+bindDialogChrome()
 
 async function start(): Promise<void> {
   try {
