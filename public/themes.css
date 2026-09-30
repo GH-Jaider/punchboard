@@ -197,6 +197,9 @@ html[data-theme="hardware"] {
 [data-theme="hardware"] .deck-grid .slot-empty { border-radius: 10px; box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.08); }
 
 [data-theme="hardware"] .deck-grid .tile.fader::before { display: none; }
+/* The colour strip owns the top-left corner; the time left sits under it. */
+[data-theme="hardware"] .deck-grid .tile.is-tracking .sound-time { top: 20px; left: 12px; }
+[data-theme="hardware"] .deck-grid .tile.is-tracking .sound-progress { bottom: 8px; }
 [data-theme="hardware"] .deck-grid .tile.fader:active { border-bottom-width: 7px; }
 
 [data-theme="hardware"] .deck-profiles button { border-color: var(--text); background: transparent; color: var(--text); }
@@ -366,6 +369,12 @@ html[data-theme="broadcast"] {
 [data-theme="broadcast"] .deck-grid .tile.is-error { border: 3px solid var(--danger); box-shadow: none; }
 
 [data-theme="broadcast"] .tile.fader .tile-label { z-index: 1; }
+/* The label strip owns the bottom edge: the progress bar sits just above it
+   in normal flow, the time left goes top-right (the tally square is top-left),
+   and the meter stops short of the strip. */
+[data-theme="broadcast"] .deck-grid .tile.is-tracking .sound-progress { position: static; flex: none; width: 100%; height: 3px; border-radius: 0; background: rgba(255, 255, 255, 0.14); }
+[data-theme="broadcast"] .deck-grid .tile.is-tracking .sound-time { top: 5px; left: auto; right: 8px; }
+[data-theme="broadcast"] .tile.fader.has-meter .fader-meter { bottom: calc(var(--tile-fs, 13px) * 2.3 + 6px); border-radius: 0; }
 [data-theme="broadcast"] .deck-grid .tile.fader:active { -webkit-filter: none; filter: none; }
 
 [data-theme="broadcast"] .deck-bar { background: #111111; }

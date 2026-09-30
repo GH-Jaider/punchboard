@@ -1,5 +1,6 @@
 // The deck's live state, shared by its modules. Plain module-level values:
 // the deck is one page with one of everything.
+import type { SoundPlayback } from "../../shared/api.ts"
 import type { Button, Library, Profile } from "../../shared/types.ts"
 
 export const state = {
@@ -12,6 +13,8 @@ export const state = {
   inflight: {} as Record<string, boolean>,
   /** Sound slots playing on the computer right now. */
   playing: [] as number[],
+  /** When each playing sound started and how long it is, by slot. */
+  playback: {} as Record<string, SoundPlayback>,
   /** Fader levels by target key, 0..1. */
   levels: {} as Record<string, number>,
   /** Fader ids under a finger, so a push cannot yank them. */

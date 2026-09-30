@@ -2,41 +2,12 @@
 //
 // Every stateful action reports the state OBS actually ended up in, rather
 // than the companion guessing, so a lit tile always matches reality.
-import OBSWebSocket from "obs-websocket-js"
 import { LIMITS } from "../shared/actions.ts"
 import type { Button, Step } from "../shared/types.ts"
 import type { Config } from "./config.ts"
-import { HttpError, errorText } from "./http.ts"
+import { HttpError } from "./http.ts"
 import { sendKeys } from "./keys.ts"
-
-let obsClientPromise: Promise<OBSWebSocket> | null = null
-
-export function getObsClient(config: Config): Promise<OBSWebSocket> {
-  if (!config.obs.address) throw new Error("Add the OBS WebSocket address in the Control Center first.")
-  if (!obsClientPromise) {
-    const client = new OBSWebSocket()
-    obsClientPromise = client
-      .connect(config.obs.address, config.obs.password || undefined)
-      .then(() => {
-        // A dropped connection clears the cache, or every later press would
-        // reuse a dead socket and report a confusing error.
-        client.once("ConnectionClosed", () => { obsClientPromise = null })
-        return client
-      })
-      .catch((error: unknown) => {
-        obsClientPromise = null
-        throw new Error(`Could not reach OBS at ${config.obs.address}. Start OBS, enable its WebSocket server, then try again. (${errorText(error)})`)
-      })
-  }
-  return obsClientPromise
-}
-
-/** Drops the cached OBS connection after its address or password changes. */
-export function resetObsClient(): void {
-  const pending = obsClientPromise
-  obsClientPromise = null
-  if (pending) pending.then((client) => client.disconnect()).catch(() => {})
-}
+import type { ObsLink } from "./obs.ts"
 
 let openModule: Promise<(target: string) => Promise<unknown>> | null = null
 function loadOpen(): Promise<(target: string) => Promise<unknown>> {
@@ -68,6 +39,7 @@ export function prepareSteps(button: Button): Step[] {
 
 export interface ActionContext {
   config: Config
+  obs: ObsLink
   /** Toggles a sound slot on the Control Center's audio output. */
   onSound: (slot: number) => void
 }
@@ -78,7 +50,6 @@ interface ActionResult {
 }
 
 async function runAction(step: Step, context: ActionContext): Promise<ActionResult> {
-  const { config } = context
   if (step.delayMs) await sleep(step.delayMs)
 
   switch (step.type) {
@@ -100,14 +71,14 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
 
     case "obs_scene": {
       if (!step.sceneName) throw new Error("Add the exact OBS scene name first.")
-      const obs = await getObsClient(config)
+      const obs = await context.obs.connect()
       await obs.call("SetCurrentProgramScene", { sceneName: step.sceneName })
       return {}
     }
 
     case "obs_toggle_mute": {
       if (!step.sourceName) throw new Error("Add the exact OBS input name first.")
-      const obs = await getObsClient(config)
+      const obs = await context.obs.connect()
       const { inputMuted } = await obs.call("ToggleInputMute", { inputName: step.sourceName })
       // Lit means muted: that is the state worth spotting from across a room.
       return { active: Boolean(inputMuted) }
@@ -115,7 +86,7 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
 
     case "obs_toggle_source": {
       if (!step.sceneName || !step.sourceName) throw new Error("Add both the scene name and the source name first.")
-      const obs = await getObsClient(config)
+      const obs = await context.obs.connect()
       const { sceneItemId } = await obs.call("GetSceneItemId", { sceneName: step.sceneName, sourceName: step.sourceName })
       const { sceneItemEnabled } = await obs.call("GetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId })
       await obs.call("SetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId, sceneItemEnabled: !sceneItemEnabled })
@@ -123,14 +94,14 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     }
 
     case "obs_start_stop_stream": {
-      const obs = await getObsClient(config)
+      const obs = await context.obs.connect()
       const { outputActive } = await obs.call("GetStreamStatus")
       await obs.call(outputActive ? "StopStream" : "StartStream")
       return { active: !outputActive }
     }
 
     case "obs_toggle_record": {
-      const obs = await getObsClient(config)
+      const obs = await context.obs.connect()
       const { outputActive } = await obs.call("GetRecordStatus")
       await obs.call(outputActive ? "StopRecord" : "StartRecord")
       return { active: !outputActive }

@@ -4,7 +4,8 @@ import type { Snapshot, StatusResponse } from "../../shared/api.ts"
 import { applyAccent } from "../common/dom.ts"
 import { request } from "../common/http.ts"
 import { activeTheme, setTheme } from "./appearance.ts"
-import { showTabletCount } from "./pairing.ts"
+import { showObsLink } from "./obs.ts"
+import { showDeviceCount } from "./pairing.ts"
 import { AUDIO_ID, handleSoundCommands, renderNowPlaying, setSoundVolume } from "./sound-output.ts"
 import { loadSounds } from "./sounds.ts"
 import { reloadLibrary, saveTimerPending, store } from "./state.ts"
@@ -22,8 +23,9 @@ function handle(state: Snapshot): void {
     void reloadLibrary("Updated with changes from another window.")
   }
   if (typeof state.levels.sounds === "number") setSoundVolume(state.levels.sounds)
-  renderNowPlaying(state.playing)
-  showTabletCount(state.tablets)
+  renderNowPlaying(state.playback)
+  showDeviceCount(state.tablets)
+  showObsLink(state.obs)
   handleSoundCommands(state.soundCommands, state.audioOutput)
 }
 

@@ -40,7 +40,9 @@ function toneBuffer(freqHz: number): Buffer {
 export type AudioType = "audio/wav" | "audio/mpeg"
 type Extension = "wav" | "mp3"
 
-interface SoundEntry { ext: Extension; name: string; uploadedAt?: string }
+interface SoundEntry { ext: Extension; name: string; uploadedAt?: string   /** Learned from the Control Center the first time an MP3 plays. */
+  durationMs?: number
+}
 
 /** Checks the file's own header rather than trusting its extension. */
 export function isAudio(data: Buffer, type: AudioType): boolean {
@@ -73,6 +75,7 @@ export function createSoundStore(dir: string) {
     if (!isObject(raw)) return null
     const result: SoundEntry = { ext: raw.ext === "mp3" ? "mp3" : "wav", name: typeof raw.name === "string" ? raw.name : "" }
     if (typeof raw.uploadedAt === "string") result.uploadedAt = raw.uploadedAt
+    if (typeof raw.durationMs === "number" && raw.durationMs > 0) result.durationMs = raw.durationMs
     return result
   }
 
@@ -96,6 +99,54 @@ export function createSoundStore(dir: string) {
     }
   }
 
+  /** A WAV's length from its header: data bytes over the byte rate. Chunks are
+      walked rather than assumed at fixed offsets, since editors add LIST chunks. */
+  function wavDurationMs(file: string): number | null {
+    let handle: number | null = null
+    try {
+      handle = fs.openSync(file, "r")
+      const size = fs.fstatSync(handle).size
+      const head = Buffer.alloc(Math.min(size, 64 * 1024))
+      fs.readSync(handle, head, 0, head.length, 0)
+      if (head.length < 12 || head.toString("ascii", 0, 4) !== "RIFF" || head.toString("ascii", 8, 12) !== "WAVE") return null
+      let byteRate = 0
+      let offset = 12
+      while (offset + 8 <= head.length) {
+        const id = head.toString("ascii", offset, offset + 4)
+        const length = head.readUInt32LE(offset + 4)
+        if (id === "fmt " && offset + 16 <= head.length) byteRate = head.readUInt32LE(offset + 16)
+        if (id === "data") {
+          // A streaming writer may leave the size blank; the file's tail is the data then.
+          const dataBytes = length && length !== 0xffffffff ? length : size - offset - 8
+          return byteRate > 0 ? Math.round((dataBytes / byteRate) * 1000) : null
+        }
+        offset += 8 + length + (length % 2)
+      }
+      return null
+    } catch {
+      return null
+    } finally {
+      if (handle !== null) fs.closeSync(handle)
+    }
+  }
+
+  function durationMs(slot: number): number | null {
+    const target = file(slot)
+    if (target.ext === "wav") return fs.existsSync(target.file) ? wavDurationMs(target.file) : null
+    return entry(slot)?.durationMs ?? null
+  }
+
+  /** Remembers an MP3's length once the Control Center has played it. */
+  function setDuration(slot: number, ms: number): boolean {
+    const map = readMap()
+    const current = entry(slot)
+    if (!current || current.ext !== "mp3" || !(ms > 0)) return false
+    if (current.durationMs === Math.round(ms)) return false
+    map[slot] = { ...current, durationMs: Math.round(ms) } satisfies SoundEntry
+    writeJsonAtomic(mapFile, map)
+    return true
+  }
+
   function slots(): SoundSlot[] {
     return Array.from({ length: LIMITS.soundSlots }, (_, index) => {
       const slot = index + 1
@@ -109,7 +160,8 @@ export function createSoundStore(dir: string) {
         name: info?.name ?? "",
         format: target.ext === "mp3" ? "MP3" : "WAV",
         bytes: stat ? stat.size : 0,
-        updatedAt: stat ? stat.mtime.toISOString() : null
+        updatedAt: stat ? stat.mtime.toISOString() : null,
+        durationMs: stat ? durationMs(slot) : null
       }
     })
   }
@@ -138,5 +190,5 @@ export function createSoundStore(dir: string) {
     return true
   }
 
-  return { ensureDefaults, slots, file, saveUpload, revert }
+  return { ensureDefaults, slots, file, saveUpload, revert, durationMs, setDuration }
 }

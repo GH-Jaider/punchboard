@@ -5,7 +5,7 @@
 // audio output: it plays what it is told, reports when a sound ends, and a
 // second press on the same sound stops it instead of stacking another copy.
 import type { ServerResponse } from "node:http"
-import type { Snapshot, SoundCommand } from "../shared/api.ts"
+import type { ObsLink, Snapshot, SoundCommand, SoundPlayback } from "../shared/api.ts"
 import type { ThemeId } from "../shared/types.ts"
 import type { Request } from "./http.ts"
 
@@ -13,6 +13,9 @@ export interface LiveSettings {
   accent: () => string
   theme: () => ThemeId
   libraryRev: () => number
+  obs: () => ObsLink
+  /** A sound's length, so decks can draw its progress; null while unknown. */
+  soundDuration: (slot: number) => number | null
 }
 
 export type Live = ReturnType<typeof createLive>
@@ -20,6 +23,8 @@ export type Live = ReturnType<typeof createLive>
 export function createLive(settings: LiveSettings, soundVolume: number) {
   const toggles = new Map<string, boolean>()
   const playing = new Set<number>()
+  /** When each playing sound started and how long it runs, for progress. */
+  const playback: Record<string, SoundPlayback> = {}
   const soundCommands: SoundCommand[] = []
   let soundSeq = 0
   let soundsRev = 1
@@ -45,6 +50,8 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
       playing: [...playing],
       audioOutput: audioOutputId(),
       levels,
+      playback,
+      obs: settings.obs(),
       tablets: new Set([...listeners.values()].filter(Boolean)).size,
       accent: settings.accent(),
       theme: settings.theme()
@@ -56,6 +63,22 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
     for (const res of listeners.keys()) {
       try { res.write(payload) } catch { listeners.delete(res) }
     }
+  }
+
+  /** Meter levels go out as their own event, so 15 updates a second never
+      carry the whole snapshot with them. */
+  function broadcastMeters(levels: Record<string, number>): void {
+    const payload = `event: meters\ndata: ${JSON.stringify({ levels })}\n\n`
+    for (const res of listeners.keys()) {
+      try { res.write(payload) } catch { listeners.delete(res) }
+    }
+  }
+
+  const hasListeners = (): boolean => listeners.size > 0
+
+  function clearPlayback(slot?: number): void {
+    if (slot === undefined) for (const key of Object.keys(playback)) delete playback[key]
+    else delete playback[String(slot)]
   }
 
   function openStream(req: Request, res: ServerResponse, { deviceId = "", audioId = "" }: { deviceId?: string; audioId?: string }): void {
@@ -87,7 +110,10 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
       const wasPlaying = audioOutputId() === audioId
       audioOutputs.delete(audioId)
       // Its audio died with the tab, so nothing is playing any more.
-      if (wasPlaying) playing.clear()
+      if (wasPlaying) {
+        playing.clear()
+        clearPlayback()
+      }
       broadcast()
     }
     req.on("close", close)
@@ -113,8 +139,13 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
     soundSeq += 1
     soundCommands.push({ id: soundSeq, slot, action })
     if (soundCommands.length > 20) soundCommands.shift()
-    if (action === "play") playing.add(slot)
-    else playing.delete(slot)
+    if (action === "play") {
+      playing.add(slot)
+      playback[String(slot)] = { startedAt: Date.now(), durationMs: settings.soundDuration(slot) }
+    } else {
+      playing.delete(slot)
+      clearPlayback(slot)
+    }
     broadcast()
   }
 
@@ -124,6 +155,7 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
   }
 
   function soundEnded(slot: number): void {
+    clearPlayback(slot)
     if (playing.delete(slot)) broadcast()
   }
 
@@ -142,5 +174,5 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
     broadcast()
   }
 
-  return { levels, snapshot, broadcast, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggle, soundsChanged }
+  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggle, soundsChanged }
 }

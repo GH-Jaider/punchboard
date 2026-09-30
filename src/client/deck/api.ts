@@ -48,7 +48,8 @@ export function whenUnpaired(handler: () => void): void {
   onUnpaired = handler
 }
 
-const serverNow = (): number => Math.round(Date.now() + clockOffset)
+/** This computer's clock corrected to the companion's, for signatures and progress. */
+export const serverNow = (): number => Math.round(Date.now() + clockOffset)
 
 function nonce(): string {
   const bytes: number[] = []

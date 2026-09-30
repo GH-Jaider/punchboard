@@ -42,10 +42,16 @@ export function faderMarkup(button: FaderButton): HTMLElement {
   tile.tabIndex = 0
   applyTileColor(tile, button.color)
 
+  // The meter (indicators.ts) finds this tile by its level key.
+  tile.setAttribute("data-level-key", faderLevelKey(button.fader))
+
   const icon = el("span", "tile-icon")
   icon.innerHTML = iconMarkup(button)
   tile.appendChild(el("span", "fader-fill"))
   tile.appendChild(el("span", "fader-value"))
+  const meter = el("span", "fader-meter")
+  meter.appendChild(el("span", "fader-meter-fill"))
+  tile.appendChild(meter)
   tile.appendChild(icon)
   if (button.label) tile.appendChild(el("span", "tile-label", button.label))
   showLevel(tile, levelFor(button))

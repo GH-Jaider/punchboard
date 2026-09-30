@@ -4,10 +4,11 @@
 import { stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
-import { isStateful } from "../../shared/model.ts"
+import { isStateful, soundSlotOf } from "../../shared/model.ts"
 import type { Button, PressButton } from "../../shared/types.ts"
 import { applyTileColor, byId, el } from "../common/dom.ts"
 import { faderMarkup, syncFaders } from "./faders.ts"
+import { repaintIndicators } from "./indicators.ts"
 import { press } from "./press.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
@@ -50,6 +51,15 @@ function pressTile(button: PressButton): HTMLElement {
   const icon = el("span", "tile-icon")
   icon.innerHTML = iconMarkup(button)
   tile.appendChild(icon)
+  const slot = soundSlotOf(button)
+  if (slot) {
+    // Progress and time left while this sound plays (indicators.ts).
+    tile.setAttribute("data-sound-slot", String(slot))
+    const progress = el("span", "sound-progress")
+    progress.appendChild(el("span", "sound-progress-fill"))
+    tile.appendChild(progress)
+    tile.appendChild(el("span", "sound-time"))
+  }
   if (button.label) tile.appendChild(el("span", "tile-label", button.label))
 
   if (isStateful(button)) paintState(tile, button)
@@ -95,6 +105,7 @@ export function renderGrid(): void {
     gridEl.appendChild(button.control === "fader" ? faderMarkup(button) : pressTile(button))
   }
   scaleTiles()
+  repaintIndicators()
 }
 
 /* Sizes the rows, then the tile contents, from the real box. Rows grow to

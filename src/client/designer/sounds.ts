@@ -1,6 +1,6 @@
 // The eight sound slots: listing, previewing, replacing and restoring them.
 import { LIMITS } from "../../shared/actions.ts"
-import type { SoundsChanged, SoundSlot, SoundsResponse } from "../../shared/api.ts"
+import type { Ok, SoundDurationRequest, SoundsChanged, SoundSlot, SoundsResponse } from "../../shared/api.ts"
 import { byId, el, svg } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { confirmAction } from "./dialogs.ts"
@@ -29,6 +29,30 @@ export function soundSlotLabel(slot: number): string {
   const info = slots.find((item) => item.slot === slot)
   if (!info) return `Sound ${slot}`
   return `Sound ${slot}${info.custom ? ` · ${info.name || "your file"}` : " · built-in tone"}`
+}
+
+/** "0:26" for a track, "0.4 s" for a short tone that would otherwise show as 0:00. */
+export function formatDuration(ms: number): string {
+  if (ms < 10000) return `${(Math.round(ms / 100) / 10).toFixed(1)} s`
+  const seconds = Math.round(ms / 1000)
+  return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`
+}
+
+/** WAV lengths come from the server; an MP3's is learned the first time it
+    plays here, reported once per slot per page load. */
+const reportedDurations = new Set<number>()
+
+export function learnDuration(slot: number, audio: HTMLAudioElement): void {
+  audio.addEventListener("loadedmetadata", () => {
+    const info = slots.find((item) => item.slot === slot)
+    if (!info || info.durationMs !== null || reportedDurations.has(slot)) return
+    if (!Number.isFinite(audio.duration) || audio.duration <= 0) return
+    reportedDurations.add(slot)
+    const body: SoundDurationRequest = { durationMs: Math.round(audio.duration * 1000) }
+    request<Ok>(`/api/sounds/${slot}/duration`, { method: "POST", json: body })
+      .then(() => loadSounds())
+      .catch(() => { reportedDurations.delete(slot) })
+  })
 }
 
 function prettyBytes(bytes: number): string {
@@ -87,6 +111,7 @@ export function playSlot(slot: number, trigger: HTMLElement): void {
 
   const audio = new Audio(soundUrl(slot))
   audio.volume = playback.volume
+  learnDuration(slot, audio)
   currentAudio = audio
   currentButton = trigger
   trigger.innerHTML = svg(UI_ICONS.stop)
@@ -180,7 +205,9 @@ function renderSoundList(): void {
 
     const meta = el("div", "meta")
     meta.appendChild(el("strong", null, info.custom ? info.name || "Your file" : `Built-in tone ${info.slot}`))
-    meta.appendChild(el("small", null, info.exists ? `${info.format} · ${prettyBytes(info.bytes)}` : "Missing"))
+    const details = [info.format, prettyBytes(info.bytes)]
+    if (info.durationMs !== null) details.push(formatDuration(info.durationMs))
+    meta.appendChild(el("small", null, info.exists ? details.join(" · ") : "Missing"))
     row.appendChild(meta)
 
     const tools = el("div", "tools")

@@ -2,12 +2,13 @@
 // converts to its own scale.
 import { execFile } from "node:child_process"
 import type { Fader } from "../shared/types.ts"
-import { getObsClient } from "./actions.ts"
+import type { ObsLink } from "./obs.ts"
 import type { Config } from "./config.ts"
 
 export { faderLevelKey as levelKey } from "../shared/model.ts"
 
 export interface VolumeContext {
+  obs: ObsLink
   config: Config
   saveConfig: () => void
 }
@@ -39,7 +40,7 @@ export async function readLevel(fader: Fader, context: VolumeContext): Promise<n
       requireMac()
       return clamp01(Number(await osascript("output volume of (get volume settings)")) / 100)
     case "obs_input": {
-      const obs = await getObsClient(context.config)
+      const obs = await context.obs.connect()
       const { inputVolumeMul } = await obs.call("GetInputVolume", { inputName: requireInput(fader) })
       return clamp01(Math.cbrt(inputVolumeMul))
     }
@@ -58,7 +59,7 @@ export async function writeLevel(fader: Fader, level: unknown, context: VolumeCo
       await osascript(`set volume output volume ${Math.round(value * 100)}`)
       return value
     case "obs_input": {
-      const obs = await getObsClient(context.config)
+      const obs = await context.obs.connect()
       await obs.call("SetInputVolume", { inputName: requireInput(fader), inputVolumeMul: value ** 3 })
       return value
     }

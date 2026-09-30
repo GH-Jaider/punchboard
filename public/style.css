@@ -1181,6 +1181,50 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 
 .deck-grid .tile.is-busy { opacity: 0.6; }
 
+/* Sound progress: a bar along the bottom and the time left, drawn only while
+   the companion says that slot is playing (deck/indicators.ts). Both use
+   currentColor, which is the ink while the tile is lit. */
+.tile .sound-progress,
+.tile .sound-time { display: none; }
+.deck-grid .tile.is-tracking .sound-progress {
+  display: block;
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  left: 8px;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+.deck-grid .tile.is-tracking .sound-progress-fill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: currentColor;
+  opacity: 0.85;
+  -webkit-transition: width 200ms linear;
+  transition: width 200ms linear;
+}
+.deck-grid .tile.is-tracking.is-indeterminate .sound-progress-fill {
+  width: 100%;
+  -webkit-animation: pulse 1.4s ease-in-out infinite;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.deck-grid .tile.is-tracking .sound-time {
+  display: block;
+  position: absolute;
+  top: 6px;
+  left: 9px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
 /* Faders: the fill rises with the level, and the whole tile is the handle.
    Dragging is relative, so touching the tile never jumps the volume. */
 .deck-grid .tile.fader {
@@ -1212,6 +1256,38 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   font-size: 12px;
   font-weight: 500;
 }
+/* OBS meter on a fader: a strip on the right edge coloured like the OBS
+   mixer (green, amber from -20 dB, red from -9 dB), shown only while levels
+   keep arriving. The fill's height and the gradient's scale both derive from
+   --level, so one property per update moves it. */
+.tile.fader .fader-meter { display: none; }
+.tile.fader.has-meter .fader-meter {
+  display: block;
+  position: absolute;
+  top: 8px;
+  right: 6px;
+  bottom: 8px;
+  width: 6px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+.tile.fader .fader-meter-fill {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: calc(var(--level, 0) * 100%);
+  background: -webkit-linear-gradient(bottom, #27c26a 0, #27c26a 66%, #e8a317 66%, #e8a317 85%, #e0302a 85%, #e0302a 100%);
+  background: linear-gradient(to top, #27c26a 0, #27c26a 66%, #e8a317 66%, #e8a317 85%, #e0302a 85%, #e0302a 100%);
+  background-size: 100% calc(100% / var(--level, 1));
+  background-position: 0 100%;
+  -webkit-transition: height 80ms linear;
+  transition: height 80ms linear;
+}
+.tile.fader.has-meter .fader-value { right: 18px; }
+
 .deck-grid .tile.fader:active { transform: none; }
 .deck-grid .tile.fader.is-dragging { border-color: var(--tile-color, var(--accent)); }
 .deck-grid .tile.fader.is-dragging .fader-value { color: var(--text); }
@@ -1464,7 +1540,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 
 /* Top bar: the pairing button doubles as the live tablet count. */
 .pair-btn .dot { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--text-subtle); }
-.pair-btn.has-tablets .dot { background: var(--ok); }
+.pair-btn.has-devices .dot { background: var(--ok); }
 
 .device-list { display: grid; gap: var(--s-2); }
 .device-row {

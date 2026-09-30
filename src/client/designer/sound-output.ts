@@ -2,11 +2,11 @@
 // Control Center does. The server owns the state: it decides play or stop and
 // knows what is playing; this tab obeys and reports when a sound ends on its
 // own. With several Control Center tabs open only the newest plays.
-import type { Ok, SoundCommand } from "../../shared/api.ts"
+import type { Ok, SoundCommand, SoundPlayback } from "../../shared/api.ts"
 import { byId } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { toast } from "./hub.ts"
-import { playback, setPreviewVolume, soundUrl } from "./sounds.ts"
+import { formatDuration, learnDuration, playback, setPreviewVolume, soundUrl } from "./sounds.ts"
 
 export const AUDIO_ID = `cc_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
 
@@ -34,6 +34,7 @@ function playDeckSound(slot: number): void {
   }
   const audio = new Audio(soundUrl(slot))
   audio.volume = playback.volume
+  learnDuration(slot, audio)
   deckAudio.set(slot, audio)
   const finish = (): void => {
     if (deckAudio.get(slot) !== audio) return
@@ -57,9 +58,33 @@ export function setSoundVolume(level: number): void {
   setPreviewVolume(playback.volume)
 }
 
-export function renderNowPlaying(playing: readonly number[]): void {
-  byId("now-playing").hidden = !playing.length
-  byId("now-playing-text").textContent = playing.length === 1 ? `Stop sound ${playing[0]}` : `Stop ${playing.length} sounds`
+/** What is playing, so the Stop button can count down. This tab runs on the
+    server's computer, so Date.now() is the server clock. */
+let current: Record<string, SoundPlayback> = {}
+let ticker: number | undefined
+
+function nowPlayingText(): string {
+  const slots = Object.keys(current)
+  if (slots.length !== 1) return `Stop ${slots.length} sounds`
+  const slot = slots[0]!
+  const entry = current[slot]
+  const text = `Stop sound ${slot}`
+  if (!entry || entry.durationMs === null) return text
+  const left = Math.max(0, entry.startedAt + entry.durationMs - Date.now())
+  return `${text} · ${formatDuration(left)}`
+}
+
+export function renderNowPlaying(playback: Record<string, SoundPlayback>): void {
+  current = playback
+  const active = Object.keys(current).length > 0
+  byId("now-playing").hidden = !active
+  byId("now-playing-text").textContent = active ? nowPlayingText() : "Stop sound"
+  if (active && ticker === undefined) {
+    ticker = window.setInterval(() => { byId("now-playing-text").textContent = nowPlayingText() }, 250)
+  } else if (!active && ticker !== undefined) {
+    window.clearInterval(ticker)
+    ticker = undefined
+  }
 }
 
 /** Follows the server's play/stop commands; only the output tab acts on them. */

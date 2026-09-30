@@ -1,5 +1,5 @@
 // The OBS connection panel.
-import type { SettingsResponse, SettingsSaved } from "../../shared/api.ts"
+import type { ObsLink, SettingsResponse, SettingsSaved } from "../../shared/api.ts"
 import { byId } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { toast } from "./hub.ts"
@@ -12,6 +12,14 @@ function setObsState(configured: boolean, message: string, isError = false): voi
   chip.textContent = isError ? "Problem" : configured ? "Connected" : "Not set up"
   chip.className = `state-chip ${isError ? "error" : configured ? "ready" : "warning"}`
   byId("obs-help").textContent = message
+}
+
+/** The live link, from every snapshot. It arrives right after a save too,
+    so it always has the last word over setObsState. */
+export function showObsLink(status: ObsLink): void {
+  const chip = byId("obs-state")
+  chip.textContent = status === "connected" ? "Connected" : status === "disconnected" ? "Not running" : "Not set up"
+  chip.className = `state-chip ${status === "connected" ? "ready" : "warning"}`
 }
 
 export function showObsSettings(settings: SettingsResponse): void {

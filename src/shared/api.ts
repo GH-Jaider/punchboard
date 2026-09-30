@@ -81,6 +81,25 @@ export interface SoundCommand {
   action: "play" | "stop"
 }
 
+/** A sound the companion has told its audio output to play. Decks draw the
+    progress themselves from these two numbers and their server-clock offset. */
+export interface SoundPlayback {
+  /** Server time (ms) when playback was ordered. */
+  startedAt: number
+  /** Null until the sound's length is known (see SoundSlot.durationMs). */
+  durationMs: number | null
+}
+
+export type ObsLink = "unset" | "disconnected" | "connected"
+
+/** Live audio levels, sent as the SSE event "meters" at up to 15 Hz while a
+    connected deck shows a fader for that input. Keyed by faderLevelKey
+    ("obs:<input name>"); values are meter positions 0..1 on OBS's -60..0 dB
+    scale, not raw gain. */
+export interface MetersEvent {
+  levels: Record<string, number>
+}
+
 /** What every connected page receives on /api/events and /api/status. */
 export interface Snapshot {
   libraryRev: number
@@ -91,6 +110,10 @@ export interface Snapshot {
   /** The Control Center tab currently playing sounds, if any. */
   audioOutput: string | null
   levels: Record<string, number>
+  /** Sounds playing right now, by slot number. */
+  playback: Record<string, SoundPlayback>
+  /** Whether the companion is talking to OBS at the moment. */
+  obs: ObsLink
   /** Paired devices with a live connection right now. */
   tablets: number
   accent: string
@@ -164,6 +187,13 @@ export interface SoundSlot {
   format: "WAV" | "MP3"
   bytes: number
   updatedAt: string | null
+  /** Length in ms: read from the file for WAV, learned from playback for MP3, null until then. */
+  durationMs: number | null
+}
+
+/** The Control Center reports an MP3's length once it has played it. */
+export interface SoundDurationRequest {
+  durationMs: number
 }
 
 export interface SoundsResponse {

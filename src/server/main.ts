@@ -24,7 +24,8 @@ import { isHexColor } from "../shared/colors.ts"
 import { faderLevelKey, isLibraryShape, normalizeLibrary } from "../shared/model.ts"
 import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
-import { prepareSteps, resetObsClient, runSteps } from "./actions.ts"
+import { prepareSteps, runSteps } from "./actions.ts"
+import { createObsLink } from "./obs.ts"
 import { AuthError, createAuth } from "./auth.ts"
 import type { Device } from "./auth.ts"
 import { loadConfig, saveConfig } from "./config.ts"
@@ -67,9 +68,32 @@ const library = createLibraryStore(path.resolve(ROOT, config.profileFile), log)
 const auth = createAuth({ file: path.join(ROOT, "data", "devices.json"), log })
 const sounds = createSoundStore(path.join(ROOT, "sounds"))
 sounds.ensureDefaults()
-const live = createLive({ accent: () => config.theme.accent, theme: () => config.theme.name, libraryRev: library.revision }, config.soundVolume)
+const live = createLive({
+  accent: () => config.theme.accent,
+  theme: () => config.theme.name,
+  libraryRev: library.revision,
+  obs: () => obs.status(),
+  soundDuration: (slot) => sounds.durationMs(slot)
+}, config.soundVolume)
+// Meters are only read for OBS inputs that a fader on a connected page shows.
+const obs = createObsLink({
+  config,
+  log,
+  onStatus: () => live.broadcast(),
+  onMeters: (levels) => live.broadcastMeters(levels),
+  wantedInputs: () => {
+    const wanted = new Set<string>()
+    if (!live.hasListeners()) return wanted
+    for (const profile of library.get().profiles) {
+      for (const button of profile.buttons) {
+        if (button.control === "fader" && button.fader.target === "obs_input" && button.fader.inputName) wanted.add(button.fader.inputName)
+      }
+    }
+    return wanted
+  }
+})
 const googleIcons = createGoogleIcons(path.join(ROOT, "cache"))
-const volumeContext: VolumeContext = { config, saveConfig: writeConfigSoon }
+const volumeContext: VolumeContext = { config, obs, saveConfig: writeConfigSoon }
 
 // ------------------------------------------------------------------ access
 
@@ -243,7 +267,7 @@ const routes: Route[] = [
     const obsBefore = `${config.obs.address}\n${config.obs.password}`
     if (typeof data.obsAddress === "string" && data.obsAddress.length < 160) config.obs.address = data.obsAddress
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
-    if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) resetObsClient()
+    if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
     writeConfig()
     live.broadcast()
     return { ok: true, accent: config.theme.accent, theme: config.theme.name }
@@ -258,7 +282,7 @@ const routes: Route[] = [
     const steps = prepareSteps(button)
     let result
     try {
-      result = await runSteps(steps, { config, onSound: live.toggleSound })
+      result = await runSteps(steps, { config, obs, onSound: live.toggleSound })
     } catch (error) {
       throw new HttpError(400, errorText(error))
     }
@@ -312,6 +336,12 @@ const routes: Route[] = [
   }),
   route<void>("GET", /^\/api\/sounds\/([1-8])\/file$/, "local", ({ res, params }) => staticFile(res, sounds.file(Number(params[1])).file)),
   // The audio tab reports a sound that finished on its own.
+  // The Control Center learns an MP3's length when it plays it; WAVs are read from their header.
+  route<Ok>("POST", /^\/api\/sounds\/([1-8])\/duration$/, "local", async ({ req, params }) => {
+    const data = await jsonBody(req)
+    if (sounds.setDuration(Number(params[1]), Number(data.durationMs))) live.soundsChanged()
+    return { ok: true }
+  }),
   route<Ok>("POST", "/api/sounds/ended", "local", async ({ req }) => {
     const data = await jsonBody(req)
     live.soundEnded(Number(data.slot))
@@ -343,6 +373,7 @@ const routes: Route[] = [
     sendJson(res, 200, { ok: true } satisfies Ok)
     res.once("finish", () => {
       auth.flush()
+      obs.stop()
       live.closeAll()
       server.close(() => process.exit(0))
     })
@@ -438,6 +469,7 @@ async function start(): Promise<void> {
   }
   PORT = outcome.port
   announce()
+  obs.start()
   openControlCenter(PORT)
 }
 

@@ -1,12 +1,13 @@
 // Keeping the deck in step with the companion: the library, and live state
 // pushed over a signed EventSource (or polled where there is none).
-import type { LibraryResponse, Snapshot, StatusResponse } from "../../shared/api.ts"
+import type { LibraryResponse, MetersEvent, Snapshot, StatusResponse } from "../../shared/api.ts"
 import { isStateful, normalizeLibrary } from "../../shared/model.ts"
 import type { Button } from "../../shared/types.ts"
 import { applyAccent, applyTheme } from "../common/dom.ts"
 import { api, eventsUrl, UnpairedError } from "./api.ts"
 import { levelFor, showLevel, syncFaders } from "./faders.ts"
 import { gridEl, renderGrid, renderProfiles } from "./grid.ts"
+import { applyMeters, updatePlayback } from "./indicators.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
 import { needsPairing, setOnline } from "./ui.ts"
@@ -32,6 +33,7 @@ export function applyState(snapshot: Snapshot): void {
     }
   }
   if (snapshot.playing) state.playing = snapshot.playing
+  if (snapshot.playback) updatePlayback(snapshot.playback)
   if (snapshot.levels) {
     for (const key of Object.keys(snapshot.levels)) {
       const value = snapshot.levels[key]
@@ -109,6 +111,17 @@ export function connect(): void {
     }
     applyState(snapshot)
   }
+  // Meter levels arrive as their own event, so they never re-send the snapshot.
+  stream.addEventListener("meters", (event: Event) => {
+    const data = (event as MessageEvent<string>).data
+    let meters: MetersEvent
+    try {
+      meters = JSON.parse(data) as MetersEvent
+    } catch {
+      return
+    }
+    if (meters && meters.levels) applyMeters(meters)
+  })
   stream.onerror = () => {
     stream.close()
     if (source === stream) source = null

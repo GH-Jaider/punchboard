@@ -1,13 +1,13 @@
-// The pairing window and the tablet count in the top bar.
+// The pairing window and the count of connected devices in the top bar.
 import { byId } from "../common/dom.ts"
 import { createPairingView } from "../common/pairing-ui.ts"
 import { toast } from "./hub.ts"
 
 /** Called from the live-state handler on every snapshot. */
-export function showTabletCount(count: number): void {
+export function showDeviceCount(count: number): void {
   const button = byId("pair-btn")
-  byId("pair-count").textContent = count === 0 ? "No tablets" : count === 1 ? "1 tablet" : `${count} tablets`
-  button.classList.toggle("has-tablets", count > 0)
+  byId("pair-count").textContent = count === 0 ? "No devices" : count === 1 ? "1 device" : `${count} devices`
+  button.classList.toggle("has-devices", count > 0)
 }
 
 export function bindPairing(): void {
