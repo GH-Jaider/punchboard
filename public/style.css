@@ -933,6 +933,38 @@ select {
 .step-add:hover { border-color: var(--accent); color: var(--accent-text); }
 .step-add svg { width: 14px; height: 14px; }
 
+/* Application picker (Launch an app). */
+.app-trigger {
+  display: grid;
+  width: 100%;
+  gap: 2px;
+  padding: var(--s-2) var(--s-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  background: var(--surface-input);
+  text-align: left;
+}
+.app-trigger:hover { border-color: var(--border-strong); background: var(--surface-2); }
+.app-trigger strong { font-size: var(--fs-sm); font-weight: var(--w-medium); }
+.app-trigger small,
+.app-row small { overflow: hidden; color: var(--text-subtle); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.app-list { display: grid; align-content: start; gap: 2px; }
+.app-row { display: grid; width: 100%; gap: 1px; padding: var(--s-2) var(--s-3); border-radius: var(--r-sm); text-align: left; }
+.app-row:hover { background: var(--surface-2); }
+.app-row[aria-pressed="true"] { background: var(--accent-soft); }
+.app-row strong { font-size: var(--fs-sm); font-weight: var(--w-medium); }
+.app-path-row { gap: var(--s-2); }
+.app-path-row input { flex: 1 1 auto; }
+
+/* Key builder, for combinations the browser never receives (macOS keeps
+   its own, such as the screenshot keys). */
+.text-btn { justify-self: start; color: var(--accent-text); font-size: var(--fs-xs); font-weight: var(--w-medium); text-decoration: underline; text-underline-offset: 2px; }
+.key-builder { display: flex; flex-wrap: wrap; gap: var(--s-1); align-items: center; }
+.key-builder[hidden] { display: none; }
+.key-builder .key-mod { min-width: 40px; min-height: 34px; padding: 0 var(--s-2); font-family: var(--font-mono); }
+.key-builder .key-mod[aria-pressed="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
+.key-builder select { flex: 1 1 140px; width: auto; min-width: 120px; }
+
 /* Key recorder: a read-only field that listens while focused. */
 .key-recorder { display: flex; gap: var(--s-2); align-items: center; }
 .key-recorder-input {

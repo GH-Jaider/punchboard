@@ -218,6 +218,21 @@
     </div>
   </dialog>
 
+  <dialog id="dlg-apps" class="wide" aria-labelledby="apps-title">
+    <div class="dialog-head">
+      <h2 id="apps-title">Choose an application</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="picker-search">
+      <input id="app-search" type="search" placeholder="Search the applications on this computer" aria-label="Search applications" autocomplete="off">
+    </div>
+    <div class="picker-scroll app-list" id="app-list"></div>
+    <div class="dialog-foot app-path-row">
+      <input id="app-path" type="text" placeholder="Or type a path, e.g. /Applications/OBS.app" aria-label="Application path" spellcheck="false">
+      <button class="btn" id="app-path-use" type="button">Use path</button>
+    </div>
+  </dialog>
+
   <dialog id="dlg-icons" class="wide">
     <div class="dialog-head">
       <h2>Choose an icon</h2>

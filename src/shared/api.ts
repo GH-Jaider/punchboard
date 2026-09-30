@@ -198,6 +198,18 @@ export interface SoundEndedRequest {
   slot: number
 }
 
+// ------------------------------------------------------------ applications
+
+/** An application the companion can launch, as the picker lists it. */
+export interface AppEntry {
+  name: string
+  path: string
+}
+
+export interface AppsResponse {
+  apps: AppEntry[]
+}
+
 // ------------------------------------------------------------ Google icons
 
 /** A catalog entry, kept short because the catalog has thousands. */

@@ -31,7 +31,8 @@ export interface StreamStep extends StepBase { type: "obs_start_stop_stream" }
 export interface RecordStep extends StepBase { type: "obs_toggle_record" }
 export interface OpenUrlStep extends StepBase { type: "open_url"; url?: string }
 export interface TabletLinkStep extends StepBase { type: "browser_tile"; url?: string }
-export interface LaunchAppStep extends StepBase { type: "launch_app"; appPath?: string }
+/** `appName` is what the picker showed; `appPath` is what gets launched. */
+export interface LaunchAppStep extends StepBase { type: "launch_app"; appPath?: string; appName?: string }
 export interface SoundStep extends StepBase { type: "play_sound"; soundId?: number }
 /** `keys` is a canonical combination such as "ctrl+shift+k" (see keys.ts). */
 export interface HotkeyStep extends StepBase { type: "hotkey"; keys?: string }

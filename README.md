@@ -57,7 +57,7 @@ Click a dashed slot to add a button, then give it a label, a colour and an icon.
 | Start / stop stream | OBS |
 | Start / stop recording | OBS |
 | Open link on computer | this computer's default browser |
-| Launch an app | this computer (needs the full path, e.g. `/Applications/OBS.app`) |
+| Launch an app | this computer (picked from the installed applications, or a typed path) |
 | Play a sound | this computer's speakers |
 | Open link on the tablet | the tablet's own browser |
 
@@ -69,6 +69,8 @@ The deck fills the whole screen and keeps the exact grid you designed, so a butt
 
 If the companion stops responding, the deck says so in a banner and refuses presses rather than silently doing nothing.
 
+The deck asks the browser to keep the screen on while it is open (iOS 16.4 and later, Android). Older iPads cannot do that from a page: set **Auto-Lock** to Never while you stream.
+
 The runtime deliberately sticks to widely supported CSS and JavaScript so genuinely old tablets still work. If you are adding to it, keep `deck.html`, `src/client/deck` and the `.deck-page` half of `style.css` free of `oklch()`, `color-mix()`, container queries and `<dialog>`; derive colours in code instead (see `applyAccent` and `applyTileColor` in `src/client/common/dom.ts`).
 
 ## OBS setup
@@ -79,7 +81,7 @@ Open the **OBS Studio** panel in the left rail only when you actually use OBS bu
 
 The **Key combination** action presses keys on the streaming computer, as if typed, which is how you fire an OBS hotkey or any app's shortcut from the deck. In the step editor, click the field and press the keys you want; the combination is recorded from the physical keys, so it fires the same key on any keyboard layout.
 
-The keys go to whatever is in front on that computer at the time, so global hotkeys (OBS registers its own that way) are the reliable use.
+The keys go to whatever is in front on that computer at the time, so global hotkeys (OBS registers its own that way) are the reliable use. A combination the system keeps for itself (⌘⇧4 on a Mac, say) never reaches the browser, so the recorder cannot hear it; use **Build it** under the field and pick the keys instead. Sending it works either way.
 
 - **macOS**: the first press makes macOS ask whether the app running Punchboard (Terminal) may control the computer. Allow it once under **System Settings › Privacy & Security › Accessibility**, then press again.
 - **Windows**: nothing to set up. The Windows key cannot be part of a combination, and keys do not reach apps running as administrator.

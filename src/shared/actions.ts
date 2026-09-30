@@ -39,8 +39,7 @@ export const ACTION_FIELDS: Readonly<Partial<Record<ActionType, readonly FieldSp
   ],
   obs_toggle_mute: [{ key: "sourceName", label: "Input name", placeholder: "Exact OBS input name" }],
   open_url: [{ key: "url", label: "Link", placeholder: "https://example.com" }],
-  browser_tile: [{ key: "url", label: "Link", placeholder: "https://example.com" }],
-  launch_app: [{ key: "appPath", label: "Application", placeholder: "/Applications/OBS.app" }]
+  browser_tile: [{ key: "url", label: "Link", placeholder: "https://example.com" }]
 }
 
 /** Reads a text field from any step; undefined when that step type has none. */
@@ -53,8 +52,9 @@ export function stepText(step: Step, key: StepTextField): string | undefined {
 export function stepSummary(step: Step | undefined): string {
   if (!step) return "Empty step"
   const meta = ACTION_META[step.type]
-  const detail = stepText(step, "sceneName") || stepText(step, "sourceName") || stepText(step, "url") || stepText(step, "appPath") ||
-    (step.type === "play_sound" ? `Sound ${step.soundId ?? 1}` : step.type === "hotkey" ? formatCombo(step.keys, isMacLike()) : "")
+  const detail = step.type === "launch_app" ? step.appName || step.appPath || ""
+    : stepText(step, "sceneName") || stepText(step, "sourceName") || stepText(step, "url") ||
+      (step.type === "play_sound" ? `Sound ${step.soundId ?? 1}` : step.type === "hotkey" ? formatCombo(step.keys, isMacLike()) : "")
   return detail ? `${meta.label} · ${detail}` : meta.label
 }
 

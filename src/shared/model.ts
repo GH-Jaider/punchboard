@@ -37,7 +37,7 @@ export function makeStep(type: ActionType, fields: UnknownRecord = {}): Step {
     case "obs_toggle_record": return { id, delayMs, type }
     case "open_url": return { id, delayMs, type, url: text(fields.url) }
     case "browser_tile": return { id, delayMs, type, url: text(fields.url) }
-    case "launch_app": return { id, delayMs, type, appPath: text(fields.appPath) }
+    case "launch_app": return { id, delayMs, type, appPath: text(fields.appPath), appName: text(fields.appName) }
     case "play_sound": {
       const soundId = Number(fields.soundId)
       return { id, delayMs, type, soundId: soundId >= 1 && soundId <= LIMITS.soundSlots ? Math.floor(soundId) : undefined }

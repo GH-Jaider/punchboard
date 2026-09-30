@@ -7,6 +7,7 @@ import { bindAppearance, setTheme, showAccent } from "./appearance.ts"
 import { watchEvents } from "./events.ts"
 import { bindGrid, refreshTile, renderGrid, select } from "./grid.ts"
 import { toast, view } from "./hub.ts"
+import { bindAppPicker } from "./app-picker.ts"
 import { bindIconPicker } from "./icon-picker.ts"
 import { renderInspector } from "./inspector.ts"
 import { bindObs, showObsSettings } from "./obs.ts"
@@ -31,6 +32,7 @@ Object.assign(view, { renderAll, renderGrid, renderProfiles, renderInspector, re
 bindGrid()
 bindProfiles()
 bindIconPicker()
+bindAppPicker()
 bindSounds()
 bindSoundOutput()
 bindAppearance()

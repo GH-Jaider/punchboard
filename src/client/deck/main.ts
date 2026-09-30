@@ -7,6 +7,7 @@ import { errorMessage } from "../common/http.ts"
 import { api, hasDevice, loadDevice, syncClock, UnpairedError, whenUnpaired } from "./api.ts"
 import { scaleTiles } from "./grid.ts"
 import { initImmersive } from "./immersive.ts"
+import { initWakeLock } from "./wake.ts"
 import { connect, loadLibrary } from "./live.ts"
 import { claim, initPairing, showPairing, takeHashCode } from "./pairing.ts"
 import { setOnline, toast } from "./ui.ts"
@@ -35,6 +36,7 @@ function start(): void {
 whenUnpaired(() => showPairing())
 initPairing(start)
 initImmersive()
+initWakeLock()
 
 // Only the measurements change on resize, so tiles are not rebuilt.
 let resizeTimer: number | undefined

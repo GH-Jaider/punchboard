@@ -8,6 +8,7 @@ import { toast, UI_ICONS, view } from "./hub.ts"
 import { audioFilePicker, playSlot, soundSlotLabel, uploadSound } from "./sounds.ts"
 import { touch } from "./state.ts"
 import { recordUndo } from "./undo.ts"
+import { appField } from "./app-picker.ts"
 import { keysField } from "./key-recorder.ts"
 
 const STEPS_HOST_ID = "steps-host"
@@ -113,6 +114,7 @@ function stepCard(button: Button, step: Step, index: number): HTMLElement {
   body.appendChild(typeField)
 
   if (step.type === "hotkey") body.appendChild(keysField(step, title))
+  if (step.type === "launch_app") body.appendChild(appField(step, title))
 
   // The fields this action needs, from one table.
   for (const spec of ACTION_FIELDS[step.type] ?? []) {

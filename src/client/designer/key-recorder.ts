@@ -1,7 +1,8 @@
 // The "Keys" field of a Key combination step: click it, press the keys, and
 // the combination is recorded from the physical keys pressed.
 import { stepSummary } from "../../shared/actions.ts"
-import { comboFromEvent, formatCombo, isMacLike } from "../../shared/keys.ts"
+import { KEY_NAMES, MODIFIERS, comboFromEvent, comboToString, formatCombo, isMacLike, modifierLabel, parseCombo } from "../../shared/keys.ts"
+import type { Modifier } from "../../shared/keys.ts"
 import type { HotkeyStep } from "../../shared/types.ts"
 import { el, svg } from "../common/dom.ts"
 import { UI_ICONS } from "./hub.ts"
@@ -61,7 +62,61 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   row.appendChild(clear)
   field.appendChild(label)
   field.appendChild(row)
+  field.appendChild(builder(step, record))
   field.appendChild(el("p", "field-help", "Goes to whatever is in front on this computer, so global hotkeys like OBS's work best. macOS asks for permission the first time."))
   show()
   return field
+}
+
+/** Modifier toggles and a key list, for combinations the browser never
+    sees because the system takes them first (⌘⇧4 on a Mac, for one). */
+function builder(step: HotkeyStep, record: (keys: string | undefined) => void): HTMLElement {
+  const mac = isMacLike()
+  const wrap = el("div")
+  const toggle = el("button", "text-btn", "Can't press it here? Build it")
+  toggle.type = "button"
+  const panel = el("div", "key-builder")
+  panel.hidden = true
+
+  const mods = new Map<Modifier, HTMLButtonElement>()
+  for (const modifier of MODIFIERS) {
+    const button = el("button", "btn key-mod", modifierLabel(modifier, mac))
+    button.type = "button"
+    button.setAttribute("aria-pressed", "false")
+    button.title = modifier === "meta" ? (mac ? "Command" : "Windows key") : modifier === "alt" ? (mac ? "Option" : "Alt") : modifier === "ctrl" ? "Control" : "Shift"
+    button.onclick = () => {
+      button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"))
+      compose()
+    }
+    mods.set(modifier, button)
+    panel.appendChild(button)
+  }
+  const keySelect = el("select")
+  keySelect.setAttribute("aria-label", "Key")
+  keySelect.add(new Option("Key…", ""))
+  for (const name of KEY_NAMES) keySelect.add(new Option(formatCombo(name, mac), name))
+  keySelect.onchange = compose
+  panel.appendChild(keySelect)
+
+  function compose(): void {
+    const key = keySelect.value
+    if (!key) return
+    const modifiers: Modifier[] = []
+    for (const modifier of MODIFIERS) if (mods.get(modifier)?.getAttribute("aria-pressed") === "true") modifiers.push(modifier)
+    record(comboToString({ modifiers, key }))
+  }
+
+  function sync(): void {
+    const combo = parseCombo(step.keys)
+    for (const modifier of MODIFIERS) mods.get(modifier)?.setAttribute("aria-pressed", String(Boolean(combo && combo.modifiers.indexOf(modifier) !== -1)))
+    keySelect.value = combo ? combo.key : ""
+  }
+
+  toggle.onclick = () => {
+    panel.hidden = !panel.hidden
+    if (!panel.hidden) sync()
+  }
+  wrap.appendChild(toggle)
+  wrap.appendChild(panel)
+  return wrap
 }

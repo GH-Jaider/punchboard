@@ -96,6 +96,9 @@ const KEY_LABELS: Record<string, string> = {
   minus: "-", equal: "=", comma: ",", period: ".", slash: "/", backquote: "`", bracketleft: "[", bracketright: "]", backslash: "\\", semicolon: ";", quote: "'"
 }
 
+/** One modifier's label, for the builder's toggles. */
+export const modifierLabel = (modifier: Modifier, mac: boolean): string => (mac ? MAC_MODIFIER_GLYPHS[modifier] : OTHER_MODIFIER_NAMES[modifier])
+
 /** Human form: "⌃⇧K" on a Mac, "Ctrl+Shift+K" elsewhere. */
 export function formatCombo(text: string | undefined, mac: boolean): string {
   const combo = parseCombo(text)

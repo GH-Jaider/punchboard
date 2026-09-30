@@ -17,6 +17,7 @@ import QRCode from "qrcode"
 import open from "open"
 import qrcodeTerminal from "qrcode-terminal"
 import type {
+  AppsResponse,
   ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
   SoundsChanged, SoundsResponse, StatusResponse
@@ -26,6 +27,7 @@ import { faderLevelKey, isLibraryShape, normalizeLibrary } from "../shared/model
 import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
+import { listApps } from "./apps.ts"
 import { createObsLink } from "./obs.ts"
 import { createPlayer } from "./player.ts"
 import { AuthError, createAuth } from "./auth.ts"
@@ -376,6 +378,8 @@ const routes: Route[] = [
     live.stopAllSounds()
     return { ok: true }
   }),
+
+  route<AppsResponse>("GET", "/api/apps", "local", () => ({ apps: listApps() })),
 
   // --- Google icons, browsed from the Control Center only
   route<GoogleIconsResponse>("GET", "/api/icons/google", "local", async () => {
