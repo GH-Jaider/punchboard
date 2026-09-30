@@ -91,6 +91,8 @@ export interface Snapshot {
   /** The Control Center tab currently playing sounds, if any. */
   audioOutput: string | null
   levels: Record<string, number>
+  /** Paired devices with a live connection right now. */
+  tablets: number
   accent: string
   theme: ThemeId
 }

@@ -45,6 +45,7 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
       playing: [...playing],
       audioOutput: audioOutputId(),
       levels,
+      tablets: new Set([...listeners.values()].filter(Boolean)).size,
       accent: settings.accent(),
       theme: settings.theme()
     }
@@ -66,6 +67,7 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
     })
     res.write("retry: 2000\n\n")
     listeners.set(res, deviceId)
+    if (deviceId) broadcast()
     if (audioId) {
       // Re-adding moves it to the end, so a reloaded tab becomes the output again.
       audioOutputs.delete(audioId)
@@ -79,6 +81,8 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
     const close = (): void => {
       clearInterval(beat)
       listeners.delete(res)
+      // A tablet leaving changes the count the Control Center shows.
+      if (deviceId) broadcast()
       if (!audioId || audioOutputs.get(audioId) !== res) return
       const wasPlaying = audioOutputId() === audioId
       audioOutputs.delete(audioId)

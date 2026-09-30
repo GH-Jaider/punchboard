@@ -142,7 +142,7 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   names.appendChild(el("strong", null, button.iconData ? "Custom image" : button.glyph ? button.glyph.name.replace(/_/g, " ") : button.icon))
   names.appendChild(el("small", null, button.iconData
     ? "Tap to use an icon instead"
-    : button.glyph ? `Google icon · ${button.glyph.style}` : "Built-in · tap to browse, or pick a Google icon"))
+    : button.glyph ? `${button.glyph.style}${button.glyph.fill ? ", filled" : ""} · tap to change` : "Tap to choose an icon"))
   trigger.appendChild(preview)
   trigger.appendChild(names)
   trigger.onclick = () => openIconPicker(button)

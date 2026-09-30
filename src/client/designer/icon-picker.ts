@@ -1,21 +1,16 @@
-// The icon picker (built-in icons and Google's Material Symbols) and custom
-// image uploads.
+// The icon picker (Google's Material Symbols) and custom image uploads.
 import { LIMITS } from "../../shared/actions.ts"
 import type { GlyphResponse, GoogleIconEntry, GoogleIconsResponse } from "../../shared/api.ts"
-import { ICON_GROUPS, ICONS, iconSvg } from "../../shared/icons.ts"
 import type { Button, GlyphStyle } from "../../shared/types.ts"
 import { byId, el } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { toast, view } from "./hub.ts"
 import { selectedButton, touch } from "./state.ts"
 
-type PickerTab = "builtin" | "google"
-
 const GOOGLE_PREVIEW = "https://fonts.gstatic.com/s/i/short-term/release/materialsymbols{style}/{name}/{variant}/24px.svg"
 const GOOGLE_LIMIT = 180
 const GLYPH_STYLES: readonly GlyphStyle[] = ["outlined", "rounded", "sharp"]
 
-let pickerTab: PickerTab = "builtin"
 let googleStyle: GlyphStyle = "outlined"
 let googleCatalog: GoogleIconEntry[] | null = null
 let targetId: string | null = null
@@ -35,55 +30,9 @@ function picked(button: Button): void {
 export function openIconPicker(button: Button): void {
   targetId = button.id
   search().value = ""
-  drawIconGroups(button)
+  drawGoogleIcons(button)
   dialog().showModal()
   search().focus()
-}
-
-function setPickerTab(tab: PickerTab): void {
-  pickerTab = tab
-  byId("tab-builtin").setAttribute("aria-pressed", String(tab === "builtin"))
-  byId("tab-google").setAttribute("aria-pressed", String(tab === "google"))
-  byId("google-options").hidden = tab !== "google"
-  search().placeholder = tab === "google" ? "Search 3,000+ Google icons" : "Search icons"
-  const button = selectedButton()
-  if (button) drawIconGroups(button)
-}
-
-function drawIconGroups(button: Button): void {
-  if (pickerTab === "google") return drawGoogleIcons(button)
-  const host = byId("icon-groups")
-  const query = search().value.trim().toLowerCase()
-  host.innerHTML = ""
-  let found = 0
-
-  for (const group of ICON_GROUPS) {
-    const matches = group.ids.filter((id) => ICONS[id] && id.includes(query))
-    if (!matches.length) continue
-    found += matches.length
-    const section = el("div", "picker-group")
-    section.appendChild(el("h3", null, group.name))
-    const grid = el("div", "picker-grid")
-    for (const id of matches) {
-      const choice = el("button", "icon-choice")
-      choice.type = "button"
-      choice.title = id
-      choice.setAttribute("aria-label", id)
-      choice.setAttribute("aria-pressed", String(id === button.icon && !button.iconData && !button.glyph))
-      choice.innerHTML = iconSvg(id)
-      choice.onclick = () => {
-        button.icon = id
-        button.iconData = null
-        delete button.glyph
-        picked(button)
-      }
-      grid.appendChild(choice)
-    }
-    section.appendChild(grid)
-    host.appendChild(section)
-  }
-
-  if (!found) host.appendChild(el("p", "field-help", `No icon matches “${query}”.`))
 }
 
 function googlePreviewUrl(name: string): string {
@@ -122,7 +71,7 @@ function drawGoogleIcons(button: Button): void {
     host.appendChild(el("p", "field-help", "Loading Google icons…"))
     request<GoogleIconsResponse>("/api/icons/google").then((data) => {
       googleCatalog = data.icons
-      if (pickerTab === "google") drawGoogleIcons(button)
+      if (dialog().open) drawGoogleIcons(button)
     }).catch((error: unknown) => {
       host.innerHTML = ""
       host.appendChild(el("p", "field-help", errorMessage(error)))
@@ -199,8 +148,6 @@ export function readIcon(file: File): Promise<string | null> {
 }
 
 export function bindIconPicker(): void {
-  byId("tab-builtin").addEventListener("click", () => setPickerTab("builtin"))
-  byId("tab-google").addEventListener("click", () => setPickerTab("google"))
   const styleOptions = document.querySelectorAll<HTMLElement>("#google-options [data-style]")
   styleOptions.forEach((option) => {
     option.addEventListener("click", () => {
@@ -216,7 +163,7 @@ export function bindIconPicker(): void {
   })
   search().addEventListener("input", () => {
     const button = selectedButton()
-    if (button && button.id === targetId) drawIconGroups(button)
+    if (button && button.id === targetId) drawGoogleIcons(button)
   })
   byId("icons-close").addEventListener("click", () => dialog().close())
 }

@@ -3,6 +3,7 @@
 // instead of re-flowing, because muscle memory is the product here.
 import { stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
+import { layoutGrid } from "../../shared/layout.ts"
 import { isStateful } from "../../shared/model.ts"
 import type { Button, PressButton } from "../../shared/types.ts"
 import { applyTileColor, byId, el } from "../common/dom.ts"
@@ -15,9 +16,6 @@ import { toast } from "./ui.ts"
 export const gridEl = byId("grid")
 const profilesEl = byId("profiles")
 
-const TILE_MIN = 56 // preferred smallest row height
-const TOUCH_MIN = 44 // hard floor: below this a target is unusable
-const MAX_ASPECT = 2 // tallest a tile may get relative to its width
 
 export function renderProfiles(): void {
   const library = state.library
@@ -117,44 +115,21 @@ export function scaleTiles(): void {
   const height = gridEl.clientHeight
   if (!width || !height) return
 
-  const columns = profile.columns
-  const rows = profile.rows
-  const gap = width / columns < 92 ? 6 : 10
-  gridEl.style.setProperty("--deck-gap", `${gap}px`)
+  const layout = layoutGrid({ width, height, columns: profile.columns, rows: profile.rows })
+  gridEl.style.setProperty("--deck-gap", `${layout.gap}px`)
+  gridEl.style.gridTemplateRows = `repeat(${profile.rows},${layout.rowHeight}px)`
+  gridEl.style.alignContent = layout.alignContent
+  gridEl.style.overflowY = layout.scrolls ? "auto" : "hidden"
+  gridEl.style.setProperty("--tile-ico", `${layout.iconSize}px`)
+  gridEl.style.setProperty("--tile-fs", `${layout.fontSize}px`)
 
-  const colWidth = (width - gap * (columns - 1)) / columns
-  const roomPerRow = (height - gap * (rows - 1)) / rows
-
-  let rowHeight = Math.min(roomPerRow, colWidth * MAX_ASPECT)
-  if (rowHeight < TILE_MIN) {
-    // Tight fit: shrink towards the touch floor before scrolling, because a
-    // deck you have to scroll is a broken deck.
-    rowHeight = Math.max(TOUCH_MIN, Math.min(TILE_MIN, roomPerRow))
-  }
-  rowHeight = Math.floor(rowHeight)
-  const scrolls = rows * rowHeight + gap * (rows - 1) > height + 1
-
-  gridEl.style.gridTemplateRows = `repeat(${rows},${rowHeight}px)`
-  // Start when it overflows (the first rows stay put), centre when the aspect
-  // cap left slack, stretch otherwise.
-  gridEl.style.alignContent = scrolls ? "start" : rowHeight < roomPerRow - 1 ? "center" : "stretch"
-  gridEl.style.overflowY = scrolls ? "auto" : "hidden"
-
-  const icon = Math.max(22, Math.min(76, Math.round(Math.min(colWidth, rowHeight) * 0.42)))
-  // Label size follows the width, because that is what a label runs along.
-  const font = Math.max(10, Math.min(19, Math.round(colWidth * 0.15)))
-  gridEl.style.setProperty("--tile-ico", `${icon}px`)
-  gridEl.style.setProperty("--tile-fs", `${font}px`)
-
-  // Under this the label and the icon crowd each other out.
-  const showLabel = rowHeight >= 62
   const labels = gridEl.querySelectorAll<HTMLElement>(".tile-label")
   for (let i = 0; i < labels.length; i += 1) {
     const label = labels[i]
-    if (label) label.style.display = showLabel ? "" : "none"
+    if (label) label.style.display = layout.showLabel ? "" : "none"
   }
 
-  suggestLandscape(colWidth)
+  suggestLandscape(layout.colWidth)
 }
 
 // A wide deck on a portrait phone is always cramped; say so once.

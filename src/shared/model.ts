@@ -3,6 +3,7 @@
 // input into a valid Library or fills in safe defaults.
 import { isActionType, isFaderTarget, LIMITS, STATEFUL_ACTIONS } from "./actions.ts"
 import { isButtonColorId } from "./colors.ts"
+import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
 import type { ActionType, Button, Fader, FaderButton, Library, PressButton, Profile, Step } from "./types.ts"
 
@@ -84,20 +85,24 @@ export function normalizeButton(raw: unknown): Button {
 }
 
 export function createEmptyButton(slot: number): PressButton {
-  return { id: nextId("btn"), slot, label: "", icon: DEFAULT_ICON, color: "accent", control: "press", steps: [createStep("none")] }
+  return { id: nextId("btn"), slot, label: "", icon: DEFAULT_ICON, color: "accent", control: "press", glyph: DEFAULT_PRESS_GLYPH, steps: [createStep("none")] }
 }
+
+/** Whether the button still shows the icon it was created with. */
+const hasDefaultIcon = (button: Button): boolean =>
+  !button.iconData && (!button.glyph ? button.icon === DEFAULT_ICON : button.glyph.name === DEFAULT_PRESS_GLYPH.name || button.glyph.name === DEFAULT_FADER_GLYPH.name)
 
 /** The same button as a fader or a press button. Steps are kept either way. */
 export function withControl(button: Button, control: Button["control"]): Button {
   if (control === "fader") {
     const fader: FaderButton = { ...button, control: "fader", fader: button.control === "fader" ? button.fader : { target: "sounds", inputName: "" } }
-    if (fader.icon === DEFAULT_ICON && !fader.iconData && !fader.glyph) fader.icon = "sliders"
+    if (hasDefaultIcon(button)) fader.glyph = DEFAULT_FADER_GLYPH
     return fader
   }
   // Built field by field so the fader settings cannot ride along.
   const press: PressButton = { id: button.id, slot: button.slot, label: button.label, icon: button.icon, color: button.color, steps: button.steps, control: "press" }
   if (button.iconData !== undefined) press.iconData = button.iconData
-  if (button.glyph) press.glyph = button.glyph
+  if (button.glyph) press.glyph = hasDefaultIcon(button) ? DEFAULT_PRESS_GLYPH : button.glyph
   return press
 }
 
