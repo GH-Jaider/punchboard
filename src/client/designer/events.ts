@@ -2,6 +2,7 @@
 // saves, and the sound commands this tab may have to play.
 import type { Snapshot, StatusResponse } from "../../shared/api.ts"
 import { applyAccent } from "../common/dom.ts"
+import { toast } from "./hub.ts"
 import { request } from "../common/http.ts"
 import { activeTheme, setTheme } from "./appearance.ts"
 import { showObsLink } from "./obs.ts"
@@ -9,6 +10,9 @@ import { showDeviceCount } from "./pairing.ts"
 import { AUDIO_ID, handleSoundCommands, renderNowPlaying, setSoundVolume } from "./sound-output.ts"
 import { loadSounds } from "./sounds.ts"
 import { reloadLibrary, saveTimerPending, store } from "./state.ts"
+
+let loadedBuild: string | null = null
+let reloadOffered = false
 
 let knownSoundsRev: number | null = null
 
@@ -19,6 +23,14 @@ function handle(state: Snapshot): void {
   knownSoundsRev = state.soundsRev
   // Another window saved: follow it, unless an edit here is on its way (that
   // save gets the conflict and reloads instead).
+  if (state.build) {
+    if (loadedBuild === null) loadedBuild = state.build
+    else if (state.build !== loadedBuild && !reloadOffered) {
+      // Not automatic here: an edit could be mid-flight. The toast waits for the click.
+      reloadOffered = true
+      toast("Punchboard was updated. Reload to get the new version.", false, { label: "Reload", onClick: () => location.reload() })
+    }
+  }
   if (store.libraryRev !== null && state.libraryRev > store.libraryRev && !store.saving && !saveTimerPending()) {
     void reloadLibrary("Updated with changes from another window.")
   }

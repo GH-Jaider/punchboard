@@ -44,7 +44,7 @@ function paintPlayback(): void {
     tile.classList.remove("is-indeterminate")
     const elapsed = Math.max(0, now - playback.startedAt)
     const fraction = Math.min(1, elapsed / Math.max(1, playback.durationMs))
-    if (bar) bar.style.width = `${Math.round(fraction * 1000) / 10}%`
+    if (bar) bar.style.height = `${Math.round(fraction * 1000) / 10}%`
     if (time) time.textContent = formatRemaining(playback.durationMs - elapsed)
   }
 }

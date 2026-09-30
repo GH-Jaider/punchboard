@@ -1182,39 +1182,46 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .deck-grid .tile.is-busy { opacity: 0.6; }
 
 /* Sound progress: a bar along the bottom and the time left, drawn only while
-   the companion says that slot is playing (deck/indicators.ts). Both use
-   currentColor, which is the ink while the tile is lit. */
+   the companion says that slot is playing (deck/indicators.ts). */
 .tile .sound-progress,
 .tile .sound-time { display: none; }
+/* The lit button drains as the sound plays: a shade grows down from the
+   top, so what is still lit is what is still to play. */
 .deck-grid .tile.is-tracking .sound-progress {
   display: block;
   position: absolute;
-  right: 8px;
-  bottom: 6px;
-  left: 8px;
-  height: 4px;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
   overflow: hidden;
-  border-radius: 2px;
-  background: rgba(0, 0, 0, 0.22);
+  border-radius: inherit;
   pointer-events: none;
 }
 .deck-grid .tile.is-tracking .sound-progress-fill {
   display: block;
-  width: 0;
-  height: 100%;
-  background: currentColor;
-  opacity: 0.85;
-  -webkit-transition: width 200ms linear;
-  transition: width 200ms linear;
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 0;
+  background: var(--drain, rgba(0, 0, 0, 0.42));
+  -webkit-transition: height 200ms linear;
+  transition: height 200ms linear;
 }
 .deck-grid .tile.is-tracking.is-indeterminate .sound-progress-fill {
-  width: 100%;
+  height: 100%;
   -webkit-animation: pulse 1.4s ease-in-out infinite;
   animation: pulse 1.4s ease-in-out infinite;
 }
+/* The icon, label and time stay above the shade. */
+.deck-grid .tile.is-tracking .tile-icon,
+.deck-grid .tile.is-tracking .tile-label { position: relative; z-index: 2; }
 .deck-grid .tile.is-tracking .sound-time {
   display: block;
   position: absolute;
+  z-index: 2;
   top: 6px;
   left: 9px;
   font-family: var(--font-mono);

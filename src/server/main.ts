@@ -8,6 +8,7 @@
 // Every request must also name this server in its Host header and, when it
 // changes something, come from this server's own origin. That stops other
 // web pages and DNS rebinding from driving the companion through a browser.
+import fs from "node:fs"
 import http from "node:http"
 import type { ServerResponse } from "node:http"
 import path from "node:path"
@@ -68,10 +69,28 @@ const library = createLibraryStore(path.resolve(ROOT, config.profileFile), log)
 const auth = createAuth({ file: path.join(ROOT, "data", "devices.json"), log })
 const sounds = createSoundStore(path.join(ROOT, "sounds"))
 sounds.ensureDefaults()
+// The page bundles' modification times name the build. When they change
+// (an update, or a rebuild while developing) every open page finds out.
+const BUNDLES = ["deck.js", "designer.js", "pair.js"].map((name) => path.join(PUBLIC_DIR, "js", name))
+function currentBuild(): string {
+  return BUNDLES.map((file) => {
+    try { return Math.round(fs.statSync(file).mtimeMs).toString(36) } catch { return "0" }
+  }).join(".")
+}
+let build = currentBuild()
+setInterval(() => {
+  const next = currentBuild()
+  if (next === build) return
+  build = next
+  log("The pages were updated; open decks reload themselves.")
+  live.broadcast()
+}, 5000).unref()
+
 const live = createLive({
   accent: () => config.theme.accent,
   theme: () => config.theme.name,
   libraryRev: library.revision,
+  build: () => build,
   obs: () => obs.status(),
   soundDuration: (slot) => sounds.durationMs(slot)
 }, config.soundVolume)

@@ -116,6 +116,9 @@ export interface Snapshot {
   obs: ObsLink
   /** Paired devices with a live connection right now. */
   tablets: number
+  /** Identifies the page code the companion serves; a deck that loaded an
+      older build reloads itself when this changes. */
+  build: string
   accent: string
   theme: ThemeId
 }

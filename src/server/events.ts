@@ -13,6 +13,7 @@ export interface LiveSettings {
   accent: () => string
   theme: () => ThemeId
   libraryRev: () => number
+  build: () => string
   obs: () => ObsLink
   /** A sound's length, so decks can draw its progress; null while unknown. */
   soundDuration: (slot: number) => number | null
@@ -53,6 +54,7 @@ export function createLive(settings: LiveSettings, soundVolume: number) {
       playback,
       obs: settings.obs(),
       tablets: new Set([...listeners.values()].filter(Boolean)).size,
+      build: settings.build(),
       accent: settings.accent(),
       theme: settings.theme()
     }

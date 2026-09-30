@@ -22,7 +22,15 @@ export async function loadLibrary(): Promise<void> {
   syncFaders()
 }
 
+/** The build this page was loaded against. A newer one means new code on
+    the companion, so the deck fetches it; there is nothing here to lose. */
+let loadedBuild: string | null = null
+
 export function applyState(snapshot: Snapshot): void {
+  if (snapshot.build) {
+    if (loadedBuild === null) loadedBuild = snapshot.build
+    else if (snapshot.build !== loadedBuild) return location.reload()
+  }
   if (snapshot.accent) applyAccent(snapshot.accent)
   if (snapshot.theme) applyTheme(snapshot.theme)
   if (snapshot.toggles) {
