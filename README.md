@@ -56,7 +56,7 @@ Click a dashed slot to add a button, then give it a label, a colour and an icon.
 | Mute / unmute input | OBS |
 | Start / stop stream | OBS |
 | Start / stop recording | OBS |
-| Open link on computer | this computer's default browser |
+| Open link on computer | this computer's default browser (`twitch.tv/you` is enough; https:// is added) |
 | Launch an app | this computer (picked from the installed applications, or a typed path) |
 | Play a sound | this computer's speakers |
 | Open link on the tablet | the tablet's own browser |

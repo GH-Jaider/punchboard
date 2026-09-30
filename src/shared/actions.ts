@@ -38,8 +38,8 @@ export const ACTION_FIELDS: Readonly<Partial<Record<ActionType, readonly FieldSp
     { key: "sourceName", label: "Source name", placeholder: "Exact OBS source name" }
   ],
   obs_toggle_mute: [{ key: "sourceName", label: "Input name", placeholder: "Exact OBS input name" }],
-  open_url: [{ key: "url", label: "Link", placeholder: "https://example.com" }],
-  browser_tile: [{ key: "url", label: "Link", placeholder: "https://example.com" }]
+  open_url: [{ key: "url", label: "Link", placeholder: "example.com" }],
+  browser_tile: [{ key: "url", label: "Link", placeholder: "example.com" }]
 }
 
 /** Reads a text field from any step; undefined when that step type has none. */

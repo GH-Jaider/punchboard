@@ -1,6 +1,7 @@
 // Pressing a button. Only ids travel: the companion runs the button as saved
 // on the computer.
 import type { PressRequest, PressResponse } from "../../shared/api.ts"
+import { webAddress } from "../../shared/links.ts"
 import { isConfigured } from "../../shared/model.ts"
 import type { PressButton } from "../../shared/types.ts"
 import { errorMessage } from "../common/http.ts"
@@ -8,8 +9,6 @@ import { api, UnpairedError } from "./api.ts"
 import { state, toggleKey } from "./state.ts"
 import { paintState } from "./tile-state.ts"
 import { buzz, isOffline, toast } from "./ui.ts"
-
-const isWebLink = (url: string | undefined): url is string => /^https?:\/\//i.test(url ?? "")
 
 export function press(button: PressButton, tile: HTMLElement): void {
   if (isOffline()) {
@@ -30,8 +29,9 @@ export function press(button: PressButton, tile: HTMLElement): void {
   // now and its address when the companion replies.
   const only = button.steps[0]
   if (button.steps.length === 1 && only && only.type === "browser_tile") {
-    if (isWebLink(only.url)) window.open(only.url, "_blank", "noopener")
-    else toast("Add a valid http or https address for this link.", true)
+    const address = webAddress(only.url)
+    if (address) window.open(address, "_blank", "noopener")
+    else toast("This button's link is not a web address.", true)
     return
   }
   const linkWindow = button.steps.some((step) => step.type === "browser_tile") ? window.open("", "_blank") : null

@@ -3,6 +3,7 @@
 // Every stateful action reports the state OBS actually ended up in, rather
 // than the companion guessing, so a lit tile always matches reality.
 import { LIMITS } from "../shared/actions.ts"
+import { webAddress } from "../shared/links.ts"
 import type { Button, Step } from "../shared/types.ts"
 import type { Config } from "./config.ts"
 import { HttpError } from "./http.ts"
@@ -17,22 +18,12 @@ function loadOpen(): Promise<(target: string) => Promise<unknown>> {
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, Math.max(0, Math.min(LIMITS.maxDelayMs, ms))))
 
-/** An http(s) address, normalised, or null. */
-export function webAddress(value: string | undefined): string | null {
-  try {
-    const destination = new URL(value ?? "")
-    return destination.protocol === "http:" || destination.protocol === "https:" ? destination.href : null
-  } catch {
-    return null
-  }
-}
-
 /** Checks a saved button's macro before any of it runs. */
 export function prepareSteps(button: Button): Step[] {
   const steps: Step[] = button.steps.length ? button.steps : [{ id: "step", type: "none", delayMs: 0 }]
   if (steps.length > LIMITS.maxSteps) throw new HttpError(400, `A macro can hold at most ${LIMITS.maxSteps} steps.`)
   for (const step of steps) {
-    if (step.type === "browser_tile" && !webAddress(step.url)) throw new HttpError(400, "Add a valid http or https address for the tablet link.")
+    if (step.type === "browser_tile" && !webAddress(step.url)) throw new HttpError(400, "Add a web address for the tablet link first.")
   }
   return steps
 }
@@ -64,8 +55,9 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     }
 
     case "open_url": {
-      if (!step.url || !/^https?:\/\//i.test(step.url)) throw new Error("Add a valid http or https link first.")
-      await (await loadOpen())(step.url)
+      const address = webAddress(step.url)
+      if (!address) throw new Error("Add a web address for the link first.")
+      await (await loadOpen())(address)
       return {}
     }
 
