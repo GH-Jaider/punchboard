@@ -34,7 +34,8 @@
     "resources": {
       "../dist/server/server.mjs": "server.mjs",
       "../public/": "public/",
-      "../src/server/helpers/mac-player.js": "src/server/helpers/mac-player.js"
+      "../src/server/helpers/mac-player.js": "src/server/helpers/mac-player.js",
+      "../src/server/helpers/mac-pointer.js": "src/server/helpers/mac-pointer.js"
     },
     "macOS": {
       "minimumSystemVersion": "11.0"

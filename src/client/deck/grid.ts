@@ -12,6 +12,7 @@ import { repaintIndicators } from "./indicators.ts"
 import { press } from "./press.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
+import { hideTrackpad, showTrackpad } from "./trackpad.ts"
 import { toast } from "./ui.ts"
 
 export const gridEl = byId("grid")
@@ -83,7 +84,13 @@ const EMPTY_DECK =
 export function renderGrid(): void {
   if (!state.library) return
   const profile = activeProfile()
+  hideTrackpad()
   gridEl.innerHTML = ""
+
+  if (profile && profile.trackpad) {
+    showTrackpad(profile, gridEl)
+    return
+  }
 
   if (!profile || !profile.buttons.length) {
     const empty = el("div", "deck-empty")

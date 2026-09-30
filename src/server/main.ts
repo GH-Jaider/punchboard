@@ -19,6 +19,7 @@ import type {
   ObsIssue,
   ObsDetectResponse,
   ObsNames,
+  PointerNotice,
   AppsResponse,
   ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
@@ -33,6 +34,9 @@ import { listApps } from "./apps.ts"
 import { createObsLink } from "./obs.ts"
 import { createObsState, readObsNames } from "./obs-state.ts"
 import { stopWindowsVolume } from "./win-volume.ts"
+import { createPointer } from "./pointer.ts"
+import { WebSocketServer } from "ws"
+import type { WebSocket } from "ws"
 import { readLocalObs } from "./obs-config.ts"
 import { createPlayer } from "./player.ts"
 import { AuthError, createAuth } from "./auth.ts"
@@ -222,12 +226,14 @@ const header = (req: Request, name: string): string | undefined => {
   return typeof value === "string" ? value : undefined
 }
 
+const STREAMS = new Set(["/api/events", "/api/pointer"])
+
 /** The paired device a request is signed by, or null for this computer. */
 async function requireDeck(req: Request, url: URL): Promise<Device | null> {
   if (isLocal(req)) return null
   const query = url.searchParams
-  // EventSource cannot send headers, so the stream is signed in its address.
-  const signed: Partial<SignedFields> = url.pathname === "/api/events"
+  // EventSource and WebSocket cannot send headers, so streams are signed in their address.
+  const signed: Partial<SignedFields> = STREAMS.has(url.pathname)
     ? { device: query.get("d") ?? undefined, time: query.get("t") ?? undefined, nonce: query.get("n") ?? undefined, signature: query.get("s") ?? undefined }
     : { device: header(req, "x-punchboard-device"), time: header(req, "x-punchboard-time"), nonce: header(req, "x-punchboard-nonce"), signature: header(req, "x-punchboard-signature") }
   const method = req.method ?? "GET"
@@ -314,6 +320,7 @@ const routes: Route[] = [
     const id = params[1] ?? ""
     if (!auth.remove(id)) throw new HttpError(404, "That device is not paired.")
     live.disconnectDevice(id)
+    for (const [ws, owner] of pointerSockets) if (owner === id) ws.close()
     return { ok: true, devices: auth.list() }
   }),
 
@@ -539,6 +546,45 @@ const server = http.createServer((req, res) => {
   })
 })
 
+// --- trackpad decks: finger movement over a WebSocket, dozens of messages a
+// second, each too small to be worth its own signed request. The connection
+// is signed once, like the live stream, and held to the same Host and Origin
+// rules as every request.
+/** Open trackpads, each with its device id ("" for this computer). */
+const pointerSockets = new Map<WebSocket, string>()
+const pointer = createPointer({
+  macHelper: path.join(paths.helpers, "mac-pointer.js"),
+  log,
+  onProblem: (message) => {
+    const payload = JSON.stringify({ error: message } satisfies PointerNotice)
+    for (const socket of pointerSockets.keys()) socket.send(payload)
+  }
+})
+const pointerServer = new WebSocketServer({ noServer: true, maxPayload: 1024 })
+server.on("upgrade", (req: Request, socket, head) => {
+  const url = new URL(req.url ?? "/", "http://localhost")
+  const refuse = (status: number): void => {
+    socket.end(`HTTP/1.1 ${status} ${status === 401 ? "Unauthorized" : "Forbidden"}\r\nConnection: close\r\n\r\n`)
+  }
+  // Browsers always send Origin on a WebSocket; it must be this server.
+  if (url.pathname !== "/api/pointer" || !hostAllowed(req) || !req.headers.origin || !originAllowed(req)) return refuse(403)
+  requireDeck(req, url).then(
+    (device) => pointerServer.handleUpgrade(req, socket, head, (ws) => {
+      pointerSockets.set(ws, device?.id ?? "")
+      ws.on("message", (data) => {
+        let message: unknown
+        try { message = JSON.parse(String(data)) } catch { return }
+        pointer.send(message)
+      })
+      ws.on("close", () => {
+        pointerSockets.delete(ws)
+        pointer.release()
+      })
+    }),
+    () => refuse(401)
+  )
+})
+
 function announce(): void {
   const control = `http://localhost:${PORT}/designer`
   const pair = `http://localhost:${PORT}/pair`
@@ -579,6 +625,7 @@ if (DESKTOP) {
 function shutdown(): void {
   player.dispose()
   stopWindowsVolume()
+  pointer.dispose()
   obs.stop()
   auth.flush()
   live.closeAll()

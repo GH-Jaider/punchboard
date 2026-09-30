@@ -150,6 +150,23 @@ export interface Snapshot {
 
 export interface StatusResponse extends Snapshot { ok: true }
 
+// --------------------------------------------------------------- trackpad
+
+/** What a trackpad deck sends over /api/pointer, one JSON array per message:
+    ["m", dx, dy] move, ["s", dx, dy] scroll (pixels, positive up and left),
+    ["c", "left" | "right"] click, ["d"] / ["u"] left button down / up. */
+export type PointerMessage =
+  | ["m", number, number]
+  | ["s", number, number]
+  | ["c", "left" | "right"]
+  | ["d"]
+  | ["u"]
+
+/** What the companion may send back on the same socket. */
+export interface PointerNotice {
+  error: string
+}
+
 // ---------------------------------------------------------------- library
 
 export type LibraryResponse = Library

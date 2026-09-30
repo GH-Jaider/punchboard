@@ -4,7 +4,7 @@
 import { LIMITS } from "../../shared/actions.ts"
 import { BUTTON_COLORS } from "../../shared/colors.ts"
 import { iconMarkup } from "../../shared/icons.ts"
-import { nextId, withControl } from "../../shared/model.ts"
+import { DEFAULT_TRACKPAD, nextId, TRACKPAD_SPEED, withControl } from "../../shared/model.ts"
 import type { Button, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
 import { faderField } from "./fader-editor.ts"
@@ -84,6 +84,12 @@ function renderDeckPanel(): void {
 
   body.appendChild(byId("intro-card"))
   body.appendChild(nameField(profile))
+  body.appendChild(deckTypeField(profile))
+  if (profile.trackpad) {
+    body.appendChild(trackpadFields(profile))
+    body.appendChild(deckActions(profile))
+    return
+  }
 
   const size = el("div", "field")
   size.appendChild(el("span", "field-label", "Grid size"))
@@ -100,6 +106,76 @@ function renderDeckPanel(): void {
   body.appendChild(size)
 
   body.appendChild(deckActions(profile))
+}
+
+/** Buttons, or one big trackpad. A deck's buttons are kept while it is a trackpad. */
+function deckTypeField(profile: Profile): HTMLElement {
+  const field = el("div", "field")
+  field.appendChild(el("span", "field-label", "Type"))
+  const kinds = el("div", "segmented")
+  kinds.setAttribute("role", "group")
+  kinds.setAttribute("aria-label", "Deck type")
+  const choices: ReadonlyArray<{ trackpad: boolean; text: string }> = [
+    { trackpad: false, text: "Buttons" },
+    { trackpad: true, text: "Trackpad" }
+  ]
+  for (const choice of choices) {
+    const option = el("button", null, choice.text)
+    option.type = "button"
+    option.setAttribute("aria-pressed", String(Boolean(profile.trackpad) === choice.trackpad))
+    option.onclick = () => {
+      if (Boolean(profile.trackpad) === choice.trackpad) return
+      if (choice.trackpad) profile.trackpad = { ...DEFAULT_TRACKPAD }
+      else delete profile.trackpad
+      store.selectedSlot = null
+      touch()
+      view.renderAll()
+    }
+    kinds.appendChild(option)
+  }
+  field.appendChild(kinds)
+  field.appendChild(el("p", "field-help", profile.trackpad
+    ? "The whole deck moves this computer's mouse. Its buttons are kept, in case you switch back."
+    : "A grid of buttons and faders."))
+  return field
+}
+
+function trackpadFields(profile: Profile): HTMLElement {
+  const settings = profile.trackpad!
+  const field = el("div", "field")
+
+  const speedLabel = el("label", null, "Cursor speed")
+  const speed = document.createElement("input")
+  speed.type = "range"
+  speed.min = String(TRACKPAD_SPEED.min)
+  speed.max = String(TRACKPAD_SPEED.max)
+  speed.step = "0.1"
+  speed.value = String(settings.speed)
+  speedLabel.htmlFor = speed.id = "trackpad-speed"
+  speed.addEventListener("input", () => {
+    settings.speed = Number(speed.value)
+    touch()
+  })
+  field.appendChild(speedLabel)
+  field.appendChild(speed)
+
+  const natural = el("label", "steps-switch")
+  const box = document.createElement("input")
+  box.type = "checkbox"
+  box.checked = settings.naturalScroll
+  box.addEventListener("change", () => {
+    settings.naturalScroll = box.checked
+    touch()
+  })
+  natural.appendChild(box)
+  const words = el("span")
+  words.appendChild(el("strong", null, "Natural scrolling"))
+  words.appendChild(el("span", "field-help", "The page follows your fingers, as on a Mac trackpad or a phone. Off: the classic mouse wheel direction."))
+  natural.appendChild(words)
+  field.appendChild(natural)
+
+  field.appendChild(el("p", "inline-note", "On the device: one finger moves, tap clicks, two fingers scroll, a two-finger tap right-clicks, and double-tap then hold drags. On a Mac this uses the same Accessibility permission as key combinations."))
+  return field
 }
 
 function nameField(profile: Profile): HTMLElement {
