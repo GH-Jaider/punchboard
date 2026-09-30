@@ -174,6 +174,19 @@ function trackpadFields(profile: Profile): HTMLElement {
   natural.appendChild(words)
   field.appendChild(natural)
 
+  const zoomLabel = el("label", null, "Pinch to zoom")
+  const zoom = document.createElement("select")
+  zoomLabel.htmlFor = zoom.id = "trackpad-zoom"
+  zoom.add(new Option("Like a trackpad: maps, photos, pages zoom smoothly", "gesture"))
+  zoom.add(new Option("Page zoom (⌘ + / ⌘ −), for apps that ignore it", "keys"))
+  zoom.value = settings.pinchZoom
+  zoom.addEventListener("change", () => {
+    settings.pinchZoom = zoom.value === "keys" ? "keys" : "gesture"
+    touch()
+  })
+  field.appendChild(zoomLabel)
+  field.appendChild(zoom)
+
   const gestures = el("ul", "gesture-list")
   const rows: ReadonlyArray<[string, string]> = [
     ["One finger", "move the cursor"],

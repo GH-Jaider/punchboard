@@ -21,6 +21,7 @@
 import type { PointerMessage, PointerNotice, TraceSaved, TraceUpload } from "../../shared/api.ts"
 import { createTouchpad, summarize } from "../../shared/touchpad/index.ts"
 import type { Touchpad, TouchFrame, TouchpadEvent, TouchpadState } from "../../shared/touchpad/index.ts"
+import { DEFAULT_TRACKPAD } from "../../shared/model.ts"
 import type { Profile, TrackpadSettings } from "../../shared/types.ts"
 import { el, storage } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
@@ -40,7 +41,7 @@ const HINT_KEY = "punchboard-trackpad-hint"
 
 let socket: WebSocket | null = null
 let shown = false
-let settings: TrackpadSettings = { speed: 1.5, naturalScroll: true }
+let settings: TrackpadSettings = DEFAULT_TRACKPAD
 let retryTimer: number | undefined
 let statusEl: HTMLElement | null = null
 let engine: Touchpad | null = null
@@ -173,6 +174,19 @@ function handle(events: TouchpadEvent[]): void {
         break
       }
       case "pinch":
+        if (settings.pinchZoom !== "keys") {
+          // The real gesture: the computer zooms the way a trackpad pinch does.
+          // A trackpad's pinch begins at rest and grows in changes, so the
+          // ground covered while deciding it was a pinch follows as a change.
+          flush()
+          if (event.phase === "begin") {
+            send(["p", "begin", 0])
+            if (event.scale !== 1) send(["p", "change", event.scale - 1])
+          } else {
+            send(["p", event.phase, event.phase === "end" ? 0 : event.scale - 1])
+          }
+          break
+        }
         if (event.phase === "end") {
           zoomCarry = 0
           break

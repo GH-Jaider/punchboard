@@ -156,7 +156,8 @@ export interface StatusResponse extends Snapshot { ok: true }
 /** What a trackpad deck sends over /api/pointer, one JSON array per message:
     ["m", dx, dy] move, ["s", dx, dy] scroll (pixels, positive up and left),
     ["c", "left" | "right"] click, ["d"] / ["u"] left button down / up,
-    ["z", ±1] one pinch-zoom step (1 is in), ["g", fingers, gesture] a
+    ["z", ±1] one pinch-zoom step (1 is in), ["p", phase, magnification] a
+    real pinch (zooms the way the app itself does), ["g", fingers, gesture] a
     three- or four-finger gesture, which the companion turns into this
     system's own shortcut. */
 export type PointerMessage =
@@ -166,7 +167,12 @@ export type PointerMessage =
   | ["d"]
   | ["u"]
   | ["z", 1 | -1]
+  | ["p", PinchPhase, number]
   | ["g", 3 | 4, SwipeGesture]
+
+/** A real pinch, as a trackpad sends it: begin, changes, end, each with the
+    magnification since the last one (0.05 is 5% larger). */
+export type PinchPhase = "begin" | "change" | "end"
 
 /** A three- or four-finger gesture, named for what the fingers did. */
 export type SwipeGesture = "up" | "down" | "left" | "right" | "tap" | "pinch" | "spread"

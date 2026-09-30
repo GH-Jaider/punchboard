@@ -122,6 +122,13 @@ export function pointerLine(message: PointerMessage | unknown, platform: NodeJS.
     // Pinch zoom: Cmd +/- on a Mac, Ctrl + wheel on Windows.
     return platform === "darwin" ? mac(x > 0 ? MAC_KEY.equal : MAC_KEY.minus, MAC_FLAGS.cmd) : `z ${x}`
   }
+  if (kind === "p" && (a === "begin" || a === "change" || a === "end") && Number.isFinite(y)) {
+    // A real magnify gesture on a Mac: phases as the system numbers them
+    // (began 1, changed 2, ended 4), the magnification kept to a sane step.
+    // Windows has no such event; the pointer turns it into zoom steps.
+    const magnification = Math.max(-0.5, Math.min(0.5, y))
+    return platform === "darwin" ? `p ${a === "begin" ? 1 : a === "change" ? 2 : 4} ${magnification.toFixed(4)}` : `pinch ${a} ${magnification.toFixed(4)}`
+  }
   if (kind === "g" && (a === 3 || a === 4) && typeof b === "string" && Object.prototype.hasOwnProperty.call(MAC_GESTURES, b)) {
     if (platform === "darwin") return MAC_GESTURES[b] ?? null
     return (a === 4 ? WINDOWS_FOUR[b] : undefined) ?? WINDOWS_GESTURES[b] ?? null
@@ -184,8 +191,23 @@ export function createPointer(options: PointerOptions) {
     if (line === "u") leftHeld = false
     if (testLog) return fs.appendFileSync(testLog, `${line}\n`)
     if (line === "app") return openLauncher()
+    if (line.startsWith("pinch ")) return pinchSteps(line)
     const child = start()
     if (child?.stdin?.writable) child.stdin.write(`${line}\n`)
+  }
+
+  // Windows: a pinch becomes Ctrl + wheel steps, about one per 35% of zoom.
+  let pinchCarry = 0
+  function pinchSteps(line: string): void {
+    const parts = line.split(" ")
+    if (parts[1] === "begin") pinchCarry = 0
+    pinchCarry += Math.log(1 + (Number(parts[2]) || 0))
+    while (Math.abs(pinchCarry) >= 0.3) {
+      const zoomIn = pinchCarry > 0
+      send(["z", zoomIn ? 1 : -1])
+      pinchCarry += zoomIn ? -0.3 : 0.3
+    }
+    if (parts[1] === "end") pinchCarry = 0
   }
 
   /** Four fingers pinching on a Mac: the app launcher (Apps on macOS 26, Launchpad before). */

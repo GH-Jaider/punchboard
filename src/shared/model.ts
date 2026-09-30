@@ -140,14 +140,15 @@ function normalizeProfile(raw: unknown): Profile {
 }
 
 export const TRACKPAD_SPEED = { min: 0.5, max: 3 } as const
-export const DEFAULT_TRACKPAD: TrackpadSettings = { speed: 1.5, naturalScroll: true }
+export const DEFAULT_TRACKPAD: TrackpadSettings = { speed: 1.5, naturalScroll: true, pinchZoom: "gesture" }
 
 export function normalizeTrackpad(raw: unknown): TrackpadSettings {
   const fields = isRecord(raw) ? raw : {}
   const speed = Number(fields.speed)
   return {
     speed: Number.isFinite(speed) ? clamp(speed, TRACKPAD_SPEED.min, TRACKPAD_SPEED.max) : DEFAULT_TRACKPAD.speed,
-    naturalScroll: typeof fields.naturalScroll === "boolean" ? fields.naturalScroll : DEFAULT_TRACKPAD.naturalScroll
+    naturalScroll: typeof fields.naturalScroll === "boolean" ? fields.naturalScroll : DEFAULT_TRACKPAD.naturalScroll,
+    pinchZoom: fields.pinchZoom === "keys" ? "keys" : "gesture"
   }
 }
 

@@ -72,6 +72,14 @@ async function main() {
   check("Moves, scrolls and clicks are passed on", got.slice(0, 4).join("|") === "m 12 -4|s 0 30|c left|c right", got.join("|"))
   check("Huge moves are capped", got[4] === "m 400 0", got[4])
   check("Unknown messages are dropped", !got.some((line) => /^x|middle|junk/.test(line)), got.join("|"))
+  const beforePinch = lines().length
+  for (const message of [["p", "begin", 0], ["p", "change", 0.5], ["p", "change", 0.05], ["p", "end", 0], ["p", "sideways", 1], ["p", "change", "big"]]) ws.send(JSON.stringify(message))
+  await wait(300)
+  const pinchLines = lines().slice(beforePinch)
+  const pinchOk = process.platform === "darwin"
+    ? pinchLines.join("|") === "p 1 0.0000|p 2 0.5000|p 2 0.0500|p 4 0.0000"
+    : pinchLines.length >= 1 && pinchLines.every((line) => /^z /.test(line))
+  check("A real pinch reaches the computer as a pinch (Mac) or zoom steps (Windows)", pinchOk, pinchLines.join("|"))
   const before = lines().length
   for (const message of [["g", 3, "up"], ["z", 1], ["g", 5, "up"], ["g", 3, "sideways"], ["z", 7]]) ws.send(JSON.stringify(message))
   await wait(300)

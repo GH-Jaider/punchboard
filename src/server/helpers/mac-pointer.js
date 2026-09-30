@@ -7,6 +7,8 @@
 //   c left|right    click where the cursor is (a quick second left click is a double click)
 //   d / u           press / release the left button, for dragging
 //   k <code> <flags>  press a key (macOS key code) with modifier flags, for gestures
+//   p <phase> <mag>   a pinch as a trackpad makes it: phase 1 began, 2 changed,
+//                   4 ended; mag the magnification since the last one
 //   q               quit
 //
 // Needs the Accessibility permission, like key combinations. Errors go to
@@ -22,6 +24,8 @@ ObjC.bindFunction("CGEventPost", ["void", ["int", "void *"]])
 ObjC.bindFunction("CGEventSetIntegerValueField", ["void", ["void *", "int", "long"]])
 ObjC.bindFunction("CGEventSetFlags", ["void", ["void *", "long"]])
 ObjC.bindFunction("CGEventSourceCreate", ["void *", ["int"]])
+ObjC.bindFunction("CGEventSetType", ["void", ["void *", "int"]])
+ObjC.bindFunction("CGEventSetDoubleValueField", ["void", ["void *", "int", "double"]])
 ObjC.bindFunction("CGEventSetSource", ["void", ["void *", "void *"]])
 ObjC.bindFunction("CGPreflightPostEventAccess", ["bool", []])
 ObjC.bindFunction("CGRequestPostEventAccess", ["bool", []])
@@ -168,6 +172,27 @@ function key(code, flags) {
   }
 }
 
+// A trackpad pinch is a "gesture" event (type 29) of the magnify kind. Apple
+// does not document how to make one; these field numbers are how macOS stores
+// it, and the system reads the result back as an ordinary magnify event, the
+// kind apps zoom maps, photos and pages with.
+var GESTURE = 29
+var GESTURE_FLAGS = 0x100
+var FIELD_GESTURE_KIND = 110
+var FIELD_MAGNIFICATION = 113
+var FIELD_PHASE = 132
+var KIND_MAGNIFY = 8
+
+function pinch(phase, magnification) {
+  var event = sourced($.CGEventCreate(null))
+  $.CGEventSetType(event, GESTURE)
+  $.CGEventSetFlags(event, GESTURE_FLAGS)
+  $.CGEventSetIntegerValueField(event, FIELD_GESTURE_KIND, KIND_MAGNIFY)
+  $.CGEventSetDoubleValueField(event, FIELD_MAGNIFICATION, magnification)
+  $.CGEventSetIntegerValueField(event, FIELD_PHASE, phase)
+  $.CGEventPost(HID, event)
+}
+
 function handle(line) {
   var parts = line.split(" ")
   var cmd = parts[0]
@@ -175,6 +200,7 @@ function handle(line) {
   if (cmd === "s") return scroll(Number(parts[1]) || 0, Number(parts[2]) || 0)
   if (cmd === "c") return click(parts[1])
   if (cmd === "k") return key(Number(parts[1]) || 0, Number(parts[2]) || 0)
+  if (cmd === "p") return pinch(Number(parts[1]) || 2, Number(parts[2]) || 0)
   if (cmd === "d") { leftDown = true; return post(LEFT_DOWN, here(), 0, 1) }
   if (cmd === "u") { leftDown = false; return post(LEFT_UP, here(), 0, 1) }
   if (cmd === "q") $.exit(0)
