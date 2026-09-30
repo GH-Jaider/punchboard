@@ -985,6 +985,7 @@ select {
 .steps-switch span { display: grid; gap: 2px; }
 .steps-switch strong { font-size: var(--fs-sm); font-weight: var(--w-medium); }
 .steps-switch .field-help { font-weight: normal; }
+#trackpad-speed { width: 100%; accent-color: var(--accent); }
 .steps-phase {
   margin: var(--s-2) 0 0;
   color: var(--text-muted);
