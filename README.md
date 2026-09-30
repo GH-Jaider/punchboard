@@ -36,9 +36,9 @@ On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add t
 - **Faders**: the computer's volume, Punchboard's sounds, or an OBS input.
 - **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
 
-Three looks, for the Control Center and every device at once: **Studio**, **Hardware** and **Broadcast**, each with your own accent colour.
+Three looks, for the Control Center and every device at once: **Broadcast**, **Hardware** and **Studio**, each with your own accent colour.
 
-<p align="center"><img src="docs/images/themes.png" alt="The same deck in the Studio, Hardware and Broadcast themes" width="820"></p>
+<p align="center"><img src="docs/images/themes.png" alt="The same deck in the Broadcast, Hardware and Studio themes" width="820"></p>
 
 On a Mac, key combinations and music controls need a one-time permission: **System Settings › Privacy & Security › Accessibility**, allow Punchboard.
 

@@ -381,3 +381,12 @@ html[data-theme="broadcast"] {
 [data-theme="broadcast"] .deck-bar { background: #111111; }
 [data-theme="broadcast"] .deck-profiles button { border-color: var(--border); background: transparent; color: var(--text-muted); }
 [data-theme="broadcast"] .deck-profiles button.active { border-color: var(--border); border-bottom: 3px solid var(--accent); background: var(--surface-2); color: var(--text); }
+
+/* A checkbox option is a label too, but it holds sentences: themes that set
+   labels as display type would shout them. */
+[data-theme] .field > label.steps-switch {
+  font-family: inherit;
+  font-weight: inherit;
+  letter-spacing: normal;
+  text-transform: none;
+}
