@@ -174,6 +174,17 @@ export function renderGrid(): void {
   const profile = activeProfile()
   gridEl.innerHTML = ""
 
+  if (profile.trackpad) {
+    // The deck itself is the trackpad; nothing to arrange here.
+    const preview = el("div", "trackpad-preview")
+    preview.appendChild(el("strong", null, "Trackpad"))
+    preview.appendChild(el("span", null, "On your devices this deck is one big trackpad for this computer's mouse, like a Magic Trackpad."))
+    gridEl.appendChild(preview)
+    layoutStage()
+    byId("parked-notice").innerHTML = ""
+    return
+  }
+
   const bySlot = new Map<number, Button>()
   for (const button of profile.buttons) bySlot.set(button.slot, button)
 
@@ -227,6 +238,13 @@ export function layoutStage(): void {
   }
   frameEl.style.width = `${frameWidth}px`
   frameEl.style.height = `${frameHeight}px`
+
+  if (profile.trackpad) {
+    gridEl.style.gridTemplateColumns = "1fr"
+    gridEl.style.gridTemplateRows = "1fr"
+    gridEl.style.alignContent = "stretch"
+    return
+  }
 
   const width = gridEl.clientWidth
   const height = gridEl.clientHeight

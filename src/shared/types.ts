@@ -136,9 +136,25 @@ export type Button = PressButton | FaderButton
 
 // --------------------------------------------------------------- library
 
+/** A deck that is one big trackpad for this computer's mouse instead of buttons. */
+export interface TrackpadSettings {
+  /** Cursor speed, 0.5..3. */
+  speed: number
+  /** Content follows the fingers, as on a Mac. Off: the classic wheel direction. */
+  naturalScroll: boolean
+  /** "gesture": a real trackpad pinch, zooming the way the app does it (a map,
+      a photo, a page without reflowing). "keys": Cmd/Ctrl + and −, for apps
+      that ignore the gesture. */
+  pinchZoom: PinchZoom
+}
+
+export type PinchZoom = "gesture" | "keys"
+
 export interface Profile {
   id: string
   name: string
+  /** Present on a trackpad deck. Its buttons, if any, are kept for switching back. */
+  trackpad?: TrackpadSettings
   /** 2..8 */
   columns: number
   /** 1..6 */

@@ -6,7 +6,7 @@ import { isButtonColorId } from "./colors.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
 import { parseCombo } from "./keys.ts"
-import type { ActionType, Button, Fader, FaderButton, Library, PressButton, Profile, Step } from "./types.ts"
+import type { ActionType, Button, Fader, FaderButton, Library, PressButton, Profile, Step, TrackpadSettings } from "./types.ts"
 
 type UnknownRecord = Record<string, unknown>
 const isRecord = (value: unknown): value is UnknownRecord => typeof value === "object" && value !== null && !Array.isArray(value)
@@ -135,7 +135,21 @@ function normalizeProfile(raw: unknown): Profile {
   }
   const updatedAt = text(fields.updatedAt)
   if (updatedAt) profile.updatedAt = updatedAt
+  if (isRecord(fields.trackpad)) profile.trackpad = normalizeTrackpad(fields.trackpad)
   return profile
+}
+
+export const TRACKPAD_SPEED = { min: 0.5, max: 3 } as const
+export const DEFAULT_TRACKPAD: TrackpadSettings = { speed: 1.5, naturalScroll: true, pinchZoom: "gesture" }
+
+export function normalizeTrackpad(raw: unknown): TrackpadSettings {
+  const fields = isRecord(raw) ? raw : {}
+  const speed = Number(fields.speed)
+  return {
+    speed: Number.isFinite(speed) ? clamp(speed, TRACKPAD_SPEED.min, TRACKPAD_SPEED.max) : DEFAULT_TRACKPAD.speed,
+    naturalScroll: typeof fields.naturalScroll === "boolean" ? fields.naturalScroll : DEFAULT_TRACKPAD.naturalScroll,
+    pinchZoom: fields.pinchZoom === "keys" ? "keys" : "gesture"
+  }
 }
 
 // ------------------------------------------------------------------ library

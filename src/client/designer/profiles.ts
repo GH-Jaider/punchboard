@@ -15,7 +15,7 @@ export function renderProfiles(): void {
     row.setAttribute("aria-pressed", String(active))
     row.appendChild(el("strong", null, profile.name))
     const count = profile.buttons.length
-    row.appendChild(el("small", null, `${count}${count === 1 ? " button · " : " buttons · "}${profile.columns}×${profile.rows}`))
+    row.appendChild(el("small", null, profile.trackpad ? "Trackpad" : `${count}${count === 1 ? " button · " : " buttons · "}${profile.columns}×${profile.rows}`))
     row.onclick = () => {
       store.activeId = profile.id
       store.selectedSlot = null

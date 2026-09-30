@@ -31,7 +31,9 @@ export const paths = {
   library: path.join(DATA_DIR, "decks", "library.json"),
   sounds: path.join(DATA_DIR, "sounds"),
   devices: path.join(DATA_DIR, "devices.json"),
-  cache: path.join(DATA_DIR, "cache")
+  cache: path.join(DATA_DIR, "cache"),
+  /** Recordings from trackpad decks in debug mode, for the touchpad tests. */
+  traces: path.join(DATA_DIR, "trackpad-traces")
 }
 
 /** Where earlier versions kept the same things, inside the app folder. */

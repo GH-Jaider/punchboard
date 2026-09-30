@@ -1,5 +1,5 @@
 # Installed, downloaded or built on first run
-node_modules/
+node_modules
 public/js/
 runtime/
 cache/

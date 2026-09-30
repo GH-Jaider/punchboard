@@ -112,9 +112,12 @@ export async function api<T>(url: string, options: DeckRequest = {}, retried = f
   }
 }
 
-/** EventSource cannot send headers, so the stream is signed in its address. */
-export function eventsUrl(): string {
-  const signed = sign("GET", "/api/events", "")
-  if (!signed) return "/api/events"
-  return `/api/events?d=${encodeURIComponent(signed.device)}&t=${signed.time}&n=${signed.nonce}&s=${signed.signature}`
+/** EventSource and WebSocket cannot send headers, so a stream is signed in
+    its address. Each address works once: build a new one to reconnect. */
+export function streamUrl(path: string): string {
+  const signed = sign("GET", path, "")
+  if (!signed) return path
+  return `${path}?d=${encodeURIComponent(signed.device)}&t=${signed.time}&n=${signed.nonce}&s=${signed.signature}`
 }
+
+export const eventsUrl = (): string => streamUrl("/api/events")

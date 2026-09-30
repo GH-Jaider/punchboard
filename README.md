@@ -34,18 +34,20 @@ On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add t
 - **OBS**: switch scenes, show or hide sources, mute inputs, turn filters on or off, start or stop the stream, recording and virtual camera, save a replay, and send the preview live in Studio Mode. Buttons light up with what OBS is doing, even when you change it in OBS itself.
 - **The deck**: go to another deck, or open a link on the device.
 - **Faders**: the computer's volume, Punchboard's sounds, or an OBS input.
+- **Trackpad decks**: set a deck's type to *Trackpad* and the whole screen works like a laptop trackpad: tap, drag, two-finger scroll with momentum, pinch to zoom, and three- and four-finger swipes for Mission Control, desktops and the desktop.
 - **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
 
 Three looks, for the Control Center and every device at once: **Broadcast**, **Hardware** and **Studio**, each with your own accent colour.
 
 <p align="center"><img src="docs/images/themes.png" alt="The same deck in the Broadcast, Hardware and Studio themes" width="820"></p>
 
-On a Mac, key combinations and music controls need a one-time permission: **System Settings › Privacy & Security › Accessibility**, allow Punchboard.
+On a Mac, key combinations, music controls and the trackpad need a one-time permission: **System Settings › Privacy & Security › Accessibility**, allow Punchboard.
 
 ## Good to know
 
 - Only paired devices can press buttons, and only this computer can edit decks. Remove a device in **Pair a device** to cut it off.
 - Your decks, sounds and paired devices live in their own folder, so updates never touch them: `~/Library/Application Support/Punchboard` on Mac, `%APPDATA%\Punchboard` on Windows. **Back up** in the Control Center saves everything to a file.
+- **Lock the device to the deck**, so a swipe from the edge cannot leave it mid-stream: **Guided Access** on iPad and iPhone (Settings › Accessibility, then triple-click), **App pinning** on Android (Settings › Security). Full screen helps too.
 - **Keep the device's screen on yourself**: a page on your local wifi cannot do it. On iPad and iPhone set **Settings › Display & Brightness › Auto-Lock** to Never; on Android set **Settings › Display › Screen timeout** (or *Sleep*) to the longest.
 
 ## For developers
