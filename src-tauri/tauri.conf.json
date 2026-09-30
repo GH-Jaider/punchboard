@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Punchboard",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "identifier": "app.punchboard.desktop",
   "build": {
     "beforeBuildCommand": "npm run build && npm run build:server",
@@ -45,7 +45,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBQjlCODg1NkY1M0IyMUYKUldRZnNsTnZoYmk1NmtxZ3FMRjZwSDZaSitrZ1VQTCtEK1JpWmdyNW1ZWXZYeHRYME9RSU0xLzgK",
       "endpoints": [
-        "https://github.com/GH-Jaider/punchboard-releases/releases/latest/download/latest.json"
+        "https://github.com/GH-Jaider/punchboard/releases/latest/download/latest.json"
       ],
       "windows": {
         "installMode": "passive"

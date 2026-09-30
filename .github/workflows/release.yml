@@ -1,6 +1,6 @@
 # Builds the installers when a version tag is pushed (git tag v1.2.0 && git
-# push --tags). Publishing is a separate step on purpose, run from your own
-# computer once you are happy with the builds: npm run release:publish
+# push --tags) and leaves them in a draft release. Nobody gets the update
+# until the draft is published on GitHub, so a build can be tried first.
 name: Release
 
 on:
@@ -69,3 +69,36 @@ jobs:
           name: punchboard-mac
           path: release/*/*
           if-no-files-found: error
+
+  publish:
+    needs: [windows, mac]
+    # A manual run only builds; a release needs a version tag.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Collect the builds
+        run: |
+          VERSION=$(node -p 'require("./src-tauri/tauri.conf.json").version')
+          if [ "v$VERSION" != "$GITHUB_REF_NAME" ]; then echo "Tag $GITHUB_REF_NAME does not match version $VERSION in tauri.conf.json"; exit 1; fi
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          mkdir -p "release/$VERSION"
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: punchboard-*
+          merge-multiple: true
+          path: release/${{ env.VERSION }}
+      - name: Write latest.json for the updater
+        run: node scripts/latest-json.mjs "Punchboard ${VERSION}"
+      - name: Draft the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd "release/$VERSION"
+          gh release create "$GITHUB_REF_NAME" --draft --title "Punchboard $VERSION" --notes "Punchboard $VERSION" \
+            *.dmg *.exe *.app.tar.gz *.sig latest.json

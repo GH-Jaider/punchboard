@@ -1,144 +1,61 @@
 # Punchboard
 
-Punchboard is a local Control Center for the computer you stream from. It keeps your decks on that machine and lets any tablet or phone on the same wifi trigger actions through a browser — no account, no cloud relay, nothing to install on the tablet.
+Turn any tablet or phone into a button deck for your stream. Punchboard runs on the computer you stream from; your devices connect to it over the same wifi, in the browser. No account, no cloud, nothing to install on the tablet.
 
-## Start
+## Install
 
-**macOS**: double-click `start.command`. The first time, macOS may ask you to right-click it and choose **Open**.
-**Windows**: double-click `start.bat`.
+Download the latest version from **[Releases](https://github.com/GH-Jaider/punchboard/releases/latest)**:
 
-Nothing needs installing first. The first run downloads its own copy of Node.js into `runtime/`, checks it against the official checksums, installs Punchboard's parts, and starts. That takes a minute and needs internet once; later runs start straight away and work offline. Nothing is installed system-wide and no administrator password is needed.
+- **Mac**: `Punchboard_…_apple-silicon.dmg` (M1 and newer) or `Punchboard_…_intel.dmg`. Open it and drag Punchboard to Applications.
+- **Windows**: `Punchboard_…_windows-x64-setup.exe`.
 
-When it is running, the Control Center opens in your browser by itself (`http://localhost:8787/designer`); choose **Pair a tablet** there. Double-clicking the starter again while Punchboard is running just opens it again.
+Punchboard is not signed by Apple or Microsoft, so the first time you open it:
 
-If another program already uses port 8787, Punchboard takes the next free port and remembers it in `config.json`, so the address stays the same from then on. Tablets paired before the move need to pair once more, because a browser keeps each address's data separately.
+- **Mac**: macOS says it cannot check the app. Open **System Settings › Privacy & Security**, scroll down and click **Open Anyway**.
+- **Windows**: click **More info › Run anyway**. If Windows Firewall asks, allow Punchboard on **private networks** so your devices can reach it.
 
-## Pairing and security
+After that it updates itself.
 
-A tablet or phone has to be paired before it can do anything. Scan the QR code on **Pair a tablet** with its camera (or open the address shown and type the 6-digit code). Codes change every 10 minutes, and repeated wrong guesses lock pairing for a minute.
+## First steps
 
-Each paired device gets its own secret, sent once at pairing. After that every request it makes is signed with HMAC-SHA256 over the method, path, time, a one-off nonce and the body, so a request captured on the wifi can be neither altered nor replayed. Remove a device on the pairing page and it is cut off at once.
+1. **Connect OBS.** In OBS, open **Tools › WebSocket Server Settings** and tick **Enable WebSocket server**. Punchboard finds it by itself.
+2. **Pair a device.** In Punchboard, click **Pair a device** and scan the QR code with the tablet or phone. Keep both on the same wifi.
+3. **Build your deck.** Click an empty slot to add a button, pick what it does, and it appears on your devices right away.
 
-Only this computer, reaching the companion as `localhost`, can edit decks, settings, sounds or pairing. A button press sends only the button's id; the companion runs the button as saved here. Requests must name this server in their Host header and come from its own origin, which stops other web pages from driving the companion through your browser.
+On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add to Home Screen** for a full-screen deck.
 
-Signing protects against someone listening on the network. It cannot protect against someone who can rewrite traffic on your network, because the deck page itself is served over plain HTTP; use a network you trust.
+## What buttons can do
 
-## Your data is safe
+- **OBS**: switch scenes, show or hide sources, mute inputs, turn filters on or off, start or stop the stream, recording and virtual camera, save a replay, and send the preview live in Studio Mode. Buttons light up with what OBS is doing, even when you change it in OBS itself.
+- **This computer**: play sounds, control music (play / pause, next, previous), open links, launch apps and press key combinations.
+- **The deck**: go to another deck, or open a link on the device.
+- **Faders**: the volume of an OBS input, of Punchboard's sounds, or of the computer.
+- **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
 
-Everything you make lives in a data folder of its own, never in the app's folder, so updating or reinstalling Punchboard cannot touch it: **~/Library/Application Support/Punchboard** on macOS, **%APPDATA%\Punchboard** on Windows. Versions that kept data in the app folder are moved over automatically on the first start (the old copies are left where they were). `PUNCHBOARD_DATA_DIR` points it elsewhere, for a portable copy or for tests.
+On a Mac, key combinations and music controls need a one-time permission: **System Settings › Privacy & Security › Accessibility**, allow Punchboard.
 
-Decks, settings and sound choices are saved atomically: written to a temporary file, flushed, then swapped in, so a crash or power cut mid-save cannot leave a half-written file. The previous save is kept as `.bak`, and a daily copy of your decks goes to `decks/backups` in the data folder (the last 14 days). If a deck file is ever damaged, the companion restores the last good save and keeps the damaged copy beside it. Two Control Center windows cannot overwrite each other: the second one reloads the latest version instead.
+## Good to know
 
-## Building a deck
+- Only paired devices can press buttons, and only this computer can edit decks. Remove a device in **Pair a device** to cut it off.
+- Your decks, sounds and paired devices live in their own folder, so updates never touch them: `~/Library/Application Support/Punchboard` on Mac, `%APPDATA%\Punchboard` on Windows. **Back up** in the Control Center saves everything to a file.
+- Old iPads cannot keep the screen on by themselves; set **Auto-Lock** to Never while you stream.
 
-Click a dashed slot to add a button, then give it a label, a colour and an icon. Changes save automatically a moment after you stop typing — the save indicator in the top bar tells you where things stand.
+## For developers
 
-**Moving buttons.** Drag a button onto any other slot. Dropping it on an occupied slot swaps the two, so nothing is ever overwritten. With a button selected you can also move it with **Alt + arrow keys**.
+Punchboard is strict TypeScript: `src/server` (the companion, run by Node 22.18+ directly), `src/client` (Control Center and deck, bundled by esbuild), `src/shared` (the model and API types both use). The desktop app is a small Tauri shell in `src-tauri` that carries its own Node.
 
-**Grid size.** Columns and rows live in the canvas header. Shrinking the grid never deletes anything: buttons that fall outside it are *parked*, and a notice offers to grow the grid back or move them into free slots.
+```sh
+npm install
+npm run check     # type-check and build the pages
+npm start         # run the companion from source (or start.command / start.bat)
+npm test          # security and OBS tests, against a fake OBS
+npm run app:dev   # the desktop app
+```
 
-**Macros.** A button holds a list of steps that run in order, each with its own delay in milliseconds. Use **Add another step** to chain them — switch a scene, wait 400 ms, then unmute a mic.
+The deck runs on old tablets too (Safari 11, ES2015): keep newer JavaScript and CSS out of `src/client/deck` and the shared code.
 
-**Icons.** 48 built-in icons, grouped and searchable, plus every Google icon (Material Symbols) under **Google icons** in the picker, in outlined, rounded or sharp and filled or not. A Google icon is saved into the deck as its vector path, so tablets never need the internet to show it; the Control Center needs it only while browsing. You can also upload a PNG, JPG, WebP or SVG as a custom icon, up to 750 KB. SVGs containing scripts or external references are refused. Custom icons live inside the deck backup, so they travel with that file.
+Pushing a tag like `v1.2.0` builds the Mac and Windows apps on GitHub Actions and drafts a release with them.
 
-**Themes.** Three looks under **Appearance**, applied to the Control Center and every paired deck at once: *Studio* (dark and soft), *Hardware* (a light chassis with physical keys and LED state) and *Broadcast* (a switcher console with hard edges). Fonts ship in `public/fonts`, so decks look right without internet.
+## License
 
-**Faders.** Set a button's **Type** to **Volume fader** and it becomes a slider on the deck: drag up or down anywhere on the tile. A fader controls an OBS input's volume (on OBS's own fader curve), the volume of Punchboard's sounds, or this computer's output volume (macOS and Windows). Every deck shows the same level, read from the source when the deck opens.
-
-**Interface colour.** One accent colour for the Control Center and every paired deck. Button colours stay independent — aqua, blue, indigo, violet, pink, rose, red, orange, amber, yellow, lime, green, mint, cyan, slate and white.
-
-**Sounds.** The **Sounds** panel in the left rail manages all eight slots. Each row previews the slot, replaces it with your own WAV or MP3 (up to 8 MB), and — once replaced — offers to restore the tone it shipped with. You can also upload straight from a *Play a sound* step, into whichever slot that step uses. Uploads are accepted only from the computer running the companion, and files are checked for a real WAV or MP3 header rather than trusting the extension. The eight built-in tones are generated on first run, so sound buttons work before you add anything of your own.
-
-## Actions
-
-| Action | Runs on |
-| --- | --- |
-| Switch scene | OBS |
-| Show / hide source | OBS |
-| Mute / unmute input | OBS |
-| Turn a filter on / off | OBS (a voice changer, a blur, a colour correction…) |
-| Start / stop stream | OBS |
-| Start / stop recording | OBS |
-| Start / stop virtual camera | OBS |
-| Save replay | OBS's replay buffer (start the buffer in OBS first) |
-| Studio Mode: send preview live | OBS, with its current transition |
-| Open link on computer | this computer's default browser (`twitch.tv/you` is enough; https:// is added) |
-| Launch an app | this computer (picked from the installed applications, or a typed path) |
-| Play a sound | this computer's speakers |
-| Stop all sounds | this computer's speakers |
-| Music controls | play / pause, next and previous track, for whatever plays music on this computer |
-| Key combination | this computer, as if typed |
-| Go to another deck | the device that pressed it, like a folder |
-| Open link on the device | the device's own browser |
-
-**Two-state macros.** A macro can have a second list that runs when the button is pressed again (Stream Deck calls this a multi action switch): tick **Press again to run a second list** under the steps. The first press runs the first list and leaves the button lit; the next runs the second list and turns it off. A Break button, say, switches to BRB and mutes the mic, then goes back to Main and unmutes it.
-
-On/off actions (mute, source, filter, stream, recording, virtual camera) have **Each press**: toggle, or always on, or always off. A single button usually toggles; in a macro, *Mute* rather than *Mute / unmute* does the same thing whatever state the mic was in.
-
-With OBS connected, scenes, sources, audio inputs and filters are chosen from lists of what OBS really has, so a typo cannot break a button mid-stream. A name OBS no longer has (renamed, or another scene collection) stays in the list marked *not found in OBS*. Without OBS the fields fall back to typing the exact name.
-
-Buttons follow OBS live, including changes made in OBS itself: a scene button is lit while that scene is on air, and mute, filter, source visibility, stream, recording, virtual camera and replay buffer buttons are lit while that state is on. Two buttons on the same thing (the same mic on two decks, say) always agree, and OBS faders move when the volume changes in OBS's mixer. When OBS closes, every OBS light goes out rather than showing a state that may no longer be true. A macro that fails part-way stops there and says which step failed and why.
-
-Sound slots accept WAV and MP3 up to 8 MB. Sounds play from the companion itself through this computer's speakers, so nothing needs to be open or in front. Pressing a sound button again stops it; while it plays the button drains and counts down on the deck, and **Stop sound** with the time left appears in the Control Center's top bar. The **Punchboard sounds** fader changes the volume of what is playing on macOS (a small helper that ships with Punchboard plays the sounds there); on Windows it applies to the next sound that starts. The device never downloads the audio.
-
-Music controls and key combinations need macOS's Accessibility permission for Punchboard, asked for on the first press.
-
-## On the tablet
-
-The deck fills the whole screen and keeps the exact grid you designed, so a button is always in the same place on every device. Tap **Full screen** to hide the browser chrome; a **Show controls** grip at the top brings the bar back, and Escape works too.
-
-If the companion stops responding, the deck says so in a banner and refuses presses rather than silently doing nothing.
-
-The deck asks the browser to keep the screen on while it is open (iOS 16.4 and later, Android). Older iPads cannot do that from a page: set **Auto-Lock** to Never while you stream.
-
-The runtime deliberately sticks to widely supported CSS and JavaScript so genuinely old tablets still work. If you are adding to it, keep `deck.html`, `src/client/deck` and the `.deck-page` half of `style.css` free of `oklch()`, `color-mix()`, container queries and `<dialog>`; derive colours in code instead (see `applyAccent` and `applyTileColor` in `src/client/common/dom.ts`).
-
-## OBS setup
-
-If OBS runs on this computer, Punchboard reads OBS's own WebSocket settings, password included, so there is nothing to copy. The one step is in OBS: **Tools › WebSocket Server Settings › Enable WebSocket server**. The **OBS Studio** window in Punchboard says what is missing ("Server off", "Wrong password", "Connected") and connects by itself a few seconds after OBS is ready. If you later change the password in OBS, Punchboard picks it up on its next start.
-
-For OBS on another computer, open **OBS is on another computer, or enter it by hand**: the fields match OBS's **Show Connect Info** window (Server IP, Server Port, Server Password), and pasting OBS's whole connect link into any of them fills all three.
-
-## Key combinations
-
-The **Key combination** action presses keys on the streaming computer, as if typed, which is how you fire an OBS hotkey or any app's shortcut from the deck. In the step editor, click the field and press the keys you want; the combination is recorded from the physical keys, so it fires the same key on any keyboard layout.
-
-The keys go to whatever is in front on that computer at the time, so global hotkeys (OBS registers its own that way) are the reliable use. A combination the system keeps for itself (⌘⇧4 on a Mac, say) never reaches the browser, so the recorder cannot hear it; use **Build it** under the field and pick the keys instead. Sending it works either way.
-
-- **macOS**: the first press makes macOS ask whether the app running Punchboard (Terminal) may control the computer. Allow it once under **System Settings › Privacy & Security › Accessibility**, then press again.
-- **Windows**: nothing to set up. The Windows key cannot be part of a combination, and keys do not reach apps running as administrator.
-
-## Backing up
-
-**Back up to a file** downloads the whole library as JSON. **Restore from a file** replaces everything on this computer and asks for confirmation first. Older backups that stored a single action per button are migrated to the step format automatically on load.
-
-## Stop safely
-
-**Stop companion** sits in the footer, asks for confirmation, and shuts down the local process. Paired tablets show as offline until you start it again.
-
-## The desktop app
-
-`npm run app:build` builds **Punchboard.app** (Tauri). The app carries its own Node and runs the companion bundled into one file (`dist/server/server.mjs`); its window shows the Control Center, and a menu-bar icon offers *Open Control Center*, *Pair a device…*, *Open at login* and *Quit*. Closing the window keeps Punchboard running; quitting stops the companion cleanly. `npm run app:dev` runs it without packaging.
-
-- `scripts/fetch-node.mjs` downloads the Node binary for a target and checks it against nodejs.org's checksums (`src-tauri/binaries`, not committed).
-- `scripts/build-server.mjs` bundles the server.
-- `src-tauri/src/main.rs` is the whole shell: start and stop the companion, the window, the menu bar.
-
-Windows builds need a Windows machine (or CI); the same project builds there.
-
-## Working on Punchboard
-
-Punchboard is written in strict TypeScript.
-
-| Folder | What | How it runs |
-| --- | --- | --- |
-| `src/shared` | The deck model, every API request and response type, themes, icons, request signing | Imported by both sides |
-| `src/server` | The companion | Node 22.18+ runs the `.ts` files directly; no build step |
-| `src/client` | Control Center, deck and pairing page | Bundled by esbuild into `public/js` |
-
-- `npm install`: install tools.
-- `npm run check`: type-check everything and build the pages.
-- `npm run watch`: rebuild the pages on every change.
-- `npm start`: run the companion. `PUNCHBOARD_PORT=8799 npm start` runs it on another port.
-
-The deck targets Safari 11 (iOS 11) and ES2015, because it is meant for whatever tablet is lying around. Keep newer APIs that esbuild cannot lower (`structuredClone`, `Array.prototype.at`, `Object.fromEntries`…) out of `src/client/deck` and the shared code, and keep newer CSS (`oklch()`, `color-mix()`, container queries) out of the deck half of `style.css`.
+[Apache License 2.0](LICENSE). Fonts under the SIL Open Font License; Google's Material Symbols under Apache 2.0.

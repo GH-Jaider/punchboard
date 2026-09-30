@@ -4,7 +4,7 @@
 import fs from "node:fs"
 import path from "node:path"
 
-const REPO = "GH-Jaider/punchboard-releases"
+const REPO = "GH-Jaider/punchboard"
 const version = JSON.parse(fs.readFileSync("src-tauri/tauri.conf.json", "utf8")).version
 const dir = path.join("release", version)
 const platforms = {}
