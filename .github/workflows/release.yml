@@ -92,7 +92,8 @@ jobs:
         with:
           pattern: punchboard-*
           merge-multiple: true
-          path: release/${{ env.VERSION }}
+          # Each build uploads release/<version>/…, and keeps the <version> folder.
+          path: release
       - name: Write latest.json for the updater
         run: node scripts/latest-json.mjs "Punchboard ${VERSION}"
       - name: Draft the release
