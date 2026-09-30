@@ -72,5 +72,8 @@ for (const target of targets) {
   fs.rmSync(staging, { recursive: true, force: true })
 
   fs.writeFileSync(path.join(outDir, `latest-${platform}.json`), JSON.stringify({ platform, file: path.basename(archive), signature }, null, 2))
+  // Packed into the .dmg and the archive now; a loose copy in target/ would
+  // show up in Spotlight and Launchpad as a second Punchboard.
+  fs.rmSync(app, { recursive: true, force: true })
   console.log(`Done: ${dmg} (${(fs.statSync(dmg).size / 1048576).toFixed(0)} MB)`)
 }
