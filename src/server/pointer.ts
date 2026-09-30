@@ -189,9 +189,10 @@ export function createPointer(options: PointerOptions) {
     if (!line) return
     if (line === "d") leftHeld = true
     if (line === "u") leftHeld = false
+    // Turned into zoom steps before anything is written, so tests see what the computer would.
+    if (line.startsWith("pinch ")) return pinchSteps(line)
     if (testLog) return fs.appendFileSync(testLog, `${line}\n`)
     if (line === "app") return openLauncher()
-    if (line.startsWith("pinch ")) return pinchSteps(line)
     const child = start()
     if (child?.stdin?.writable) child.stdin.write(`${line}\n`)
   }
