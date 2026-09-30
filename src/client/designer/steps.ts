@@ -7,6 +7,8 @@ import { el, svg } from "../common/dom.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { audioFilePicker, playSlot, soundSlotLabel, uploadSound } from "./sounds.ts"
 import { touch } from "./state.ts"
+import { recordUndo } from "./undo.ts"
+import { keysField } from "./key-recorder.ts"
 
 const STEPS_HOST_ID = "steps-host"
 
@@ -110,9 +112,7 @@ function stepCard(button: Button, step: Step, index: number): HTMLElement {
   typeField.appendChild(el("p", "field-help", ACTION_META[step.type].hint))
   body.appendChild(typeField)
 
-  if (step.type === "hotkey") {
-    body.appendChild(el("p", "inline-note warn", "This companion cannot send keyboard shortcuts yet, so the deck will report an error if you press it."))
-  }
+  if (step.type === "hotkey") body.appendChild(keysField(step, title))
 
   // The fields this action needs, from one table.
   for (const spec of ACTION_FIELDS[step.type] ?? []) {
@@ -178,10 +178,14 @@ function reorderRow(button: Button, index: number): HTMLElement {
   down.onclick = () => swapSteps(button, index, index + 1)
   const grow = el("span")
   grow.style.flex = "1 1 auto"
-  const drop = el("button", "btn danger", "Remove step")
+  const drop = el("button", "btn ghost danger-text", "Remove step")
   drop.type = "button"
   drop.onclick = () => {
-    button.steps.splice(index, 1)
+    const removed = button.steps.splice(index, 1)[0]
+    if (!removed) return
+    recordUndo("Step removed", () => {
+      button.steps.splice(Math.min(index, button.steps.length), 0, removed)
+    })
     touch()
     view.refreshTile(button)
     view.renderInspector()

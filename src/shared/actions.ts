@@ -1,5 +1,6 @@
 // What each action is called, where it runs, and which fields it needs. The
 // Control Center builds its editors from these tables instead of if-chains.
+import { formatCombo, isMacLike } from "./keys.ts"
 import type { ActionType, FaderTarget, Step, StepTextField } from "./types.ts"
 
 export type ActionGroup = "OBS" | "This computer" | "This tablet" | "Other"
@@ -15,7 +16,7 @@ export const ACTION_META: Readonly<Record<ActionType, ActionMeta>> = {
   open_url: { label: "Open link on computer", group: "This computer", hint: "Opens in the default browser on the machine running the companion." },
   launch_app: { label: "Launch an app", group: "This computer", hint: "Starts an application on the machine running the companion." },
   play_sound: { label: "Play a sound", group: "This computer", hint: "Plays through the computer's audio output, not the tablet's." },
-  hotkey: { label: "Keyboard shortcut", group: "This computer", hint: "Needs an OS-approved helper, so it is not available yet." },
+  hotkey: { label: "Key combination", group: "This computer", hint: "Presses keys on this computer as if typed, for an OBS hotkey or any app's shortcut. They go to whatever is in front, so global hotkeys work best." },
   browser_tile: { label: "Open link on the tablet", group: "This tablet", hint: "Opens a site in the tablet's own browser, for chat or a dashboard." },
   none: { label: "Do nothing", group: "Other", hint: "A spacer or a label-only tile." }
 }
@@ -53,7 +54,7 @@ export function stepSummary(step: Step | undefined): string {
   if (!step) return "Empty step"
   const meta = ACTION_META[step.type]
   const detail = stepText(step, "sceneName") || stepText(step, "sourceName") || stepText(step, "url") || stepText(step, "appPath") ||
-    (step.type === "play_sound" ? `Sound ${step.soundId ?? 1}` : "")
+    (step.type === "play_sound" ? `Sound ${step.soundId ?? 1}` : step.type === "hotkey" ? formatCombo(step.keys, isMacLike()) : "")
   return detail ? `${meta.label} · ${detail}` : meta.label
 }
 

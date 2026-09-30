@@ -28,10 +28,10 @@
       <span class="dot" aria-hidden="true"></span><span id="save-text">Loading</span>
     </span>
     <nav class="appbar-actions" aria-label="Control Center">
-      <a class="btn" href="/pair">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M20 20h1M17 20v1"/></svg>
-        <span class="hide-sm">Pair a tablet</span>
-      </a>
+      <!-- Doubles as the live count of connected tablets. -->
+      <button class="btn pair-btn" id="pair-btn" type="button" aria-haspopup="dialog">
+        <span class="dot" aria-hidden="true"></span><span id="pair-count">Tablets</span>
+      </button>
       <a class="btn primary" href="/deck" target="_blank" rel="noopener">Open deck</a>
     </nav>
   </header>
@@ -48,10 +48,6 @@
           </button>
         </div>
         <div class="profile-list" id="profile-list"></div>
-        <div class="rail-row-actions">
-          <button class="btn ghost" id="rename-profile" type="button">Rename</button>
-          <button class="btn ghost danger-text" id="delete-profile" type="button">Delete</button>
-        </div>
       </div>
 
       <!-- Set once and left alone, so each opens in its own window. -->
@@ -83,7 +79,30 @@
     </aside>
 
     <main class="canvas-col" aria-label="Deck layout">
-      <!-- Shown until dismissed, instead of a permanent marketing header. -->
+      <div class="canvas-head">
+        <div class="canvas-title">
+          <h1 id="profile-title">Your deck</h1>
+          <div class="sub">What the tablet shows, slot for slot.</div>
+        </div>
+      </div>
+
+      <div id="parked-notice"></div>
+
+      <!-- A landscape tablet, sized with the same maths the real deck uses. -->
+      <div class="stage">
+        <div class="tablet-frame">
+          <div class="tablet-screen" id="tablet-screen">
+            <div class="design-grid" id="grid"></div>
+          </div>
+        </div>
+      </div>
+      <p class="stage-hint" id="stage-hint"></p>
+    </main>
+
+    <aside class="inspector" id="inspector" aria-label="Deck and button settings"></aside>
+
+    <!-- The first-run tips card waits here between renders of the deck panel. -->
+    <div id="intro-parking" hidden>
       <section class="intro-card" id="intro-card" hidden>
         <span class="intro-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
         <div class="intro-text">
@@ -98,49 +117,12 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </section>
-
-      <div class="canvas-head">
-        <div class="canvas-title">
-          <h1 id="profile-title">Your deck</h1>
-          <div class="sub">What the tablet shows, slot for slot. Drag a button to move it.</div>
-        </div>
-        <div class="grid-size">
-          <label for="cols">Columns <input class="num-input" id="cols" type="number" min="2" max="8" step="1"></label>
-          <label for="rows">Rows <input class="num-input" id="rows" type="number" min="1" max="6" step="1"></label>
-        </div>
-      </div>
-
-      <div id="parked-notice"></div>
-
-      <div class="stage">
-        <div class="stage-inner">
-          <div class="design-grid" id="grid"></div>
-        </div>
-      </div>
-    </main>
-
-    <aside class="inspector" id="inspector" aria-label="Button settings"></aside>
+    </div>
   </div>
 
   <!-- --------------------------------------------------------- dialogs -->
   <!-- In-page dialogs, so nothing breaks out of the theme the way native
        prompt()/confirm() would. -->
-  <dialog id="dlg-ask">
-    <form method="dialog">
-      <div class="dialog-head"><h2 id="ask-title">Name</h2></div>
-      <div class="dialog-body">
-        <div class="field">
-          <label for="ask-input" id="ask-label">Name</label>
-          <input id="ask-input" type="text" autocomplete="off">
-        </div>
-      </div>
-      <div class="dialog-foot">
-        <button class="btn" value="cancel" type="submit">Cancel</button>
-        <button class="btn primary" value="ok" type="submit" id="ask-ok">Save</button>
-      </div>
-    </form>
-  </dialog>
-
   <dialog id="dlg-confirm">
     <form method="dialog">
       <div class="dialog-head"><h2 id="confirm-title">Are you sure?</h2></div>
@@ -181,6 +163,40 @@
     </div>
     <div class="dialog-foot">
       <button class="btn primary" id="obs-save" type="button">Save connection</button>
+    </div>
+  </dialog>
+
+  <dialog id="dlg-pair" class="wide" aria-labelledby="pair-title">
+    <div class="dialog-head">
+      <h2 id="pair-title">Pair a tablet</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+    </div>
+    <div class="dialog-body">
+      <div class="pair-grid">
+        <div>
+          <h3 class="pair-heading">Scan to pair</h3>
+          <ol class="pair-steps">
+            <li><span class="step-number">1</span><span>Keep this computer and the tablet on the same wifi network.</span></li>
+            <li><span class="step-number">2</span><span>Scan the code with the tablet's camera, then tap the link it offers.</span></li>
+            <li><span class="step-number">3</span><span>No camera? Open the address on the tablet and type the 6-digit code.</span></li>
+          </ol>
+          <p class="field-help">Only paired devices can press buttons. Each one gets its own key, and you can remove it below at any time.</p>
+        </div>
+        <div class="pair-qr">
+          <div class="qr-frame" id="pair-qr-frame">
+            <img id="pair-qr-image" src="/api/pair-qr.svg" alt="QR code that opens and pairs this deck on your local network">
+          </div>
+          <div class="pair-code-box">
+            <span class="pair-code-label">Pairing code</span>
+            <strong class="pair-code-value" id="pair-code">&middot;&middot;&middot;&middot;&middot;&middot;</strong>
+            <span class="pair-hint" id="pair-expiry"></span>
+          </div>
+          <span class="pair-url" id="pair-address">Finding this computer&hellip;</span>
+          <button class="btn ghost" id="pair-new-code" type="button">Make a new code</button>
+        </div>
+      </div>
+      <h3 class="pair-heading">Paired devices</h3>
+      <div class="device-list" id="pair-devices"></div>
     </div>
   </dialog>
 

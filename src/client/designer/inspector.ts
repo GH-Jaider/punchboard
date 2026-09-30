@@ -1,24 +1,28 @@
-// The inspector for the selected button. It is built once per selection and
-// edits then update it in place, so focus and scroll position survive typing.
+// The inspector: the selected button's settings, or the deck's own when
+// nothing is selected. It is built once per selection and edits then update
+// it in place, so focus and scroll position survive typing.
+import { LIMITS } from "../../shared/actions.ts"
 import { BUTTON_COLORS } from "../../shared/colors.ts"
 import { iconMarkup } from "../../shared/icons.ts"
-import { withControl } from "../../shared/model.ts"
-import type { Button } from "../../shared/types.ts"
+import { nextId, withControl } from "../../shared/model.ts"
+import type { Button, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
-import { confirmAction } from "./dialogs.ts"
 import { faderField } from "./fader-editor.ts"
+import { deleteButton, duplicateButton, freeSlotCount, setGridSize } from "./grid.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { openIconPicker, readIcon } from "./icon-picker.ts"
-import { activeProfile, replaceButton, selectedButton, store, touch } from "./state.ts"
+import { activeProfile, library, replaceButton, selectedButton, store, touch } from "./state.ts"
 import { renderSteps, stepsField } from "./steps.ts"
+import { recordUndo } from "./undo.ts"
 
 const inspectorEl = byId("inspector")
 
-function renderEmpty(): void {
-  const empty = el("div", "empty-inspector")
-  empty.innerHTML = `<div class="big">${svg(UI_ICONS.grid, 28)}</div><div><strong>Nothing selected</strong></div>`
-  empty.appendChild(el("div", "subtle", "Click a tile to edit it, or a dashed slot to add one."))
-  inspectorEl.appendChild(empty)
+/** The first-run tips card is static HTML that moves into the deck panel
+    while that is shown, and back out before the panel is rebuilt. */
+function parkIntro(): void {
+  const intro = document.getElementById("intro-card")
+  const parking = document.getElementById("intro-parking")
+  if (intro && parking && intro.parentElement !== parking) parking.appendChild(intro)
 }
 
 /** Switching Button ↔ Volume fader replaces the button object, then redraws. */
@@ -32,9 +36,10 @@ function setControl(button: Button, control: Button["control"]): void {
 }
 
 export function renderInspector(): void {
+  parkIntro()
   inspectorEl.innerHTML = ""
   const button = selectedButton()
-  if (!button) return renderEmpty()
+  if (!button) return renderDeckPanel()
 
   const head = el("div", "panel-head")
   head.appendChild(el("h2", null, `Button ${button.slot + 1}`))
@@ -60,10 +65,153 @@ export function renderInspector(): void {
   body.appendChild(colorField(button, iconTrigger))
   body.appendChild(iconField(button, iconTrigger))
   body.appendChild(button.control === "fader" ? faderField(button) : stepsField(button))
-  body.appendChild(deleteZone(button))
+  body.appendChild(buttonActions(button))
 
   renderSteps(button)
 }
+
+// ---------------------------------------------------------------- deck
+
+function renderDeckPanel(): void {
+  const profile = activeProfile()
+
+  const head = el("div", "panel-head")
+  head.appendChild(el("h2", null, "Deck"))
+  inspectorEl.appendChild(head)
+
+  const body = el("div", "inspector-body")
+  inspectorEl.appendChild(body)
+
+  body.appendChild(byId("intro-card"))
+  body.appendChild(nameField(profile))
+
+  const size = el("div", "field")
+  size.appendChild(el("span", "field-label", "Grid size"))
+  const stat = el("p", "deck-stat")
+  const refreshStat = (): void => {
+    const count = profile.buttons.length
+    const free = freeSlotCount(profile)
+    stat.textContent = `${count}${count === 1 ? " button" : " buttons"} · ${free}${free === 1 ? " free slot" : " free slots"}`
+  }
+  size.appendChild(stepper("Columns", "columns", profile, refreshStat))
+  size.appendChild(stepper("Rows", "rows", profile, refreshStat))
+  size.appendChild(stat)
+  refreshStat()
+  body.appendChild(size)
+
+  body.appendChild(deckActions(profile))
+}
+
+function nameField(profile: Profile): HTMLElement {
+  const field = el("div", "field label-field")
+  const label = el("label", null, "Name")
+  label.htmlFor = "deck-name"
+  const input = document.createElement("input")
+  input.type = "text"
+  input.id = "deck-name"
+  input.value = profile.name
+  input.placeholder = "Streaming"
+  input.maxLength = 40
+  input.autocomplete = "off"
+  input.addEventListener("input", () => {
+    profile.name = input.value.trim() || "Untitled deck"
+    byId("profile-title").textContent = profile.name
+    view.renderProfiles()
+    touch()
+  })
+  field.appendChild(label)
+  field.appendChild(input)
+  return field
+}
+
+/** A −/+ control for one grid dimension, clamped to the deck's limits. */
+function stepper(text: string, key: "columns" | "rows", profile: Profile, onChange: () => void): HTMLElement {
+  const range = LIMITS[key]
+  const row = el("div", "stepper-row")
+  row.appendChild(el("span", "stepper-label", text))
+  const group = el("div", "stepper")
+  group.setAttribute("role", "group")
+  group.setAttribute("aria-label", text)
+  const value = el("output", "stepper-value", String(profile[key]))
+  value.setAttribute("aria-live", "polite")
+  const make = (delta: number, name: string): HTMLButtonElement => {
+    const control = el("button", "icon-btn")
+    control.type = "button"
+    control.textContent = delta < 0 ? "−" : "+"
+    control.setAttribute("aria-label", name)
+    control.onclick = () => {
+      setGridSize(key, profile[key] + delta)
+      value.textContent = String(profile[key])
+      less.disabled = profile[key] <= range.min
+      more.disabled = profile[key] >= range.max
+      onChange()
+    }
+    return control
+  }
+  const less = make(-1, `Fewer ${key}`)
+  const more = make(1, `More ${key}`)
+  less.disabled = profile[key] <= range.min
+  more.disabled = profile[key] >= range.max
+  group.appendChild(less)
+  group.appendChild(value)
+  group.appendChild(more)
+  row.appendChild(group)
+  return row
+}
+
+function deckActions(profile: Profile): HTMLElement {
+  const row = el("div", "inspector-actions")
+  const duplicate = el("button", "btn", "Duplicate deck")
+  duplicate.type = "button"
+  duplicate.onclick = () => duplicateProfile(profile)
+  const remove = el("button", "btn danger-text", "Delete deck")
+  remove.type = "button"
+  remove.disabled = library().profiles.length < 2
+  remove.title = remove.disabled ? "The last deck cannot be deleted" : ""
+  remove.onclick = () => deleteProfile(profile)
+  row.appendChild(duplicate)
+  row.appendChild(remove)
+  return row
+}
+
+/** A copy with fresh ids everywhere, so the two decks never share state. */
+function duplicateProfile(profile: Profile): void {
+  const loaded = library()
+  const copy = JSON.parse(JSON.stringify(profile, (key, value: unknown) => (key === "open" ? undefined : value))) as Profile
+  copy.id = nextId("profile")
+  copy.name = `${profile.name} copy`
+  copy.updatedAt = new Date().toISOString()
+  for (const button of copy.buttons) {
+    button.id = nextId("btn")
+    for (const step of button.steps) step.id = nextId("step")
+  }
+  loaded.profiles.splice(loaded.profiles.indexOf(profile) + 1, 0, copy)
+  store.activeId = copy.id
+  store.selectedSlot = null
+  touch()
+  view.renderAll()
+  toast(`Made “${copy.name}”.`)
+}
+
+/** Deletes straight away; the toast (and ⌘Z) puts the deck back where it was. */
+function deleteProfile(profile: Profile): void {
+  const loaded = library()
+  const index = loaded.profiles.indexOf(profile)
+  if (index === -1 || loaded.profiles.length < 2) return
+  loaded.profiles.splice(index, 1)
+  store.activeId = loaded.profiles[Math.min(index, loaded.profiles.length - 1)]!.id
+  store.selectedSlot = null
+  recordUndo("Deck deleted", () => {
+    const current = library()
+    current.profiles.splice(Math.min(index, current.profiles.length), 0, profile)
+    store.activeId = profile.id
+    store.selectedSlot = null
+  })
+  touch()
+  view.renderAll()
+}
+
+// -------------------------------------------------------------- button
 
 function labelField(button: Button): HTMLElement {
   const field = el("div", "field label-field")
@@ -190,23 +338,15 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   return field
 }
 
-function deleteZone(button: Button): HTMLElement {
-  const zone = el("div", "danger-zone")
-  const remove = el("button", "btn danger wide", "Delete this button")
+function buttonActions(button: Button): HTMLElement {
+  const row = el("div", "inspector-actions")
+  const duplicate = el("button", "btn", "Duplicate")
+  duplicate.type = "button"
+  duplicate.onclick = () => duplicateButton(button)
+  const remove = el("button", "btn danger-text", "Delete")
   remove.type = "button"
-  remove.onclick = async () => {
-    const yes = await confirmAction({
-      title: "Delete this button?",
-      text: `“${button.label || "Untitled"}” will be removed from ${activeProfile().name}.`,
-      confirm: "Delete button"
-    })
-    if (!yes) return
-    const profile = activeProfile()
-    profile.buttons = profile.buttons.filter((item) => item.id !== button.id)
-    store.selectedSlot = null
-    touch()
-    view.renderAll()
-  }
-  zone.appendChild(remove)
-  return zone
+  remove.onclick = () => deleteButton(button)
+  row.appendChild(duplicate)
+  row.appendChild(remove)
+  return row
 }

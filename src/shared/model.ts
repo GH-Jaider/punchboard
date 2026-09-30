@@ -5,6 +5,7 @@ import { isActionType, isFaderTarget, LIMITS, STATEFUL_ACTIONS } from "./actions
 import { isButtonColorId } from "./colors.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
+import { parseCombo } from "./keys.ts"
 import type { ActionType, Button, Fader, FaderButton, Library, PressButton, Profile, Step } from "./types.ts"
 
 type UnknownRecord = Record<string, unknown>
@@ -41,7 +42,7 @@ export function makeStep(type: ActionType, fields: UnknownRecord = {}): Step {
       const soundId = Number(fields.soundId)
       return { id, delayMs, type, soundId: soundId >= 1 && soundId <= LIMITS.soundSlots ? Math.floor(soundId) : undefined }
     }
-    case "hotkey": return { id, delayMs, type }
+    case "hotkey": return { id, delayMs, type, keys: parseCombo(fields.keys) ? String(fields.keys).toLowerCase() : undefined }
     case "none": return { id, delayMs, type }
   }
 }

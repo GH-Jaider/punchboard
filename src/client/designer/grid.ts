@@ -1,14 +1,19 @@
-// The canvas: the grid of tiles as the tablet shows it, drag and drop,
-// keyboard moves, grid size, and the notice for buttons left outside the grid.
+// The canvas: a tablet-shaped preview holding the grid of tiles, drag and
+// drop, the keyboard shortcuts, and the notice for buttons left outside the
+// grid. Deleting, duplicating and resizing live here too, so the inspector
+// and the keyboard share one implementation.
 import { FADER_TARGETS, LIMITS, stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
-import { createEmptyButton, isConfigured, parkedButtons } from "../../shared/model.ts"
-import type { Button } from "../../shared/types.ts"
+import { layoutGrid } from "../../shared/layout.ts"
+import { createEmptyButton, isConfigured, nextId, parkedButtons } from "../../shared/model.ts"
+import type { Button, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { activeProfile, store, touch } from "./state.ts"
+import { recordUndo, undoLast } from "./undo.ts"
 
 const gridEl = byId("grid")
+const screenEl = byId("tablet-screen")
 let dragFrom: number | null = null
 
 /** Faders and macros say so on the tile, so they are spotted at a glance. */
@@ -92,10 +97,78 @@ export function moveButton(fromSlot: number, toSlot: number): void {
   renderGrid()
 }
 
+// ------------------------------------------------------------- editing
+
+/** The first free slot at or after `from`, wrapping round; null when the grid is full. */
+export function freeSlot(profile: Profile, from: number): number | null {
+  const capacity = profile.rows * profile.columns
+  const taken = new Set(profile.buttons.map((button) => button.slot))
+  for (let offset = 0; offset < capacity; offset += 1) {
+    const slot = (from + offset) % capacity
+    if (!taken.has(slot)) return slot
+  }
+  return null
+}
+
+/** Removes a button straight away; the toast (and ⌘Z) can put it back. */
+export function deleteButton(button: Button): void {
+  const profile = activeProfile()
+  const index = profile.buttons.indexOf(button)
+  if (index === -1) return
+  profile.buttons.splice(index, 1)
+  store.selectedSlot = null
+  recordUndo("Button deleted", () => {
+    // Its slot may have been taken meanwhile; then it goes to the nearest free one.
+    if (profile.buttons.some((other) => other.slot === button.slot)) {
+      const slot = freeSlot(profile, button.slot)
+      if (slot === null) {
+        profile.rows = Math.min(LIMITS.rows.max, profile.rows + 1)
+      } else {
+        button.slot = slot
+      }
+    }
+    profile.buttons.splice(Math.min(index, profile.buttons.length), 0, button)
+    store.activeId = profile.id
+    store.selectedSlot = button.slot
+  })
+  touch()
+  view.renderAll()
+}
+
+/** A copy in the next free slot, with fresh ids so the two never share state. */
+export function duplicateButton(button: Button): void {
+  const profile = activeProfile()
+  const slot = freeSlot(profile, button.slot + 1)
+  if (slot === null) return toast("The grid is full. Add a row or a column first.")
+  const copy = JSON.parse(JSON.stringify(button, (key, value: unknown) => (key === "open" ? undefined : value))) as Button
+  copy.id = nextId("btn")
+  copy.slot = slot
+  for (const step of copy.steps) step.id = nextId("step")
+  profile.buttons.push(copy)
+  touch()
+  store.selectedSlot = slot
+  renderGrid()
+  view.renderProfiles()
+  view.renderInspector()
+}
+
+/** Resizes the grid; buttons outside it are parked, never deleted. */
+export function setGridSize(key: "columns" | "rows", value: number): void {
+  const profile = activeProfile()
+  const range = LIMITS[key]
+  const next = Math.max(range.min, Math.min(range.max, Math.round(value) || range.min))
+  if (next === profile[key]) return
+  profile[key] = next
+  touch()
+  renderGrid()
+  view.renderProfiles()
+}
+
+// ------------------------------------------------------------- drawing
+
 export function renderGrid(): void {
   const profile = activeProfile()
   gridEl.innerHTML = ""
-  gridEl.style.gridTemplateColumns = `repeat(${profile.columns},minmax(0,1fr))`
 
   const bySlot = new Map<number, Button>()
   for (const button of profile.buttons) bySlot.set(button.slot, button)
@@ -124,7 +197,28 @@ export function renderGrid(): void {
 
     gridEl.appendChild(wrap)
   }
+  layoutStage()
   renderParked()
+}
+
+/** Sizes the grid inside the tablet frame with the same maths the tablet
+    uses on its screen, so the preview shows the deck the way it will look. */
+export function layoutStage(): void {
+  const profile = activeProfile()
+  const width = screenEl.clientWidth
+  const height = screenEl.clientHeight
+  if (!width || !height) return
+  const layout = layoutGrid({ width, height, columns: profile.columns, rows: profile.rows })
+  gridEl.style.gap = `${layout.gap}px`
+  gridEl.style.gridTemplateColumns = `repeat(${profile.columns},minmax(0,1fr))`
+  gridEl.style.gridTemplateRows = `repeat(${profile.rows},${layout.rowHeight}px)`
+  gridEl.style.alignContent = layout.alignContent
+  gridEl.style.overflowY = layout.scrolls ? "auto" : "hidden"
+  gridEl.style.setProperty("--tile-ico", `${layout.iconSize}px`)
+  gridEl.style.setProperty("--tile-fs", `${layout.fontSize}px`)
+  gridEl.querySelectorAll<HTMLElement>(".tile-label").forEach((label) => {
+    label.style.display = layout.showLabel ? "" : "none"
+  })
 }
 
 /** Refreshes one tile's visible bits, so typing a label never rebuilds the grid under the cursor. */
@@ -174,12 +268,9 @@ function renderParked(): void {
   grow.type = "button"
   grow.onclick = () => {
     const needed = parked.reduce((most, button) => Math.max(most, button.slot + 1), 0)
-    const rows = Math.min(LIMITS.rows.max, Math.ceil(needed / profile.columns))
-    profile.rows = rows
-    byId<HTMLInputElement>("rows").value = String(rows)
+    profile.rows = Math.min(LIMITS.rows.max, Math.ceil(needed / profile.columns))
     touch()
-    renderGrid()
-    view.renderProfiles()
+    view.renderAll()
     if (parkedButtons(profile).length) toast("Grid is at its maximum, so some buttons are still parked.")
   }
   const pull = el("button", "btn", "Move into free slots")
@@ -198,8 +289,7 @@ function renderParked(): void {
       }
     }
     touch()
-    renderGrid()
-    view.renderProfiles()
+    view.renderAll()
     toast(moved ? `Moved ${moved} into free slots.` : "No free slots — make the grid bigger first.")
   }
   actions.appendChild(grow)
@@ -217,33 +307,76 @@ export function select(slot: number): void {
   view.renderInspector()
 }
 
-function setGridSize(key: "columns" | "rows", raw: string): void {
+export function deselect(): void {
+  if (store.selectedSlot === null) return
+  store.selectedSlot = null
+  gridEl.querySelectorAll<HTMLElement>(".tile.selected").forEach((tile) => tile.classList.remove("selected"))
+  view.renderInspector()
+}
+
+// ----------------------------------------------------------- keyboard
+
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
+
+/** Whether a key press belongs to a text field or an open dialog, not the canvas. */
+function typingElsewhere(event: KeyboardEvent): boolean {
+  const target = event.target instanceof Element ? event.target : null
+  if (target && target.closest("input, textarea, select, [contenteditable=\"true\"]")) return true
+  return document.querySelector("dialog[open]") !== null
+}
+
+function onKeyDown(event: KeyboardEvent): void {
+  if (typingElsewhere(event)) return
+  const command = isMac ? event.metaKey : event.ctrlKey
+  const selected = store.selectedSlot === null ? null : activeProfile().buttons.find((button) => button.slot === store.selectedSlot) ?? null
+
+  if (command && event.key.toLowerCase() === "z" && !event.shiftKey) {
+    event.preventDefault()
+    return undoLast()
+  }
+  if (command && event.key.toLowerCase() === "d") {
+    if (!selected) return
+    event.preventDefault()
+    return duplicateButton(selected)
+  }
+  if ((event.key === "Delete" || event.key === "Backspace") && selected) {
+    event.preventDefault()
+    return deleteButton(selected)
+  }
+  if (event.key === "Escape") return deselect()
+
+  // Alt+Arrow moves the selected button, because drag and drop is mouse-only.
+  if (!event.altKey || store.selectedSlot === null) return
   const profile = activeProfile()
-  const range = LIMITS[key]
-  const value = Math.max(range.min, Math.min(range.max, Number(raw) || range.min))
-  profile[key] = value
-  byId<HTMLInputElement>(key === "columns" ? "cols" : "rows").value = String(value)
-  touch()
-  renderGrid()
-  view.renderProfiles()
+  const deltas: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -profile.columns, ArrowDown: profile.columns }
+  const delta = deltas[event.key]
+  if (delta === undefined) return
+  const target = store.selectedSlot + delta
+  if (target < 0 || target >= profile.rows * profile.columns) return
+  event.preventDefault()
+  moveButton(store.selectedSlot, target)
 }
 
 export function bindGrid(): void {
-  const cols = byId<HTMLInputElement>("cols")
-  const rows = byId<HTMLInputElement>("rows")
-  cols.addEventListener("change", () => setGridSize("columns", cols.value))
-  rows.addEventListener("change", () => setGridSize("rows", rows.value))
+  document.addEventListener("keydown", onKeyDown)
 
-  // Alt+Arrow moves the selected button, because drag and drop is mouse-only.
-  document.addEventListener("keydown", (event) => {
-    if (!event.altKey || store.selectedSlot === null) return
-    const profile = activeProfile()
-    const deltas: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -profile.columns, ArrowDown: profile.columns }
-    const delta = deltas[event.key]
-    if (delta === undefined) return
-    const target = store.selectedSlot + delta
-    if (target < 0 || target >= profile.rows * profile.columns) return
-    event.preventDefault()
-    moveButton(store.selectedSlot, target)
+  const modifier = isMac ? "⌘" : "Ctrl+"
+  byId("stage-hint").textContent = `Drag to move · Alt+arrows move · ${modifier}D duplicate · ${modifier}Z undo`
+
+  // Only the measurements change on resize, so the tiles are not rebuilt.
+  let resizeTimer: number | null = null
+  window.addEventListener("resize", () => {
+    if (resizeTimer !== null) window.clearTimeout(resizeTimer)
+    resizeTimer = window.setTimeout(() => {
+      resizeTimer = null
+      if (store.library) layoutStage()
+    }, 120)
   })
+}
+
+/** How many of the grid's slots are still free (parked buttons do not count). */
+export function freeSlotCount(profile: Profile): number {
+  const capacity = profile.rows * profile.columns
+  const inside = profile.buttons.filter((button) => button.slot < capacity).length
+  return Math.max(0, capacity - inside)
 }

@@ -75,9 +75,14 @@ The runtime deliberately sticks to widely supported CSS and JavaScript so genuin
 
 Open the **OBS Studio** panel in the left rail only when you actually use OBS buttons. In OBS, open **Tools → WebSocket Server Settings**, enable the server, set a password, then enter the matching address and password here. OBS normally listens at `ws://127.0.0.1:4455`.
 
-## Keyboard shortcuts
+## Key combinations
 
-Sending synthetic keystrokes needs an OS-approved accessibility helper, which this package does not ship. The **Keyboard shortcut** action is listed but will report an error when pressed — use OBS actions, app launch actions, or an app's own integration instead.
+The **Key combination** action presses keys on the streaming computer, as if typed, which is how you fire an OBS hotkey or any app's shortcut from the deck. In the step editor, click the field and press the keys you want; the combination is recorded from the physical keys, so it fires the same key on any keyboard layout.
+
+The keys go to whatever is in front on that computer at the time, so global hotkeys (OBS registers its own that way) are the reliable use.
+
+- **macOS**: the first press makes macOS ask whether the app running Punchboard (Terminal) may control the computer. Allow it once under **System Settings › Privacy & Security › Accessibility**, then press again.
+- **Windows**: nothing to set up. The Windows key cannot be part of a combination, and keys do not reach apps running as administrator.
 
 ## Backing up
 

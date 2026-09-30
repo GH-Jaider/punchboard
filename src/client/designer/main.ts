@@ -10,6 +10,7 @@ import { toast, view } from "./hub.ts"
 import { bindIconPicker } from "./icon-picker.ts"
 import { renderInspector } from "./inspector.ts"
 import { bindObs, showObsSettings } from "./obs.ts"
+import { bindPairing } from "./pairing.ts"
 import { bindProfiles, renderProfiles } from "./profiles.ts"
 import { bindSession, showIntroIfNew } from "./session.ts"
 import { bindSoundOutput } from "./sound-output.ts"
@@ -22,10 +23,7 @@ function renderAll(): void {
   renderProfiles()
   renderGrid()
   renderInspector()
-  const profile = activeProfile()
-  byId("profile-title").textContent = profile.name
-  byId<HTMLInputElement>("cols").value = String(profile.columns)
-  byId<HTMLInputElement>("rows").value = String(profile.rows)
+  byId("profile-title").textContent = activeProfile().name
 }
 
 Object.assign(view, { renderAll, renderGrid, renderProfiles, renderInspector, renderSteps, refreshTile, select })
@@ -37,6 +35,7 @@ bindSounds()
 bindSoundOutput()
 bindAppearance()
 bindObs()
+bindPairing()
 bindSession()
 bindDialogChrome()
 

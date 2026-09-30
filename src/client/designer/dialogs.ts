@@ -1,30 +1,6 @@
 // In-page dialogs that follow the theme, in place of prompt() and confirm().
 import { byId } from "../common/dom.ts"
 
-export interface AskOptions {
-  title: string
-  label?: string
-  value?: string
-  confirm?: string
-  maxLength?: number
-}
-
-/** Resolves to the trimmed text, or null when cancelled. */
-export function ask(options: AskOptions): Promise<string | null> {
-  const dialog = byId<HTMLDialogElement>("dlg-ask")
-  byId("ask-title").textContent = options.title
-  byId("ask-label").textContent = options.label ?? options.title
-  byId("ask-ok").textContent = options.confirm ?? "Save"
-  const input = byId<HTMLInputElement>("ask-input")
-  input.value = options.value ?? ""
-  input.maxLength = options.maxLength ?? 60
-  return new Promise((resolve) => {
-    dialog.onclose = () => resolve(dialog.returnValue === "ok" ? input.value.trim() : null)
-    dialog.showModal()
-    input.select()
-  })
-}
-
 export interface ConfirmOptions {
   title: string
   text: string

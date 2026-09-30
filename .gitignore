@@ -17,3 +17,6 @@ profiles/
 sounds/*.wav
 sounds/*.mp3
 sounds/sounds.json
+
+# Backups the companion keeps beside its files
+*.bak

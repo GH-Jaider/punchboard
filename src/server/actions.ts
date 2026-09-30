@@ -7,6 +7,7 @@ import { LIMITS } from "../shared/actions.ts"
 import type { Button, Step } from "../shared/types.ts"
 import type { Config } from "./config.ts"
 import { HttpError, errorText } from "./http.ts"
+import { sendKeys } from "./keys.ts"
 
 let obsClientPromise: Promise<OBSWebSocket> | null = null
 
@@ -82,7 +83,8 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
 
   switch (step.type) {
     case "hotkey":
-      throw new Error("Keyboard shortcuts need an accessibility-approved helper, which this companion does not ship yet.")
+      await sendKeys(step.keys)
+      return {}
 
     case "launch_app": {
       if (!step.appPath) throw new Error("Choose an application, or enter its full path, first.")

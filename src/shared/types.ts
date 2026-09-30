@@ -33,7 +33,8 @@ export interface OpenUrlStep extends StepBase { type: "open_url"; url?: string }
 export interface TabletLinkStep extends StepBase { type: "browser_tile"; url?: string }
 export interface LaunchAppStep extends StepBase { type: "launch_app"; appPath?: string }
 export interface SoundStep extends StepBase { type: "play_sound"; soundId?: number }
-export interface HotkeyStep extends StepBase { type: "hotkey" }
+/** `keys` is a canonical combination such as "ctrl+shift+k" (see keys.ts). */
+export interface HotkeyStep extends StepBase { type: "hotkey"; keys?: string }
 export interface NoopStep extends StepBase { type: "none" }
 
 /** One action in a button's macro. The fields present depend on `type`. */

@@ -6,6 +6,7 @@ import { errorMessage, request } from "../common/http.ts"
 import { confirmAction } from "./dialogs.ts"
 import { toast, view } from "./hub.ts"
 import { library, store, touch } from "./state.ts"
+import { recordUndo } from "./undo.ts"
 
 const INTRO_KEY = "punchboard-intro-seen"
 
@@ -19,7 +20,7 @@ function exportBackup(): void {
   toast("Backup downloaded.")
 }
 
-/** Restoring replaces everything, so it asks first. */
+/** Restoring replaces everything, so it asks first and can be undone after. */
 async function importBackup(file: File): Promise<void> {
   let next: unknown
   try {
@@ -30,16 +31,24 @@ async function importBackup(file: File): Promise<void> {
   if (!isLibraryShape(next)) return toast("That file is not a Punchboard backup.", true)
   const yes = await confirmAction({
     title: "Replace this deck?",
-    text: `Restoring will replace all ${library().profiles.length} profile(s) on this computer with the ${next.profiles.length} in the file. This cannot be undone.`,
+    text: `Restoring will replace all ${library().profiles.length} deck(s) on this computer with the ${next.profiles.length} in the file.`,
     confirm: "Replace everything"
   })
   if (!yes) return
+  const previous = store.library
+  const previousActive = store.activeId
   store.library = normalizeLibrary(next)
   store.activeId = store.library.activeProfileId
   store.selectedSlot = null
+  if (previous) {
+    recordUndo("Restored from file", () => {
+      store.library = previous
+      store.activeId = previousActive
+      store.selectedSlot = null
+    })
+  }
   touch()
   view.renderAll()
-  toast("Deck restored from file.")
 }
 
 async function shutdown(): Promise<void> {

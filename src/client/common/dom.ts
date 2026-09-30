@@ -72,14 +72,32 @@ export const storage = {
   }
 }
 
-/** A single toast element per page (#toast). */
-export function createToast(element: HTMLElement, durationMs = 2600): (message: string, isError?: boolean) => void {
+export interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
+export type Toast = (message: string, isError?: boolean, action?: ToastAction) => void
+
+/** A single toast element per page (#toast). A toast with an action (e.g.
+    Undo) stays up longer, since it is waiting for a click. */
+export function createToast(element: HTMLElement, durationMs = 2600): Toast {
   let timer: number | undefined
-  return (message, isError = false) => {
+  const hide = (): void => { element.className = "toast" }
+  return (message, isError = false, action) => {
     element.textContent = message
-    element.className = `toast show${isError ? " is-error" : ""}`
+    if (action) {
+      const button = el("button", "toast-action", action.label)
+      button.type = "button"
+      button.onclick = () => {
+        hide()
+        action.onClick()
+      }
+      element.appendChild(button)
+    }
+    element.className = `toast show${isError ? " is-error" : ""}${action ? " has-action" : ""}`
     window.clearTimeout(timer)
-    timer = window.setTimeout(() => { element.className = "toast" }, durationMs)
+    timer = window.setTimeout(hide, action ? Math.max(durationMs, 6000) : durationMs)
   }
 }
 
