@@ -1,0 +1,64 @@
+// The Control Center: builds decks on this computer and serves as its sound
+// output. This file wires the modules together and loads the first state.
+import type { SettingsResponse } from "../../shared/api.ts"
+import { byId } from "../common/dom.ts"
+import { errorMessage, request } from "../common/http.ts"
+import { bindAppearance, setTheme, showAccent } from "./appearance.ts"
+import { watchEvents } from "./events.ts"
+import { bindGrid, refreshTile, renderGrid, select } from "./grid.ts"
+import { toast, view } from "./hub.ts"
+import { bindIconPicker } from "./icon-picker.ts"
+import { renderInspector } from "./inspector.ts"
+import { bindObs, showObsSettings } from "./obs.ts"
+import { bindProfiles, renderProfiles } from "./profiles.ts"
+import { bindSession, showIntroIfNew } from "./session.ts"
+import { bindSoundOutput } from "./sound-output.ts"
+import { bindSounds, loadSounds } from "./sounds.ts"
+import { activeProfile, fetchLibrary, setSaveState, store } from "./state.ts"
+import { renderSteps } from "./steps.ts"
+
+function renderAll(): void {
+  renderProfiles()
+  renderGrid()
+  renderInspector()
+  const profile = activeProfile()
+  byId("profile-title").textContent = profile.name
+  byId<HTMLInputElement>("cols").value = String(profile.columns)
+  byId<HTMLInputElement>("rows").value = String(profile.rows)
+}
+
+Object.assign(view, { renderAll, renderGrid, renderProfiles, renderInspector, renderSteps, refreshTile, select })
+
+bindGrid()
+bindProfiles()
+bindIconPicker()
+bindSounds()
+bindSoundOutput()
+bindAppearance()
+bindObs()
+bindSession()
+
+async function start(): Promise<void> {
+  try {
+    const loaded = await Promise.all([fetchLibrary(), request<SettingsResponse>("/api/settings")])
+    const library = loaded[0]
+    const settings = loaded[1]
+    store.library = library
+    store.activeId = library.activeProfileId
+
+    showAccent(settings.accent)
+    setTheme(settings.theme)
+    showObsSettings(settings)
+    showIntroIfNew()
+
+    setSaveState("", "Saved · decks in sync")
+    renderAll()
+    void loadSounds()
+    watchEvents()
+  } catch (error) {
+    setSaveState("error", "Could not load")
+    toast(errorMessage(error), true)
+  }
+}
+
+void start()

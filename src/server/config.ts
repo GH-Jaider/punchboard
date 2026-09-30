@@ -1,0 +1,50 @@
+// Settings stored in config.json next to the app.
+import { isHexColor } from "../shared/colors.ts"
+import { DEFAULT_THEME, isThemeId } from "../shared/themes.ts"
+import type { ThemeId } from "../shared/types.ts"
+import { isObject, readJsonSafe, writeJsonAtomic } from "./store.ts"
+
+export interface Config {
+  port: number
+  profileFile: string
+  theme: { name: ThemeId; accent: string; accentPreset: string }
+  soundVolume: number
+  obs: { address: string; password: string }
+}
+
+const DEFAULTS: Config = {
+  port: 8787,
+  profileFile: "./profiles/current-profile.json",
+  theme: { name: DEFAULT_THEME, accent: "#5fd0d6", accentPreset: "custom" },
+  soundVolume: 1,
+  obs: { address: "ws://127.0.0.1:4455", password: "" }
+}
+
+const str = (value: unknown, fallback: string): string => (typeof value === "string" ? value : fallback)
+
+export function loadConfig(file: string, log: (message: string) => void): Config {
+  let raw: Record<string, unknown> = {}
+  try {
+    raw = readJsonSafe(file, isObject).data ?? {}
+  } catch (error) {
+    log(`${error instanceof Error ? error.message : String(error)} Starting with default settings.`)
+  }
+  const theme = isObject(raw.theme) ? raw.theme : {}
+  const obs = isObject(raw.obs) ? raw.obs : {}
+  const soundVolume = Number(raw.soundVolume)
+  return {
+    port: Number(raw.port) || DEFAULTS.port,
+    profileFile: str(raw.profileFile, DEFAULTS.profileFile),
+    theme: {
+      name: isThemeId(theme.name) ? theme.name : DEFAULTS.theme.name,
+      accent: isHexColor(theme.accent) ? theme.accent : DEFAULTS.theme.accent,
+      accentPreset: str(theme.accentPreset, DEFAULTS.theme.accentPreset)
+    },
+    soundVolume: Number.isFinite(soundVolume) ? Math.max(0, Math.min(1, soundVolume)) : DEFAULTS.soundVolume,
+    obs: { address: str(obs.address, DEFAULTS.obs.address), password: str(obs.password, DEFAULTS.obs.password) }
+  }
+}
+
+export function saveConfig(file: string, config: Config): void {
+  writeJsonAtomic(file, config)
+}

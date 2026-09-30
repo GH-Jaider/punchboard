@@ -50,7 +50,8 @@ download_node() {
 
 if [ ! -x "$NODE_HOME/bin/node" ] && ! download_node; then
   # Offline on the first run: fall back to a Node the Mac already has.
-  if command -v node >/dev/null 2>&1 && node -e 'process.exit(Number(process.versions.node.split(".")[0]) >= 20 ? 0 : 1)'; then
+  # Node 22.18+ runs TypeScript directly, which the companion needs.
+  if command -v node >/dev/null 2>&1 && node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 18) ? 0 : 1)'; then
     echo "  Could not download Node.js, so the one already on this Mac will be used."
   else
     echo "  Node.js could not be downloaded. Check the internet connection and"
@@ -62,17 +63,30 @@ else
 fi
 
 # Dependencies: installed on the first run, and again whenever they change.
-if [ ! -f node_modules/.installed ] || [ package-lock.json -nt node_modules/.installed ]; then
+# A release zip ships the built pages in public/js; a source checkout does
+# not, so it also needs the build tools and one build.
+NEEDS_BUILD=0
+[ -f public/js/deck.js ] || NEEDS_BUILD=1
+if [ ! -f node_modules/.installed ] || [ package-lock.json -nt node_modules/.installed ] || [ "$NEEDS_BUILD" = 1 ]; then
   echo "  Installing Punchboard's parts, this only happens once..."
-  if ! npm ci --omit=dev --no-audit --no-fund --loglevel=error; then
+  if [ "$NEEDS_BUILD" = 1 ]; then INSTALL_FLAGS=""; else INSTALL_FLAGS="--omit=dev"; fi
+  if ! npm ci $INSTALL_FLAGS --no-audit --no-fund --loglevel=error; then
     echo "  Something went wrong installing. Check the messages above."
     pause_and_exit 1
   fi
   touch node_modules/.installed
   echo ""
 fi
+if [ "$NEEDS_BUILD" = 1 ]; then
+  echo "  Building the pages..."
+  if ! npm run --silent build; then
+    echo "  The build failed. Check the messages above."
+    pause_and_exit 1
+  fi
+  echo ""
+fi
 
 echo "  Starting. Keep this window open while you stream;"
 echo "  close it (or press Ctrl+C) to stop the deck."
-node server.js
+node src/server/main.ts
 pause_and_exit $?

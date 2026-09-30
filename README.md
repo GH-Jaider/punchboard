@@ -9,7 +9,9 @@ Punchboard is a local Control Center for the computer you stream from. It keeps 
 
 Nothing needs installing first. The first run downloads its own copy of Node.js into `runtime/`, checks it against the official checksums, installs Punchboard's parts, and starts. That takes a minute and needs internet once; later runs start straight away and work offline. Nothing is installed system-wide and no administrator password is needed.
 
-When it is running, open the Control Center at `http://localhost:8787/designer` on this computer and choose **Pair a tablet**.
+When it is running, the Control Center opens in your browser by itself (`http://localhost:8787/designer`); choose **Pair a tablet** there. Double-clicking the starter again while Punchboard is running just opens it again.
+
+If another program already uses port 8787, Punchboard takes the next free port and remembers it in `config.json`, so the address stays the same from then on. Tablets paired before the move need to pair once more, because a browser keeps each address's data separately.
 
 ## Pairing and security
 
@@ -67,7 +69,7 @@ The deck fills the whole screen and keeps the exact grid you designed, so a butt
 
 If the companion stops responding, the deck says so in a banner and refuses presses rather than silently doing nothing.
 
-The runtime deliberately sticks to widely supported CSS and JavaScript so genuinely old tablets still work. If you are adding to it, keep `deck.html`, `deck.js` and the `.deck-page` half of `style.css` free of `oklch()`, `color-mix()`, container queries and `<dialog>`; derive colours in JS instead (see `applyAccent` and `applyTileColor` in `deck-shared.js`).
+The runtime deliberately sticks to widely supported CSS and JavaScript so genuinely old tablets still work. If you are adding to it, keep `deck.html`, `src/client/deck` and the `.deck-page` half of `style.css` free of `oklch()`, `color-mix()`, container queries and `<dialog>`; derive colours in code instead (see `applyAccent` and `applyTileColor` in `src/client/common/dom.ts`).
 
 ## OBS setup
 
@@ -84,3 +86,20 @@ Sending synthetic keystrokes needs an OS-approved accessibility helper, which th
 ## Stop safely
 
 **Stop companion** sits in the footer, asks for confirmation, and shuts down the local process. Paired tablets show as offline until you start it again.
+
+## Working on Punchboard
+
+Punchboard is written in strict TypeScript.
+
+| Folder | What | How it runs |
+| --- | --- | --- |
+| `src/shared` | The deck model, every API request and response type, themes, icons, request signing | Imported by both sides |
+| `src/server` | The companion | Node 22.18+ runs the `.ts` files directly; no build step |
+| `src/client` | Control Center, deck and pairing page | Bundled by esbuild into `public/js` |
+
+- `npm install`: install tools.
+- `npm run check`: type-check everything and build the pages.
+- `npm run watch`: rebuild the pages on every change.
+- `npm start`: run the companion. `PUNCHBOARD_PORT=8799 npm start` runs it on another port.
+
+The deck targets Safari 11 (iOS 11) and ES2015, because it is meant for whatever tablet is lying around. Keep newer APIs that esbuild cannot lower (`structuredClone`, `Array.prototype.at`, `Object.fromEntries`…) out of `src/client/deck` and the shared code, and keep newer CSS (`oklch()`, `color-mix()`, container queries) out of the deck half of `style.css`.

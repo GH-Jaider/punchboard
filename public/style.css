@@ -6,7 +6,7 @@
      .deck-page      runs on whatever tablet was in the drawer, so it is kept
                      to widely supported CSS: no oklch(), no color-mix(), no
                      container queries. Anything derived from a colour is
-                     computed in JS (see deck-shared.js) and handed in as a
+                     computed in TypeScript (src/client/common/dom.ts) and handed in as a
                      custom property.
    =========================================================================== */
 

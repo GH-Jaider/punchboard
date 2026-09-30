@@ -4,7 +4,7 @@
     {
       "name": "punchboard",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["server.js"],
+      "runtimeArgs": ["src/server/main.ts"],
       "port": 8787
     }
   ]

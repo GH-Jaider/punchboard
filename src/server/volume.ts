@@ -1,44 +1,52 @@
 // Fader targets. Levels are always 0..1 as the fader shows them; each target
 // converts to its own scale.
-const { execFile } = require("child_process")
-const { getObsClient } = require("./actions")
-// Two faders on the same target share one level, keyed the same way everywhere.
-const { faderLevelKey: levelKey } = require("../public/deck-shared.js")
+import { execFile } from "node:child_process"
+import type { Fader } from "../shared/types.ts"
+import { getObsClient } from "./actions.ts"
+import type { Config } from "./config.ts"
 
-const clamp01 = (value) => Math.max(0, Math.min(1, Number(value) || 0))
+export { faderLevelKey as levelKey } from "../shared/model.ts"
 
-function osascript(script) {
+export interface VolumeContext {
+  config: Config
+  saveConfig: () => void
+}
+
+const clamp01 = (value: unknown): number => Math.max(0, Math.min(1, Number(value) || 0))
+
+function osascript(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
     execFile("osascript", ["-e", script], { timeout: 3000 }, (error, stdout) => (error ? reject(error) : resolve(String(stdout).trim())))
   })
 }
 
-function requireMac() {
+function requireMac(): void {
   if (process.platform !== "darwin") throw new Error("Computer volume can only be controlled on macOS for now.")
 }
 
+function requireInput(fader: Fader): string {
+  if (!fader.inputName) throw new Error("Add the exact OBS input name first.")
+  return fader.inputName
+}
+
 // OBS's own mixer faders are cubic: a fader at 50% is 0.125 of full signal.
-// Using the same curve means a deck fader and the OBS fader line up.
-async function readLevel(fader, context) {
+// Using the same curve keeps a deck fader and the OBS fader in line.
+export async function readLevel(fader: Fader, context: VolumeContext): Promise<number> {
   switch (fader.target) {
     case "sounds":
       return clamp01(context.config.soundVolume)
-    case "system": {
+    case "system":
       requireMac()
       return clamp01(Number(await osascript("output volume of (get volume settings)")) / 100)
-    }
     case "obs_input": {
-      if (!fader.inputName) throw new Error("Add the exact OBS input name first.")
       const obs = await getObsClient(context.config)
-      const { inputVolumeMul } = await obs.call("GetInputVolume", { inputName: fader.inputName })
+      const { inputVolumeMul } = await obs.call("GetInputVolume", { inputName: requireInput(fader) })
       return clamp01(Math.cbrt(inputVolumeMul))
     }
-    default:
-      throw new Error("That fader has no target.")
   }
 }
 
-async function writeLevel(fader, level, context) {
+export async function writeLevel(fader: Fader, level: unknown, context: VolumeContext): Promise<number> {
   const value = clamp01(level)
   switch (fader.target) {
     case "sounds":
@@ -50,14 +58,9 @@ async function writeLevel(fader, level, context) {
       await osascript(`set volume output volume ${Math.round(value * 100)}`)
       return value
     case "obs_input": {
-      if (!fader.inputName) throw new Error("Add the exact OBS input name first.")
       const obs = await getObsClient(context.config)
-      await obs.call("SetInputVolume", { inputName: fader.inputName, inputVolumeMul: value ** 3 })
+      await obs.call("SetInputVolume", { inputName: requireInput(fader), inputVolumeMul: value ** 3 })
       return value
     }
-    default:
-      throw new Error("That fader has no target.")
   }
 }
-
-module.exports = { levelKey, readLevel, writeLevel }

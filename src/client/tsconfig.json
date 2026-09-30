@@ -1,0 +1,13 @@
+{
+  // Browser code. esbuild bundles it into public/js; this config type-checks.
+  // ES2015 is the floor: the deck is meant for old tablets (Safari 11+).
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "es2015",
+    "lib": ["es2017", "dom", "dom.iterable"],
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "types": []
+  },
+  "include": ["./**/*.ts", "../shared/**/*.ts"]
+}
