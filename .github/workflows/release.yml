@@ -1,0 +1,71 @@
+# Builds the installers when a version tag is pushed (git tag v1.2.0 && git
+# push --tags). Publishing is a separate step on purpose, run from your own
+# computer once you are happy with the builds: npm run release:publish
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm ci
+      - run: npm test
+      - run: node scripts/release-windows.mjs x86_64-pc-windows-msvc
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: punchboard-windows
+          path: release/*/*
+          if-no-files-found: error
+
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Install rcodesign
+        run: |
+          V=0.29.0
+          curl -fsSL "https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F$V/apple-codesign-$V-macos-universal.tar.gz" | tar -xz -C "$RUNNER_TEMP" \
+            && mkdir -p ~/.cargo/bin && cp "$RUNNER_TEMP/apple-codesign-$V-macos-universal/rcodesign" ~/.cargo/bin/ \
+            || cargo install apple-codesign --version "$V" --locked
+          ~/.cargo/bin/rcodesign --version
+      - name: Restore the signing certificate
+        run: node scripts/mac-signing.mjs setup
+        env:
+          MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+      - run: npm ci
+      - run: node scripts/release-mac.mjs
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: punchboard-mac
+          path: release/*/*
+          if-no-files-found: error

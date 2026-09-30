@@ -9,20 +9,47 @@
   },
   "app": {
     "windows": [],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
-    "targets": ["app", "dmg"],
+    "targets": [
+      "app",
+      "dmg"
+    ],
     "category": "Utility",
     "shortDescription": "Turn any tablet or phone into a control deck for your stream",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "externalBin": ["binaries/node"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/node"
+    ],
     "resources": {
       "../dist/server/server.mjs": "server.mjs",
       "../public/": "public/",
       "../src/server/helpers/mac-player.js": "src/server/helpers/mac-player.js"
     },
-    "macOS": { "minimumSystemVersion": "11.0" }
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEVBQjlCODg1NkY1M0IyMUYKUldRZnNsTnZoYmk1NmtxZ3FMRjZwSDZaSitrZ1VQTCtEK1JpWmdyNW1ZWXZYeHRYME9RSU0xLzgK",
+      "endpoints": [
+        "https://github.com/GH-Jaider/punchboard-releases/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
   }
 }

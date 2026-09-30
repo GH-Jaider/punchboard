@@ -15,6 +15,7 @@ use tauri::{AppHandle, Manager, RunEvent, Url, WebviewUrl, WebviewWindow, Webvie
 use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
+use tauri_plugin_updater::UpdaterExt;
 
 /// Passed when the app starts at login: stay in the menu bar, no window.
 const HIDDEN_ARG: &str = "--hidden";
@@ -25,6 +26,18 @@ struct Companion {
     port: Mutex<Option<u16>>,
     quitting: Mutex<bool>,
 }
+
+/// The menu-bar item that checks for, and then offers, an update.
+struct Updates {
+    item: MenuItem<tauri::Wry>,
+    /// A downloaded, installed update waiting for a restart.
+    ready: Mutex<Option<String>>,
+    checking: Mutex<bool>,
+}
+
+const CHECK_LABEL: &str = "Check for updates…";
+/// Checked a little after start, then this often.
+const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
 
 fn port(app: &AppHandle) -> Option<u16> {
     *app.state::<Companion>().port.lock().unwrap()
@@ -176,16 +189,83 @@ fn stop_companion(app: &AppHandle) {
     }
 }
 
+/// Looks for an update and, if there is one, downloads and installs it in
+/// the background; the menu then offers the restart. `manual` reports
+/// "up to date" and failures in the menu too.
+fn check_for_updates(app: &AppHandle, manual: bool) {
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let updates = app.state::<Updates>();
+        if updates.ready.lock().unwrap().is_some() || *updates.checking.lock().unwrap() {
+            return;
+        }
+        *updates.checking.lock().unwrap() = true;
+        if manual {
+            let _ = updates.item.set_text("Checking for updates…");
+        }
+        let found = match app.updater() {
+            Ok(updater) => updater.check().await,
+            Err(error) => Err(error),
+        };
+        match found {
+            Ok(Some(update)) => {
+                let version = update.version.clone();
+                let _ = updates.item.set_text(format!("Downloading version {version}…"));
+                let _ = updates.item.set_enabled(false);
+                match update.download_and_install(|_, _| {}, || {}).await {
+                    Ok(()) => {
+                        *updates.ready.lock().unwrap() = Some(version.clone());
+                        let _ = updates.item.set_text(format!("Restart to update to {version}"));
+                    }
+                    Err(error) => {
+                        eprintln!("Update download failed: {error}");
+                        let _ = updates.item.set_text(CHECK_LABEL);
+                    }
+                }
+                let _ = updates.item.set_enabled(true);
+            }
+            Ok(None) => {
+                if manual {
+                    let _ = updates.item.set_text("Punchboard is up to date");
+                    let item = updates.item.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio_sleep(Duration::from_secs(4)).await;
+                        let _ = item.set_text(CHECK_LABEL);
+                    });
+                }
+            }
+            Err(error) => {
+                eprintln!("Update check failed: {error}");
+                if manual {
+                    let _ = updates.item.set_text("Could not check (offline?)");
+                    let item = updates.item.clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio_sleep(Duration::from_secs(4)).await;
+                        let _ = item.set_text(CHECK_LABEL);
+                    });
+                }
+            }
+        }
+        *updates.checking.lock().unwrap() = false;
+    });
+}
+
+async fn tokio_sleep(duration: Duration) {
+    let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(duration)).await;
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let open = MenuItem::with_id(app, "open", "Open Control Center", true, None::<&str>)?;
     let pair = MenuItem::with_id(app, "pair", "Pair a device…", true, None::<&str>)?;
     let login_enabled = app.autolaunch().is_enabled().unwrap_or(false);
     let login = CheckMenuItem::with_id(app, "login", "Open at login", true, login_enabled, None::<&str>)?;
+    let update = MenuItem::with_id(app, "update", CHECK_LABEL, true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit Punchboard", true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
-        &[&open, &pair, &PredefinedMenuItem::separator(app)?, &login, &PredefinedMenuItem::separator(app)?, &quit],
+        &[&open, &pair, &PredefinedMenuItem::separator(app)?, &login, &update, &PredefinedMenuItem::separator(app)?, &quit],
     )?;
+    app.manage(Updates { item: update, ready: Mutex::new(None), checking: Mutex::new(false) });
 
     let login_item = login.clone();
     TrayIconBuilder::with_id("punchboard")
@@ -201,6 +281,15 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let enable = !autolaunch.is_enabled().unwrap_or(false);
                 let _ = if enable { autolaunch.enable() } else { autolaunch.disable() };
                 let _ = login_item.set_checked(autolaunch.is_enabled().unwrap_or(false));
+            }
+            "update" => {
+                let ready = app.state::<Updates>().ready.lock().unwrap().clone();
+                if ready.is_some() {
+                    stop_companion(app);
+                    app.restart();
+                } else {
+                    check_for_updates(app, true);
+                }
             }
             "quit" => {
                 stop_companion(app);
@@ -218,6 +307,7 @@ fn main() {
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| open_window(app, "/designer")))
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Companion::default())
         .setup(|app| {
             let handle = app.handle().clone();
@@ -227,6 +317,15 @@ fn main() {
                 open_window(&handle, "/designer");
             }
             start_companion(&handle, show_window)?;
+            // Quietly, a little after start and then every few hours.
+            let checker = handle.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio_sleep(Duration::from_secs(20)).await;
+                loop {
+                    check_for_updates(&checker, false);
+                    tokio_sleep(CHECK_EVERY).await;
+                }
+            });
             Ok(())
         })
         .build(tauri::generate_context!())

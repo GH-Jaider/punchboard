@@ -14,7 +14,11 @@
     "build:server": "node scripts/build-server.mjs",
     "tauri": "tauri",
     "app:dev": "npm run build && npm run build:server && tauri dev",
-    "app:build": "node scripts/fetch-node.mjs && tauri build"
+    "app:build": "node scripts/fetch-node.mjs && tauri build",
+    "release:mac": "node scripts/release-mac.mjs && node scripts/latest-json.mjs",
+    "test": "node tests/security.test.mjs",
+    "release:windows": "node scripts/release-windows.mjs",
+    "release:publish": "node scripts/publish-release.mjs"
   },
   "dependencies": {
     "obs-websocket-js": "^5.0.6",
