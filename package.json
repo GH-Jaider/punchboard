@@ -2,7 +2,7 @@
   "name": "punchboard",
   "version": "1.2.0",
   "private": true,
-  "description": "Turn any tablet or phone into a control deck for your stream, served from your own computer.",
+  "description": "Turn any tablet or phone into a macro pad for your computer, with deep OBS support for streaming.",
   "license": "Apache-2.0",
   "repository": "github:GH-Jaider/punchboard",
   "type": "module",

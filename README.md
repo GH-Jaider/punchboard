@@ -1,6 +1,6 @@
 # Punchboard
 
-Turn any tablet or phone into a button deck for your stream. Punchboard runs on the computer you stream from; your devices connect to it over the same wifi, in the browser. No account, no cloud, nothing to install on the tablet.
+Turn any tablet or phone into a macro pad for your computer: buttons and faders for shortcuts, apps, music, sounds and volume, with deep OBS support for streaming. Punchboard runs on your computer; your devices connect to it over the same wifi, in the browser. No account, no cloud, nothing to install on the tablet.
 
 ## Install
 
@@ -18,18 +18,18 @@ After that it updates itself.
 
 ## First steps
 
-1. **Connect OBS.** In OBS, open **Tools › WebSocket Server Settings** and tick **Enable WebSocket server**. Punchboard finds it by itself.
-2. **Pair a device.** In Punchboard, click **Pair a device** and scan the QR code with the tablet or phone. Keep both on the same wifi.
-3. **Build your deck.** Click an empty slot to add a button, pick what it does, and it appears on your devices right away.
+1. **Pair a device.** In Punchboard, click **Pair a device** and scan the QR code with the tablet or phone. Keep both on the same wifi.
+2. **Build your deck.** Click an empty slot to add a button, pick what it does, and it appears on your devices right away.
+3. **Streaming? Connect OBS.** In OBS, open **Tools › WebSocket Server Settings** and tick **Enable WebSocket server**. Punchboard finds it by itself. Everything else works without OBS.
 
 On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add to Home Screen** for a full-screen deck.
 
 ## What buttons can do
 
+- **This computer**: press key combinations (any app's shortcuts), launch apps, open links, control music (play / pause, next, previous) and play sounds.
 - **OBS**: switch scenes, show or hide sources, mute inputs, turn filters on or off, start or stop the stream, recording and virtual camera, save a replay, and send the preview live in Studio Mode. Buttons light up with what OBS is doing, even when you change it in OBS itself.
-- **This computer**: play sounds, control music (play / pause, next, previous), open links, launch apps and press key combinations.
 - **The deck**: go to another deck, or open a link on the device.
-- **Faders**: the volume of an OBS input, of Punchboard's sounds, or of the computer.
+- **Faders**: the computer's volume, Punchboard's sounds, or an OBS input.
 - **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
 
 On a Mac, key combinations and music controls need a one-time permission: **System Settings › Privacy & Security › Accessibility**, allow Punchboard.
