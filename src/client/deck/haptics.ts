@@ -1,12 +1,13 @@
 // Haptic feedback on the device, where it has a way to give it.
 //
 // Android: the Vibration API, with short pulses for a crisp tick.
-// iPhone (iOS 18 and later): Safari offers pages no vibration, but toggling a
-// switch control fires the Taptic Engine, the same tick a switch in Settings
-// gives; a hidden one is toggled for each haptic. iPads have no Taptic Engine.
-//
-// Safari only allows that inside a touch or click, so on an iPhone faders and
-// the trackpad tick as far as the touch events let them.
+// iPhone: Safari offers pages no vibration at all. What it does have is the
+// switch control (iOS 18 and later), which ticks like a switch in Settings
+// when a finger flips it, and only a finger: iOS 26 ignores a switch flipped
+// from code. So on an iPhone each deck button carries an invisible switch on
+// top (tapSwitch), and the tap that presses the button flips it. The tick is
+// the light one of a switch: felt in the hand, not on a table. iPads have no
+// Taptic Engine at all.
 import { storage } from "../common/dom.ts"
 
 export type Haptic = "tap" | "tick" | "click" | "error"
@@ -17,21 +18,21 @@ const PATTERNS: Record<Haptic, number | number[]> = { tap: 12, tick: 5, click: 8
 /** iPhones and iPads, including iPads that present themselves as a Mac. */
 const appleTouch = (): boolean => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
 
-/** Toggles a throwaway switch control, which iOS 18 answers with a tap of the
-    Taptic Engine. The switch sits inside its label and the label is clicked,
-    the shape that works; it is hidden and removed straight away. Safari does
-    not say whether it knows the switch attribute, so it is not asked. */
-function tapticTick(): void {
-  const label = document.createElement("label")
-  label.setAttribute("aria-hidden", "true")
-  label.style.display = "none"
+/** Whether taps are felt through a switch under the finger rather than vibration. */
+export function tapsThroughSwitch(): boolean {
+  return typeof navigator.vibrate !== "function" && appleTouch() && hapticsEnabled()
+}
+
+/** The invisible switch a button carries on an iPhone: the finger that presses
+    the button flips it, and iOS ticks. */
+export function tapSwitch(): HTMLInputElement {
   const input = document.createElement("input")
   input.type = "checkbox"
   input.setAttribute("switch", "")
-  label.appendChild(input)
-  document.head.appendChild(label)
-  label.click()
-  document.head.removeChild(label)
+  input.className = "tap-switch"
+  input.tabIndex = -1
+  input.setAttribute("aria-hidden", "true")
+  return input
 }
 
 export function hapticsEnabled(): boolean {
@@ -44,12 +45,7 @@ export function setHapticsEnabled(on: boolean): void {
 
 export function haptic(kind: Haptic): void {
   if (!hapticsEnabled()) return
-  if (typeof navigator.vibrate === "function") {
-    try { navigator.vibrate(PATTERNS[kind]) } catch { /* not allowed here */ }
-    return
-  }
-  if (!appleTouch()) return
-  tapticTick()
-  // An error is two taps, so it reads differently from a press.
-  if (kind === "error") window.setTimeout(tapticTick, 120)
+  // An iPhone can only tick under a finger (tapSwitch); nothing to do from here.
+  if (typeof navigator.vibrate !== "function") return
+  try { navigator.vibrate(PATTERNS[kind]) } catch { /* not allowed here */ }
 }

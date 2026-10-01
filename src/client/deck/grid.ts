@@ -9,6 +9,7 @@ import type { Button, PressButton } from "../../shared/types.ts"
 import { applyTileColor, byId, el } from "../common/dom.ts"
 import { faderMarkup, syncFaders } from "./faders.ts"
 import { repaintIndicators } from "./indicators.ts"
+import { tapSwitch, tapsThroughSwitch } from "./haptics.ts"
 import { press } from "./press.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
@@ -51,8 +52,14 @@ function describe(button: Button): string {
 }
 
 function pressTile(button: PressButton): HTMLElement {
-  const tile = el("button", "tile")
-  tile.type = "button"
+  // On an iPhone the button is a label over an invisible switch, so the tap
+  // that presses it also flips the switch and iOS ticks (haptics.ts). A switch
+  // cannot sit inside a <button>.
+  const throughSwitch = tapsThroughSwitch()
+  const tile = el(throughSwitch ? "label" : "button", "tile")
+  if (tile instanceof HTMLButtonElement) tile.type = "button"
+  else tile.setAttribute("role", "button")
+  if (throughSwitch) tile.appendChild(tapSwitch())
   tile.setAttribute("data-button-id", button.id)
   applyTileColor(tile, button.color)
 
