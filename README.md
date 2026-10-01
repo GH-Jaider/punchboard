@@ -1,5 +1,7 @@
 # Punchboard
 
+[![Support Punchboard on Ko-fi](https://img.shields.io/badge/Ko--fi-support_Punchboard-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/hit_here)
+
 Turn any tablet or phone into a macro pad for your computer: buttons and faders for shortcuts, apps, music, sounds and volume, with deep OBS support for streaming. Punchboard runs on your computer; your devices connect to it over the same wifi, in the browser. No account, no cloud, nothing to install on the tablet.
 
 <p align="center"><img src="docs/images/deck.png" alt="A Punchboard deck on a tablet: scene buttons lit with what OBS is showing, a mic fader with a live level meter, music and sound buttons" width="820"></p>
@@ -65,6 +67,10 @@ npm run app:dev   # the desktop app
 The deck runs on old tablets too (Safari 11, ES2015): keep newer JavaScript and CSS out of `src/client/deck` and the shared code.
 
 Pushing a tag like `v1.2.0` builds the Mac and Windows apps on GitHub Actions and drafts a release with them.
+
+## Support
+
+Punchboard is free. If it earns a place in your setup, you can buy its maker a coffee on **[Ko-fi](https://ko-fi.com/hit_here)**.
 
 ## License
 
