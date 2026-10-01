@@ -10,7 +10,7 @@ import { noteObsLink } from "./obs-names.ts"
 import { showDeviceCount } from "./pairing.ts"
 import { renderNowPlaying } from "./sound-output.ts"
 import { loadSounds, showPlaying } from "./sounds.ts"
-import { reloadLibrary, saveTimerPending, store } from "./state.ts"
+import { reloadLibrary, store, unsavedEdits } from "./state.ts"
 
 let loadedBuild: string | null = null
 let reloadOffered = false
@@ -32,7 +32,7 @@ function handle(state: Snapshot): void {
       toast("Punchboard was updated. Reload to get the new version.", false, { label: "Reload", onClick: () => location.reload() })
     }
   }
-  if (store.libraryRev !== null && state.libraryRev > store.libraryRev && !store.saving && !saveTimerPending()) {
+  if (store.libraryRev !== null && state.libraryRev > store.libraryRev && !unsavedEdits()) {
     void reloadLibrary("Updated with changes from another window.")
   }
   renderNowPlaying(state.playback)

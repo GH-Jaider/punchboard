@@ -9,14 +9,14 @@ import { bindGrid, refreshTile, renderGrid, select } from "./grid.ts"
 import { toast, view } from "./hub.ts"
 import { bindAppPicker } from "./app-picker.ts"
 import { bindIconPicker } from "./icon-picker.ts"
-import { renderInspector } from "./inspector.ts"
+import { renderInspector, syncOnIcon } from "./inspector.ts"
 import { bindObs, showObsSettings } from "./obs.ts"
 import { bindPairing } from "./pairing.ts"
 import { bindProfiles, renderProfiles } from "./profiles.ts"
 import { bindSession, showIntroIfNew } from "./session.ts"
 import { bindSoundOutput } from "./sound-output.ts"
 import { bindSounds, loadSounds } from "./sounds.ts"
-import { activeProfile, fetchLibrary, setSaveState, store } from "./state.ts"
+import { activeProfile, bindSaving, fetchLibrary, setSaveState, store } from "./state.ts"
 import { renderSteps } from "./steps.ts"
 import { bindDialogChrome } from "./dialogs.ts"
 
@@ -27,7 +27,7 @@ function renderAll(): void {
   byId("profile-title").textContent = activeProfile().name
 }
 
-Object.assign(view, { renderAll, renderGrid, renderProfiles, renderInspector, renderSteps, refreshTile, select })
+Object.assign(view, { renderAll, renderGrid, renderProfiles, renderInspector, renderSteps, refreshTile, syncOnIcon, select })
 
 bindGrid()
 bindProfiles()
@@ -48,6 +48,7 @@ function openPairingFromHash(): void {
 window.addEventListener("hashchange", openPairingFromHash)
 openPairingFromHash()
 bindSession()
+bindSaving()
 bindDialogChrome()
 
 async function start(): Promise<void> {

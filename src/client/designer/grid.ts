@@ -95,9 +95,14 @@ export function moveButton(fromSlot: number, toSlot: number): void {
   if (!source) return
   source.slot = toSlot
   if (target) target.slot = fromSlot
+  const hadFocus = document.activeElement instanceof HTMLElement && document.activeElement.classList.contains("tile")
   store.selectedSlot = toSlot
   touch()
   renderGrid()
+  // The moved button stays selected, so the inspector (its slot number, and
+  // its Delete and Duplicate) has to follow it.
+  view.renderInspector()
+  if (hadFocus) gridEl.querySelector<HTMLElement>(`.tile[data-slot="${toSlot}"]`)?.focus()
 }
 
 // ------------------------------------------------------------- editing
@@ -121,13 +126,19 @@ export function deleteButton(button: Button): void {
   profile.buttons.splice(index, 1)
   store.selectedSlot = null
   recordUndo("Button deleted", () => {
-    // Its slot may have been taken meanwhile; then it goes to the nearest free one.
+    // Its slot may have been taken meanwhile; then it goes to the nearest free
+    // one, and on a full grid to the first slot of a new row. At the row limit
+    // it goes just past the grid, where the parked notice offers it back.
     if (profile.buttons.some((other) => other.slot === button.slot)) {
       const slot = freeSlot(profile, button.slot)
-      if (slot === null) {
-        profile.rows = Math.min(LIMITS.rows.max, profile.rows + 1)
-      } else {
+      if (slot !== null) {
         button.slot = slot
+      } else {
+        const taken = new Set(profile.buttons.map((other) => other.slot))
+        let spare = profile.rows * profile.columns
+        while (taken.has(spare)) spare += 1
+        profile.rows = Math.min(LIMITS.rows.max, Math.max(profile.rows, Math.floor(spare / profile.columns) + 1))
+        button.slot = spare
       }
     }
     profile.buttons.splice(Math.min(index, profile.buttons.length), 0, button)
@@ -225,13 +236,22 @@ const FRAME_ASPECT = 1154 / 750
 const PORTRAIT_ASPECT = 390 / 700
 const FRAME_MAX_WIDTH = 920
 const FRAME_MIN_HEIGHT = 240
+/** Matches style.css's breakpoint where the three columns stack. */
+const STACKED_QUERY = "(max-width: 980px)"
+/** How much of the window's height the frame may take when stacked. */
+const STACKED_HEIGHT = 0.7
 
 export function layoutStage(): void {
   const profile = activeProfile()
+  // Side by side, the stage is whatever room the column leaves. Stacked (a
+  // narrow window), the page scrolls and that room is unbounded, so the frame
+  // gets most of the window's height and the stage takes the frame's.
+  const stacked = window.matchMedia(STACKED_QUERY).matches
+  stageEl.style.height = ""
   // The frame keeps the tablet's proportions and fits whatever room the
   // stage has, so a one-row deck never leaves a frame taller than the window.
   const roomWidth = Math.min(stageEl.clientWidth, FRAME_MAX_WIDTH)
-  const roomHeight = Math.max(FRAME_MIN_HEIGHT, stageEl.clientHeight)
+  const roomHeight = Math.max(FRAME_MIN_HEIGHT, stacked ? Math.round(window.innerHeight * STACKED_HEIGHT) : stageEl.clientHeight)
   if (!roomWidth || !roomHeight) return
   // A tall deck is previewed on an upright phone, a wide one on a tablet on its side.
   const portrait = !profile.trackpad && profile.rows > profile.columns
@@ -245,6 +265,10 @@ export function layoutStage(): void {
   }
   frameEl.style.width = `${frameWidth}px`
   frameEl.style.height = `${frameHeight}px`
+  if (stacked) {
+    const style = window.getComputedStyle(stageEl)
+    stageEl.style.height = `${frameHeight + (parseFloat(style.paddingTop) || 0) + (parseFloat(style.paddingBottom) || 0)}px`
+  }
 
   if (profile.trackpad) {
     gridEl.style.gridTemplateColumns = "1fr"
@@ -265,6 +289,11 @@ export function layoutStage(): void {
   gridEl.style.overflowY = layout.scrolls ? "auto" : "visible"
   gridEl.style.setProperty("--tile-ico", `${layout.iconSize}px`)
   gridEl.style.setProperty("--tile-fs", `${layout.fontSize}px`)
+  // Small tiles get a smaller badge, the smallest none, so "Fader" or
+  // "On / off" never sits on the icon or the colour strip.
+  const tiny = layout.rowHeight < 52 || layout.colWidth < 64
+  const compact = layout.rowHeight < 76 || layout.colWidth < 104
+  gridEl.dataset.size = tiny ? "tiny" : compact ? "compact" : ""
   gridEl.querySelectorAll<HTMLElement>(".tile-label").forEach((label) => {
     label.style.display = layout.showLabel ? "" : "none"
   })
@@ -387,6 +416,16 @@ function typingElsewhere(event: KeyboardEvent): boolean {
   return document.querySelector("dialog[open]") !== null
 }
 
+/** Whether a key press is aimed at the deck: focus on nothing in particular,
+    on a tile, or on the canvas around them. Delete pressed on a step header,
+    a swatch or any other control in the inspector must not delete the button. */
+function focusOnCanvas(event: KeyboardEvent): boolean {
+  const target = event.target instanceof Element ? event.target : null
+  if (!target || target === document.body || target === document.documentElement) return true
+  if (target.closest(".tile")) return true
+  return target.closest(".canvas-col") !== null && target.closest("button, a, input, select, textarea, summary, label, [tabindex]") === null
+}
+
 function onKeyDown(event: KeyboardEvent): void {
   if (typingElsewhere(event)) return
   const command = isMac ? event.metaKey : event.ctrlKey
@@ -401,7 +440,7 @@ function onKeyDown(event: KeyboardEvent): void {
     event.preventDefault()
     return duplicateButton(selected)
   }
-  if ((event.key === "Delete" || event.key === "Backspace") && selected) {
+  if ((event.key === "Delete" || event.key === "Backspace") && selected && focusOnCanvas(event)) {
     event.preventDefault()
     return deleteButton(selected)
   }

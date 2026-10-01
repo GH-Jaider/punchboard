@@ -477,6 +477,25 @@ function onIconField(button: Button): HTMLElement {
   return box
 }
 
+const ON_ICON_HOST_ID = "on-icon-host"
+
+/** The "While on" icon is offered while the deck can show the button lit,
+    which a step edit can change. A second icon chosen earlier is kept when it
+    stops applying (the deck ignores it then), so it is back if the step is. */
+function fillOnIcon(host: HTMLElement, button: Button): void {
+  const wanted = isStateful(button) && !soundSlotOf(button)
+  if (host.dataset.shown === String(wanted)) return
+  host.dataset.shown = String(wanted)
+  host.innerHTML = ""
+  if (wanted) host.appendChild(onIconField(button))
+}
+
+/** Shows or hides the "While on" field after a step edit, without a rebuild. */
+export function syncOnIcon(button: Button): void {
+  const host = document.getElementById(ON_ICON_HOST_ID)
+  if (host && selectedButton() === button) fillOnIcon(host, button)
+}
+
 function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   const field = el("div", "field")
   field.appendChild(el("span", "field-label", "Icon"))
@@ -493,7 +512,10 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   trigger.appendChild(names)
   trigger.onclick = () => openIconPicker(button)
   field.appendChild(trigger)
-  if (isStateful(button) && !soundSlotOf(button)) field.appendChild(onIconField(button))
+  const onIconHost = el("div")
+  onIconHost.id = ON_ICON_HOST_ID
+  fillOnIcon(onIconHost, button)
+  field.appendChild(onIconHost)
 
   // The custom upload sits under the icon it replaces.
   const upload = el("div", "upload-row")
@@ -510,8 +532,9 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
     if (!file) return
     const data = await readIcon(file)
     if (!data) return
+    // The chosen icon is kept underneath: the image wins while it is set, and
+    // removing the image brings the icon back.
     button.iconData = data
-    delete button.glyph
     touch()
     view.refreshTile(button)
     renderInspector()

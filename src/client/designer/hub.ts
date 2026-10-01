@@ -13,6 +13,7 @@ export const view = {
   renderInspector: (): void => {},
   renderSteps: (_button: Button): void => {},
   refreshTile: (_button: Button): void => {},
+  syncOnIcon: (_button: Button): void => {},
   select: (_slot: number): void => {}
 }
 

@@ -110,6 +110,8 @@ export function renderSteps(button: Button): void {
   }
   const row = document.getElementById(SWITCH_ROW_ID)
   if (row) row.hidden = !isSwitch(button) && button.steps.length < 2
+  // A step added, retyped or reordered can make the button light up, or stop.
+  view.syncOnIcon(button)
 }
 
 function stepCard(button: Button, list: Step[], step: Step, index: number): HTMLElement {
@@ -186,6 +188,7 @@ function stepCard(button: Button, list: Step[], step: Step, index: number): HTML
       setStepText(step, spec.key, input.value)
       title.textContent = stepSummary(step)
       touch()
+      view.syncOnIcon(button)
     })
     field.appendChild(label)
     field.appendChild(input)
@@ -308,6 +311,7 @@ function pickField(button: Button, step: Step, spec: FieldSpec, title: HTMLEleme
       title.textContent = stepSummary(step)
       touch()
       view.refreshTile(button)
+      view.syncOnIcon(button)
       // A new scene or source changes what the next list offers: drop a choice it no longer has.
       const child = CHILD_OF[spec.key]
       const childSpec = child ? ACTION_FIELDS[step.type]?.find((candidate) => candidate.key === child) : undefined

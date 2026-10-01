@@ -43,9 +43,12 @@ export function showObsLink(status: ObsLink, why: ObsIssue): void {
   link = status
   issue = why
   const chip = byId("obs-state")
-  chip.textContent = status === "connected" ? "Connected" : why === "wrong-password" ? "Wrong password" : why === "server-off" ? "Server off" : status === "disconnected" ? "Not running" : "Not set up"
+  // A word or two that fits the rail in every theme (Hardware's uppercase mono
+  // is the widest); the tooltip and the OBS window say it in full.
+  chip.textContent = status === "connected" ? "Ready" : why === "wrong-password" ? "Password" : why === "server-off" ? "Turn on" : status === "disconnected" ? "Waiting" : "Set up"
   chip.className = `state-chip ${status === "connected" ? "ready" : why === "wrong-password" ? "error" : "warning"}`
   showStatus()
+  chip.title = byId("obs-status-title").textContent ?? ""
 }
 
 /** "ws://host:port", "obsws://host:port/password" (OBS's connect link) or a bare host. */
@@ -117,7 +120,9 @@ export function bindObs(): void {
   byId("obs-save").addEventListener("click", async () => {
     const host = input("obs-host").value.trim() || "127.0.0.1"
     const port = input("obs-port").value.trim() || "4455"
-    if (!/^\d{1,5}$/.test(port)) return toast("The server port is a number, like 4455.", true)
+    if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
+      return toast("The server port is a number from 1 to 65535, like 4455.", true)
+    }
     const json: { obsAddress: string; obsPassword?: string } = { obsAddress: `ws://${host}:${port}` }
     const password = input("obs-password").value
     if (password) json.obsPassword = password

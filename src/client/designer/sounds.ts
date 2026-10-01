@@ -39,7 +39,7 @@ export async function loadSounds(): Promise<void> {
     renderSoundList()
     const custom = slots.filter((slot) => slot.custom).length
     const chip = byId("sounds-state")
-    chip.textContent = custom ? `${custom} of ${LIMITS.soundSlots} yours` : "Built-in"
+    chip.textContent = custom ? `${custom} custom` : "Built-in"
     chip.title = custom ? `${custom} of the ${LIMITS.soundSlots} slots hold your own sounds` : `All ${LIMITS.soundSlots} slots hold the built-in tones`
     chip.className = `state-chip ${custom ? "ready" : "warning"}`
   } catch {
