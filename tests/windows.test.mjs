@@ -1,5 +1,6 @@
 // Windows-only pieces, on Windows only (CI runs them there): the sound player
-// takes a new volume while it plays and never hangs, and the app launcher's
+// takes a new volume while it plays and never hangs, finds files with odd
+// names, gives up on one it cannot open, and the app launcher's
 // script runs. Elsewhere it reports itself skipped. Nothing is heard on CI.
 //   node tests/windows.test.mjs
 import { spawn } from "node:child_process"
@@ -33,47 +34,81 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-player-"))
 const file = path.join(dir, "silence.wav")
 silentWav(file, 1000)
 
-const spec = playCommand(file, 0.5, "win32")
-const started = Date.now()
-const child = spawn(spec.file, spec.args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
-let errors = ""
-let out = ""
-child.stderr.on("data", (chunk) => { errors += chunk })
-/** Resolves when the script has printed something matching, or after `ms`. */
-const printed = (pattern, ms) => new Promise((resolve) => {
-  const timer = setTimeout(() => resolve(false), ms)
-  const look = () => { if (pattern.test(out)) { clearTimeout(timer); resolve(true) } }
-  child.stdout.on("data", look)
-  look()
-})
-child.stdout.on("data", (chunk) => { out += chunk })
-const exited = new Promise((resolve) => {
-  const timer = setTimeout(() => { child.kill(); resolve("timeout") }, 90000)
-  child.on("exit", (exitCode) => { clearTimeout(timer); resolve(exitCode) })
-})
+/** Runs the player script; `out` collects what it prints. */
+function runPlayer(target, unknownLengthMs = null) {
+  const spec = playCommand(target, 0.5, "win32", unknownLengthMs)
+  const child = spawn(spec.file, spec.args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
+  const run = { child, out: "", errors: "", started: Date.now() }
+  child.stderr.on("data", (chunk) => { run.errors += chunk })
+  child.stdout.on("data", (chunk) => { run.out += chunk })
+  /** Resolves when the script has printed something matching, or after `ms`. */
+  run.printed = (pattern, ms) => new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(false), ms)
+    const look = () => { if (pattern.test(run.out)) { clearTimeout(timer); resolve(true) } }
+    child.stdout.on("data", look)
+    look()
+  })
+  run.exited = new Promise((resolve) => {
+    const timer = setTimeout(() => { child.kill(); resolve("timeout") }, 90000)
+    child.on("exit", (exitCode) => { clearTimeout(timer); resolve(exitCode) })
+  })
+  return run
+}
+
+// A machine with no sound device (CI machines have none) never learns a
+// sound's length: the volume checks run with a stand-in length then, which
+// the companion itself never asks for.
+const STAND_IN = 4321
+const run = runPlayer(file, STAND_IN)
 // PowerShell starts slowly on a cold machine: the volumes go once the sound is
 // playing, as they would from a fader, rather than at a fixed time.
-const playing = await printed(/length \d+/, 40000)
-child.stdin.write("0.2\n")
-setTimeout(() => child.stdin.write("1\n"), 300)
-const heard = await printed(/volume 1 now/, 10000)
-const length = Number((out.match(/length (\d+)/) || [])[1])
-// With no sound device the script would wait out its 60 s fallback; it has shown what it needs to.
-if (length === 60000 || !length) child.kill()
-const code = await exited
-const took = Date.now() - started
-check("The player script runs without errors", errors.trim() === "", errors.trim())
-check("The sound starts and says how long it is", playing, out.trim())
-check("A new volume reaches a playing sound", heard && /volume 0\.2 now/.test(out), out.trim())
-const applied = Number((out.match(/volume 0\.2 now ([\d.]+)/) || [])[1])
+const playing = await run.printed(/length \d+/, 40000)
+const playingAt = Date.now()
+run.child.stdin.write("0.2\n")
+setTimeout(() => run.child.stdin.write("1\n"), 300)
+const heard = await run.printed(/volume 1 now/, 10000)
+const length = Number((run.out.match(/length (\d+)/) || [])[1])
+const code = await run.exited
+const took = Date.now() - playingAt
+check("The player script runs without errors", run.errors.trim() === "", run.errors.trim())
+check("The sound starts and says how long it is", playing, run.out.trim())
+check("A new volume reaches a playing sound", heard && /volume 0\.2 now/.test(run.out), run.out.trim())
+const applied = Number((run.out.match(/volume 0\.2 now ([\d.]+)/) || [])[1])
 check("The player takes a new volume as given, not rounded to 0 or 1", Math.abs(applied - 0.2) < 0.01, `0.2 became ${applied}`)
-if (length === 60000 || !length) {
-  // No sound device (CI machines have none): MediaPlayer never learns the length.
-  console.log(`(no sound device here: length ${length || "unknown"}, so the timing checks are skipped)`)
+if (length === STAND_IN) console.log("(no sound device here: the stand-in length was used)")
+check("A sound plays to its end and its process exits on its own", code === 0, `exit ${code}`)
+check("Volume changes while playing do not hold the sound past its end", took < length + 3000, `${took} ms for a ${length} ms sound`)
+
+// Without a stand-in, a sound whose length never shows is not faked for 60 s:
+// the script says so and exits with an error (or plays, given a sound device).
+const plain = runPlayer(file)
+const said = await plain.printed(/length (unknown|\d+)/, 40000)
+if (/length unknown/.test(plain.out)) {
+  const plainCode = await plain.exited
+  check("A sound whose length never shows exits soon, with an error", plainCode === 3 && Date.now() - plain.started < 45000, `exit ${plainCode} after ${Date.now() - plain.started} ms: ${plain.out.trim()}`)
 } else {
-  check("A sound plays to its end and its process exits on its own", code === 0, `exit ${code}`)
-  check("Volume changes while playing do not hold the sound past its end", took < length + 3000, `${took} ms for a ${length} ms sound`)
+  check("A sound with a sound device says its length", said, plain.out.trim())
+  plain.child.kill()
+  await plain.exited
 }
+
+// A file that is not there is reported at once rather than "played".
+const missing = runPlayer(path.join(dir, "not here.wav"), STAND_IN)
+const missingCode = await missing.exited
+check("A missing file is reported and the script exits with an error", missingCode === 2 && /missing file/.test(missing.out), `exit ${missingCode}: ${missing.out.trim()} ${missing.errors.trim()}`)
+
+// Quotes PowerShell reads as quotes (’ among them), # and % in the path: the
+// file is found and the script parses. Closing stdin (the companion gone)
+// then ends the sound.
+const odd = path.join(dir, "it’s ‘odd’ ‚name‛ #1 100% 'x'.wav")
+silentWav(odd, 1000)
+const quoted = runPlayer(odd, 20000)
+const quotedPlays = await quoted.printed(/length \d+/, 40000)
+quoted.child.stdin.end()
+const closedAt = Date.now()
+const quotedCode = await quoted.exited
+check("A path with typographic quotes, # and % is found and plays", quotedPlays && !/missing file/.test(quoted.out) && quoted.errors.trim() === "", `${quoted.out.trim()} ${quoted.errors.trim()}`)
+check("Closing stdin (the companion gone) ends the sound", quotedCode === 0 && Date.now() - closedAt < 5000, `exit ${quotedCode} ${Date.now() - closedAt} ms after stdin closed`)
 
 // The app launcher: a shortcut that is not there is reported, not a script error.
 const launcher = await new Promise((resolve) => {

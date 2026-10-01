@@ -18,7 +18,7 @@
     "app:dev": "npm run build && npm run build:server && tauri dev",
     "app:build": "node scripts/fetch-node.mjs && tauri build",
     "release:mac": "node scripts/release-mac.mjs && node scripts/latest-json.mjs",
-    "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/windows.test.mjs",
+    "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/sounds.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/windows.test.mjs",
     "release:windows": "node scripts/release-windows.mjs"
   },
   "dependencies": {
