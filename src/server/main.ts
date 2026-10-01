@@ -459,13 +459,20 @@ const routes: Route[] = [
     const type = audioType(String(req.headers["content-type"] ?? "").split(";")[0] ?? "")
     const data = await rawBody(req, LIMITS.maxSoundBytes)
     if (!type || !isAudio(data, type)) throw new HttpError(400, "That file is not a readable WAV or MP3.")
-    sounds.saveUpload(Number(params[1]), type, data, req.headers["x-sound-name"])
+    const slot = Number(params[1])
+    // The old sound stops first: it would play on, let go of its file late
+    // (Windows), and teach the new file its run time.
+    await player.stopAndWait(slot)
+    sounds.saveUpload(slot, type, data, req.headers["x-sound-name"])
     live.soundsChanged()
     return { ok: true, slots: sounds.slots() }
   }),
   // Puts a slot back to the generated tone it shipped with.
-  route<SoundsChanged>("DELETE", /^\/api\/sounds\/([1-8])$/, "local", ({ params }) => {
-    if (!sounds.revert(Number(params[1]))) throw new HttpError(400, "That slot already holds the built-in tone.")
+  route<SoundsChanged>("DELETE", /^\/api\/sounds\/([1-8])$/, "local", async ({ params }) => {
+    const slot = Number(params[1])
+    if (!sounds.isCustom(slot)) throw new HttpError(400, "That slot already holds the built-in tone.")
+    await player.stopAndWait(slot)
+    if (!sounds.revert(slot)) throw new HttpError(400, "That slot already holds the built-in tone.")
     live.soundsChanged()
     return { ok: true, slots: sounds.slots() }
   }),

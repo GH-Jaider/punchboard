@@ -334,5 +334,8 @@ export function createSoundStore(dir: string) {
     return true
   }
 
-  return { ensureDefaults, slots, file, saveUpload, revert, durationMs, setDuration }
+  /** Whether a slot holds an uploaded file rather than its built-in tone. */
+  const isCustom = (slot: number): boolean => entry(slot) !== null
+
+  return { ensureDefaults, slots, file, isCustom, saveUpload, revert, durationMs, setDuration }
 }
