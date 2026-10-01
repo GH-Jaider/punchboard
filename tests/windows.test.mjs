@@ -56,8 +56,8 @@ const length = Number((out.match(/length (\d+)/) || [])[1])
 check("The player script runs without errors", errors.trim() === "", errors.trim())
 const volumes = await heard
 check("A new volume reaches a playing sound", /volume 0\.2 now/.test(volumes) && /volume 1 now/.test(volumes), out.trim())
-const applied = (out.match(/volume 0\.2 now ([\d.]+)/) || [])[1]
-console.log(`(the player started at ${(out.match(/start ([\d.]+)/) || [])[1] ?? "?"} for 0.25 and took 0.2 as ${applied ?? "nothing"})`)
+const applied = Number((out.match(/volume 0\.2 now ([\d.]+)/) || [])[1])
+check("The player takes a new volume as given, not rounded to 0 or 1", Math.abs(applied - 0.2) < 0.01, `0.2 became ${applied}`)
 if (length === 60000 || !length) {
   // No sound device (CI machines have none): MediaPlayer never learns the length.
   console.log(`(no sound device here: length ${length || "unknown"}, so the timing checks are skipped)`)
