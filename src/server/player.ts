@@ -9,6 +9,7 @@
 import { spawn } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
 import { pathToFileURL } from "node:url"
+import { powershellExe, psQuote } from "./powershell.ts"
 
 export interface PlayerOptions {
   /** The macOS helper script (helpers/mac-player.js). */
@@ -38,9 +39,8 @@ const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
 /** A fader at half feels like half as loud with a squared gain, not linear. */
 export const gainFor = (level: number): number => clamp01(level) * clamp01(level)
 
-/** A PowerShell single-quoted string. PowerShell also reads the typographic
-    quotes ‘ ’ ‚ ‛ as single quotes, so those are doubled just like '. */
-export const psQuote = (text: string): string => `'${text.replace(/['‘’‚‛]/g, "$&$&")}'`
+// Re-exported for tests: the one quoting rule lives in powershell.ts.
+export { psQuote }
 
 /** The one-shot command that plays a file, exposed for tests. `unknownLengthMs`
     is for tests only: how long to play when the length never shows (a machine
@@ -85,7 +85,7 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
       "while ([DateTime]::Now -lt $end) { if ($read.IsCompleted) { $line = $read.Result; if ($null -eq $line) { break }; $v = 0.0; if ([double]::TryParse($line, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $p.Volume = $v; [Console]::Out.WriteLine('volume ' + $v.ToString([Globalization.CultureInfo]::InvariantCulture) + ' now ' + $p.Volume.ToString([Globalization.CultureInfo]::InvariantCulture)) }; $read = $in.ReadLineAsync() }; Start-Sleep -Milliseconds 40 }",
       "$p.Close()"
     ].filter(Boolean).join("; ")
-    return { file: "powershell", args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script] }
+    return { file: powershellExe(), args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script] }
   }
   return null
 }

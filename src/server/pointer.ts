@@ -10,6 +10,7 @@ import fs from "node:fs"
 import type { ChildProcess } from "node:child_process"
 import { spawn as spawnApp } from "node:child_process"
 import type { PointerMessage } from "../shared/api.ts"
+import { powershellExe } from "./powershell.ts"
 
 export interface PointerOptions {
   /** helpers/mac-pointer.js */
@@ -171,7 +172,7 @@ function spawnHelper(macHelper: string): ChildProcess | null {
   }
   if (process.platform === "win32") {
     const encoded = Buffer.from(WINDOWS_POINTER, "utf16le").toString("base64")
-    return spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
+    return spawn(powershellExe(), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
   }
   return null
 }

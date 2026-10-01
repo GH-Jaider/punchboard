@@ -9,6 +9,7 @@
 //   on failure     "<id> error <message, on one line>"
 import { spawn } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
+import { powershellExe } from "./powershell.ts"
 
 const BRIDGE = String.raw`
 Add-Type -TypeDefinition @"
@@ -123,7 +124,7 @@ function start(): ChildProcess {
   if (bridge) return bridge
   // The script travels as an argument, so stdin carries only the commands.
   const encoded = Buffer.from(BRIDGE, "utf16le").toString("base64")
-  const child = spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
+  const child = spawn(powershellExe(), ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
   bridge = child
   ready = false
   child.stdin?.on("error", () => { /* reported by its exit */ })
