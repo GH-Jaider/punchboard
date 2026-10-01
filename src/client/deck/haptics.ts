@@ -14,28 +14,24 @@ export type Haptic = "tap" | "tick" | "click" | "error"
 const STORAGE_KEY = "punchboard-haptics"
 const PATTERNS: Record<Haptic, number | number[]> = { tap: 12, tick: 5, click: 8, error: [10, 60, 10] }
 
-let switchLabel: HTMLLabelElement | null = null
+/** iPhones and iPads, including iPads that present themselves as a Mac. */
+const appleTouch = (): boolean => /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
 
-/** A hidden switch whose toggling the iPhone answers with a tap of the Taptic Engine. */
-function iosSwitch(): HTMLLabelElement | null {
-  if (switchLabel) return switchLabel
+/** Toggles a throwaway switch control, which iOS 18 answers with a tap of the
+    Taptic Engine. The switch sits inside its label and the label is clicked,
+    the shape that works; it is hidden and removed straight away. Safari does
+    not say whether it knows the switch attribute, so it is not asked. */
+function tapticTick(): void {
+  const label = document.createElement("label")
+  label.setAttribute("aria-hidden", "true")
+  label.style.display = "none"
   const input = document.createElement("input")
-  if (!("switch" in input)) return null
   input.type = "checkbox"
   input.setAttribute("switch", "")
-  input.id = "haptic-switch"
-  input.tabIndex = -1
-  input.setAttribute("aria-hidden", "true")
-  const label = document.createElement("label")
-  label.htmlFor = input.id
-  label.setAttribute("aria-hidden", "true")
-  const hidden = "position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;pointer-events:none"
-  input.style.cssText = hidden
-  label.style.cssText = hidden
-  document.body.appendChild(input)
-  document.body.appendChild(label)
-  switchLabel = label
-  return label
+  label.appendChild(input)
+  document.head.appendChild(label)
+  label.click()
+  document.head.removeChild(label)
 }
 
 export function hapticsEnabled(): boolean {
@@ -52,9 +48,8 @@ export function haptic(kind: Haptic): void {
     try { navigator.vibrate(PATTERNS[kind]) } catch { /* not allowed here */ }
     return
   }
-  const label = iosSwitch()
-  if (!label) return
-  label.click()
+  if (!appleTouch()) return
+  tapticTick()
   // An error is two taps, so it reads differently from a press.
-  if (kind === "error") window.setTimeout(() => label.click(), 120)
+  if (kind === "error") window.setTimeout(tapticTick, 120)
 }
