@@ -39,23 +39,32 @@ const child = spawn(spec.file, spec.args, { stdio: ["pipe", "pipe", "pipe"], win
 let errors = ""
 let out = ""
 child.stderr.on("data", (chunk) => { errors += chunk })
-child.stdout.on("data", (chunk) => { out += chunk })
-setTimeout(() => child.stdin.write("0.2\n"), 600)
-setTimeout(() => child.stdin.write("1\n"), 900)
-// Each volume line must reach the script while it plays, and be applied.
-const heard = new Promise((resolve) => {
-  const timer = setTimeout(() => resolve(""), 12000)
-  child.stdout.on("data", () => { if (/volume 1 /.test(out)) { clearTimeout(timer); resolve(out) } })
+/** Resolves when the script has printed something matching, or after `ms`. */
+const printed = (pattern, ms) => new Promise((resolve) => {
+  const timer = setTimeout(() => resolve(false), ms)
+  const look = () => { if (pattern.test(out)) { clearTimeout(timer); resolve(true) } }
+  child.stdout.on("data", look)
+  look()
 })
-const code = await new Promise((resolve) => {
-  const timer = setTimeout(() => { child.kill(); resolve("timeout") }, 15000)
+child.stdout.on("data", (chunk) => { out += chunk })
+const exited = new Promise((resolve) => {
+  const timer = setTimeout(() => { child.kill(); resolve("timeout") }, 90000)
   child.on("exit", (exitCode) => { clearTimeout(timer); resolve(exitCode) })
 })
-const took = Date.now() - started
+// PowerShell starts slowly on a cold machine: the volumes go once the sound is
+// playing, as they would from a fader, rather than at a fixed time.
+const playing = await printed(/length \d+/, 40000)
+child.stdin.write("0.2\n")
+setTimeout(() => child.stdin.write("1\n"), 300)
+const heard = await printed(/volume 1 now/, 10000)
 const length = Number((out.match(/length (\d+)/) || [])[1])
+// With no sound device the script would wait out its 60 s fallback; it has shown what it needs to.
+if (length === 60000 || !length) child.kill()
+const code = await exited
+const took = Date.now() - started
 check("The player script runs without errors", errors.trim() === "", errors.trim())
-const volumes = await heard
-check("A new volume reaches a playing sound", /volume 0\.2 now/.test(volumes) && /volume 1 now/.test(volumes), out.trim())
+check("The sound starts and says how long it is", playing, out.trim())
+check("A new volume reaches a playing sound", heard && /volume 0\.2 now/.test(out), out.trim())
 const applied = Number((out.match(/volume 0\.2 now ([\d.]+)/) || [])[1])
 check("The player takes a new volume as given, not rounded to 0 or 1", Math.abs(applied - 0.2) < 0.01, `0.2 became ${applied}`)
 if (length === 60000 || !length) {
