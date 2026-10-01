@@ -12,7 +12,8 @@ import path from "node:path"
 import { fileURLToPath } from "node:url"
 
 /** The app's files: public/ and the helpers. The desktop app points this at its resources. */
-export const APP_DIR = process.env.PUNCHBOARD_APP_DIR ?? fileURLToPath(new URL("../../", import.meta.url))
+// Resolved, so a relative folder (".") still matches the public-folder check in main.ts.
+export const APP_DIR = path.resolve(process.env.PUNCHBOARD_APP_DIR ?? fileURLToPath(new URL("../../", import.meta.url)))
 
 export function defaultDataDir(): string {
   const home = os.homedir()
