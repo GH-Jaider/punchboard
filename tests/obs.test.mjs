@@ -78,7 +78,8 @@ function listen() {
 async function main() {
   if (!LAN) throw new Error("No LAN address on this machine.")
   await companion.ready
-  const saved = await request({ method: "PUT", path: "/api/library", headers: JSON_TYPE, body: JSON.stringify(library) })
+  const rev = (await request({ path: "/api/library" })).headers["x-library-rev"]
+  const saved = await request({ method: "PUT", path: `/api/library?rev=${rev}`, headers: JSON_TYPE, body: JSON.stringify(library) })
   check("Test deck saves", saved.status === 200, saved.text)
 
   // --- new settings while the old attempt is still out
