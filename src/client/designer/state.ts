@@ -110,7 +110,22 @@ export async function fetchLibrary(): Promise<Library> {
   const response = await fetch("/api/library")
   if (!response.ok) throw new Error("Could not load the deck.")
   store.libraryRev = Number(response.headers.get("X-Library-Rev")) || null
+  showNotice(response.headers.get("X-Library-Notice"))
   return normalizeLibrary((await response.json()) as LibraryResponse)
+}
+
+let noticeShown = false
+
+/** Says once per window that the decks file was damaged or is from a newer Punchboard. */
+function showNotice(header: string | null): void {
+  if (!header || noticeShown) return
+  noticeShown = true
+  let message = header
+  try {
+    message = decodeURIComponent(header)
+  } catch { /* shown as it came */ }
+  // An action keeps the toast up long enough to read.
+  toast(message, true, { label: "OK", onClick: () => {} })
 }
 
 /** Picks up a newer library from elsewhere, keeping the selection where it still exists. */

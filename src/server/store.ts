@@ -14,13 +14,19 @@ export function writeJsonAtomic(file: string, data: unknown, { backup = true }: 
   const temp = `${file}.tmp-${process.pid}`
   const handle = fs.openSync(temp, "w", 0o600)
   try {
-    fs.writeSync(handle, text)
-    fs.fsyncSync(handle)
-  } finally {
-    fs.closeSync(handle)
+    try {
+      fs.writeSync(handle, text)
+      fs.fsyncSync(handle)
+    } finally {
+      fs.closeSync(handle)
+    }
+    if (backup && fs.existsSync(file)) fs.copyFileSync(file, `${file}.bak`)
+    fs.renameSync(temp, file)
+  } catch (error) {
+    // A full disk or a locked folder: leave no half-written temp file behind.
+    fs.rmSync(temp, { force: true })
+    throw error
   }
-  if (backup && fs.existsSync(file)) fs.copyFileSync(file, `${file}.bak`)
-  fs.renameSync(temp, file)
 }
 
 export type ReadResult<T> =
