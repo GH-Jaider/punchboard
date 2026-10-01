@@ -1,17 +1,18 @@
-// The Windows sound player, on Windows only (CI runs it there): a sound plays
-// to its end, takes a new volume while it plays, and its process never hangs.
-// Elsewhere it reports itself skipped. Nothing is heard on CI machines.
-//   node tests/player.test.mjs
+// Windows-only pieces, on Windows only (CI runs them there): the sound player
+// takes a new volume while it plays and never hangs, and the app launcher's
+// script runs. Elsewhere it reports itself skipped. Nothing is heard on CI.
+//   node tests/windows.test.mjs
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { windowsLaunchScript } from "../src/server/launch.ts"
 import { playCommand } from "../src/server/player.ts"
 import { checker } from "./companion.mjs"
 
 const { check, tally } = checker()
 if (process.platform !== "win32") {
-  console.log("Skipped: the Windows sound player is tested on Windows.")
+  console.log("Skipped: these run on Windows.")
   process.exit(0)
 }
 
@@ -34,9 +35,11 @@ silentWav(file, 1000)
 
 const spec = playCommand(file, 0.5, "win32")
 const started = Date.now()
-const child = spawn(spec.file, spec.args, { stdio: ["pipe", "ignore", "pipe"], windowsHide: true })
+const child = spawn(spec.file, spec.args, { stdio: ["pipe", "pipe", "pipe"], windowsHide: true })
 let errors = ""
+let out = ""
 child.stderr.on("data", (chunk) => { errors += chunk })
+child.stdout.on("data", (chunk) => { out += chunk })
 setTimeout(() => child.stdin.write("0.2\n"), 600)
 setTimeout(() => child.stdin.write("1\n"), 900)
 const code = await new Promise((resolve) => {
@@ -44,9 +47,25 @@ const code = await new Promise((resolve) => {
   child.on("exit", (exitCode) => { clearTimeout(timer); resolve(exitCode) })
 })
 const took = Date.now() - started
-check("A sound plays to its end and its process exits on its own", code === 0, `exit ${code}, ${errors.trim()}`)
-check("Volume changes while playing do not hold the sound past its end", took < 8000, `${took} ms`)
+const length = Number((out.match(/length (\d+)/) || [])[1])
 check("The player script runs without errors", errors.trim() === "", errors.trim())
+if (length === 60000 || !length) {
+  // No sound device (CI machines have none): MediaPlayer never learns the length.
+  console.log(`(no sound device here: length ${length || "unknown"}, so the timing checks are skipped)`)
+} else {
+  check("A sound plays to its end and its process exits on its own", code === 0, `exit ${code}`)
+  check("Volume changes while playing do not hold the sound past its end", took < length + 3000, `${took} ms for a ${length} ms sound`)
+}
+
+// The app launcher: a shortcut that is not there is reported, not a script error.
+const launcher = await new Promise((resolve) => {
+  const encoded = Buffer.from(windowsLaunchScript("C:\\nowhere\\Missing app.lnk"), "utf16le").toString("base64")
+  const ps = spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { windowsHide: true })
+  let text = ""
+  ps.stderr.on("data", (chunk) => { text += chunk })
+  ps.on("exit", (exitCode) => resolve({ exitCode, text }))
+})
+check("The app launcher's script parses and reports a missing app", !/ParserError|unexpected token|Missing closing/i.test(launcher.text) && /cannot|find|not/i.test(launcher.text), launcher.text.trim().slice(0, 300))
 
 fs.rmSync(dir, { recursive: true, force: true })
 console.log(`\n${tally.pass} passed, ${tally.fail} failed`)

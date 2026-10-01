@@ -8,6 +8,7 @@ import type { SetMode, Step } from "../shared/types.ts"
 import type { Config } from "./config.ts"
 import { HttpError } from "./http.ts"
 import { sendKeys, sendMediaKey } from "./keys.ts"
+import { launchApp } from "./launch.ts"
 import type { ObsLink } from "./obs.ts"
 
 let openModule: Promise<(target: string) => Promise<unknown>> | null = null
@@ -55,7 +56,7 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
 
     case "launch_app": {
       if (!step.appPath) throw new Error("Choose an application, or enter its full path, first.")
-      await (await loadOpen())(step.appPath)
+      await launchApp(step.appPath)
       return {}
     }
 

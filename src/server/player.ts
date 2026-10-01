@@ -54,6 +54,8 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
       `$p.Volume = ${gain}`,
       "$p.Play()",
       "$ms = if ($p.NaturalDuration.HasTimeSpan) { [int]$p.NaturalDuration.TimeSpan.TotalMilliseconds } else { 60000 }",
+      // The length found, for tests: a machine with no sound device never learns it.
+      "[Console]::Out.WriteLine('length ' + $ms)",
       "$end = [DateTime]::Now.AddMilliseconds($ms + 200)",
       "$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput())",
       "$read = $in.ReadLineAsync()",
