@@ -248,6 +248,12 @@ async function requireDeck(req: Request, url: URL, bodyLimit = JSON_LIMIT): Prom
   const signed: Partial<SignedFields> = STREAMS.has(url.pathname)
     ? { device: query.get("d") ?? undefined, time: query.get("t") ?? undefined, nonce: query.get("n") ?? undefined, signature: query.get("s") ?? undefined }
     : { device: header(req, "x-punchboard-device"), time: header(req, "x-punchboard-time"), nonce: header(req, "x-punchboard-nonce"), signature: header(req, "x-punchboard-signature") }
+  // A request that is not signed by a paired device is refused before its
+  // body is read: nobody unpaired gets to make the companion take in a megabyte.
+  if (!signed.device || !auth.has(signed.device)) throw new HttpError(401, "This deck is not paired with the companion.", { code: "unpaired", serverTime: Date.now() })
+  if (!/^\d{1,16}$/.test(signed.time ?? "") || !/^[0-9a-f]{16,64}$/.test(signed.nonce ?? "") || !/^[0-9a-f]{64}$/.test(signed.signature ?? "")) {
+    throw new HttpError(401, "The request is not signed.", { code: "bad_signature", serverTime: Date.now() })
+  }
   const method = req.method ?? "GET"
   const body = method === "GET" || method === "HEAD" ? "" : (await rawBody(req, bodyLimit)).toString("utf8")
   try {
@@ -311,6 +317,8 @@ const routes: Route[] = [
     const data = await jsonBody(req)
     try {
       const device = auth.claim(data.code, typeof data.name === "string" && data.name ? data.name : deviceName(req), req.socket.remoteAddress)
+      // The code printed at start-up is used up; the pairing window shows the next one by itself.
+      if (!DESKTOP) log(`The next device pairs with code ${auth.currentCode().code}, or the QR at http://localhost:${PORT}/pair.`)
       return { device: { id: device.id, secret: device.secret, name: device.name }, serverTime: Date.now() }
     } catch (error) {
       if (error instanceof AuthError) throw new HttpError(error.code === "locked" ? 429 : 400, error.message, { code: error.code })
@@ -616,9 +624,12 @@ async function handle(req: Request, res: ServerResponse): Promise<void> {
 const server = http.createServer((req, res) => {
   handle(req, res).catch((error: unknown) => {
     if (res.headersSent) return
-    if (error instanceof HttpError) return sendJson(res, error.status, { error: error.message, ...error.extra } satisfies ErrorResponse)
+    // Refused before its body was read (too large, unsigned): the reply goes
+    // out first, then the connection closes rather than waiting for the rest.
+    const headers: Record<string, string> = req.complete ? {} : { Connection: "close" }
+    if (error instanceof HttpError) return sendJson(res, error.status, { error: error.message, ...error.extra } satisfies ErrorResponse, headers)
     log(`Request failed: ${errorText(error)}`)
-    sendJson(res, 500, { error: errorText(error) || "Something went wrong" } satisfies ErrorResponse)
+    sendJson(res, 500, { error: errorText(error) || "Something went wrong" } satisfies ErrorResponse, headers)
   })
 })
 
@@ -633,30 +644,47 @@ const pointer = createPointer({
   log,
   onProblem: (message) => {
     const payload = JSON.stringify({ error: message } satisfies PointerNotice)
-    for (const socket of pointerSockets.keys()) socket.send(payload)
+    for (const socket of pointerSockets.keys()) if (socket.readyState === socket.OPEN) socket.send(payload)
   }
 })
 const pointerServer = new WebSocketServer({ noServer: true, maxPayload: 1024 })
 server.on("upgrade", (req: Request, socket, head) => {
+  // Node gives an upgraded socket no error handling of its own: a peer that
+  // resets it (while the signature is checked, or as it is refused) would
+  // otherwise raise an uncaught ECONNRESET or EPIPE and end the companion.
+  // This stays attached once ws takes the socket over, too.
+  socket.on("error", () => socket.destroy())
   const url = new URL(req.url ?? "/", "http://localhost")
   const refuse = (status: number): void => {
+    if (socket.destroyed || !socket.writable) return void socket.destroy()
     socket.end(`HTTP/1.1 ${status} ${status === 401 ? "Unauthorized" : "Forbidden"}\r\nConnection: close\r\n\r\n`)
   }
   // Browsers always send Origin on a WebSocket; it must be this server.
   if (url.pathname !== "/api/pointer" || !hostAllowed(req) || !req.headers.origin || !originAllowed(req)) return refuse(403)
   requireDeck(req, url).then(
-    (device) => pointerServer.handleUpgrade(req, socket, head, (ws) => {
-      pointerSockets.set(ws, device?.id ?? "")
-      ws.on("message", (data) => {
-        let message: unknown
-        try { message = JSON.parse(String(data)) } catch { return }
-        pointer.send(message)
+    (device) => {
+      // Gone while its signature was checked: nothing to open.
+      if (socket.destroyed) return
+      pointerServer.handleUpgrade(req, socket, head, (ws) => {
+        pointerSockets.set(ws, device?.id ?? "")
+        ws.on("message", (data) => {
+          let message: unknown
+          try { message = JSON.parse(String(data)) } catch { return }
+          pointer.send(message, ws)
+        })
+        // A frame over maxPayload, or a broken frame, is reported here; ws
+        // has failed the connection already, and "close" still follows.
+        ws.on("error", (error) => {
+          log(`A trackpad connection failed: ${error.message}`)
+          ws.terminate()
+        })
+        ws.on("close", () => {
+          pointerSockets.delete(ws)
+          // Only what this trackpad holds: another deck may be mid-drag.
+          pointer.release(ws)
+        })
       })
-      ws.on("close", () => {
-        pointerSockets.delete(ws)
-        pointer.release()
-      })
-    }),
+    },
     () => refuse(401)
   )
 })
@@ -732,11 +760,38 @@ async function start(): Promise<void> {
     }
   }
   PORT = outcome.port
+  started = true
   announce()
   obs.start()
   desktopReady(PORT)
   openControlCenter(PORT)
 }
+
+// Last resort, for an error no listener caught. One connection going wrong
+// (a peer resetting its socket, a malformed frame) must not take every deck
+// down with it, so those are logged and the companion carries on: they belong
+// to that one socket, which is gone already. Anything else is a bug with no
+// telling what state it left behind, so it still ends the companion, as it
+// would without this; so does every error before the server is up, so a
+// failed start is never hidden behind a companion that looks alive.
+let started = false
+const CONNECTION_ERRORS = new Set(["ECONNRESET", "EPIPE", "ECONNABORTED", "ECONNREFUSED", "ETIMEDOUT", "EHOSTUNREACH", "ENETUNREACH", "ERR_STREAM_DESTROYED", "ERR_STREAM_WRITE_AFTER_END"])
+const fromOneConnection = (error: unknown): boolean => {
+  const code = error instanceof Error ? String((error as NodeJS.ErrnoException).code ?? "") : ""
+  return CONNECTION_ERRORS.has(code) || code.startsWith("WS_ERR_") || code.startsWith("HPE_")
+}
+process.on("uncaughtException", (error) => {
+  if (started && fromOneConnection(error)) return log(`A connection failed and was dropped: ${errorText(error)}`)
+  console.error(`  Punchboard stopped on an unexpected error:\n${error.stack ?? errorText(error)}`)
+  process.exit(1)
+})
+// A rejected promise has already unwound: only the work it stood for was
+// lost. Once running, that is logged rather than fatal.
+process.on("unhandledRejection", (reason) => {
+  if (started) return log(`Something failed in the background: ${errorText(reason)}`)
+  console.error(`  Punchboard could not start: ${errorText(reason)}`)
+  process.exit(1)
+})
 
 start().catch((error: unknown) => {
   console.error(`  Punchboard could not start: ${errorText(error)}`)

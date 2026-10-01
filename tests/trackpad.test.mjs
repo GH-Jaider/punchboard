@@ -3,11 +3,13 @@
 // The companion writes pointer commands to a file here (PUNCHBOARD_POINTER_LOG),
 // so the mouse of the computer running the test never moves.
 //   node tests/trackpad.test.mjs
+import { spawn } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { WebSocket } from "ws"
+import { createPointer } from "../src/server/pointer.ts"
 import { signRequest } from "../src/shared/sign.ts"
 import { checker, JSON_TYPE, LAN, startCompanion } from "./companion.mjs"
 import { installPage } from "./fake-page.mjs"
@@ -93,6 +95,31 @@ async function main() {
   r = await connect("/api/pointer", { host: "127.0.0.1", origin: `http://127.0.0.1:${port}` })
   check("This computer's own page may use the trackpad", r.result === "open", r.result)
   r.ws?.close()
+  await wait(200)
+
+  // Two trackpads at once: each lets go only of what it holds itself.
+  const dragging = (await connect(signedPath(device, "/api/pointer"))).ws
+  const other = (await connect(signedPath(device, "/api/pointer"))).ws
+  const beforeTwo = lines().length
+  dragging.send(JSON.stringify(["d"]))
+  await wait(200)
+  other.close()
+  await wait(300)
+  check("Another trackpad closing does not drop this one's drag", lines().slice(beforeTwo).join("|") === "d", lines().slice(beforeTwo).join("|"))
+  dragging.close()
+  await wait(300)
+  check("The trackpad holding the button lets go of it on closing", lines().slice(beforeTwo).join("|") === "d|u", lines().slice(beforeTwo).join("|"))
+
+  const pinching = (await connect(signedPath(device, "/api/pointer"))).ws
+  const beforePinchEnd = lines().length
+  pinching.send(JSON.stringify(["p", "begin", 0]))
+  pinching.send(JSON.stringify(["p", "change", 0.1]))
+  await wait(200)
+  pinching.close()
+  await wait(300)
+  const pinchEnd = lines().slice(beforePinchEnd)
+  // Windows turns a pinch into zoom steps, so there is nothing left open to end.
+  check("A trackpad closing mid-pinch ends the pinch", process.platform !== "darwin" || pinchEnd.slice(-1)[0] === "p 4 0.0000", pinchEnd.join("|"))
 
   // --- traces from a deck's debug mode
   const tracePath = "/api/trackpad/traces"
@@ -121,6 +148,35 @@ async function main() {
   check("Removing a device closes its open trackpad", await cut, "still open")
   r = await connect(signedPath(device, "/api/pointer"))
   check("A removed device loses the trackpad", r.result === 401, r.result)
+
+  await dyingHelper()
+}
+
+/** The pointer module with a stand-in helper (plain Node, never the mouse)
+    that dies at once, while moves keep streaming in as fast as a finger sends
+    them. Writing to a dead helper must not crash, and it must not be started
+    again for every message. */
+async function dyingHelper() {
+  let spawned = 0
+  const problems = []
+  const pointer = createPointer({
+    macHelper: "",
+    log: () => {},
+    onProblem: (message) => problems.push(message),
+    ignoreTestLog: true,
+    spawn: () => {
+      spawned += 1
+      return spawn(process.execPath, ["-e", "setTimeout(() => process.exit(0), 30)"], { stdio: ["pipe", "pipe", "ignore"] })
+    }
+  })
+  const owner = {}
+  const stream = setInterval(() => { for (let i = 0; i < 20; i++) pointer.send(["m", 1, 1], owner) }, 2)
+  await wait(3000)
+  clearInterval(stream)
+  check("A helper that dies mid-stream does not crash the companion", true, "")
+  check("A helper that keeps dying is not restarted for every move", spawned >= 2 && spawned <= 5, `${spawned} starts`)
+  check("…and the deck is told once", problems.length === 1, JSON.stringify(problems))
+  pointer.dispose()
 }
 
 // --- the deck's own trackpad code, in a stand-in page, over a real socket

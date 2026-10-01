@@ -1,6 +1,7 @@
 // Windows-only pieces, on Windows only (CI runs them there): the sound player
-// takes a new volume while it plays and never hangs, and the app launcher's
-// script runs. Elsewhere it reports itself skipped. Nothing is heard on CI.
+// takes a new volume while it plays and never hangs, the app launcher's
+// script runs, and the trackpad helper compiles. Elsewhere it reports itself
+// skipped. Nothing is heard on CI.
 //   node tests/windows.test.mjs
 import { spawn } from "node:child_process"
 import fs from "node:fs"
@@ -8,6 +9,7 @@ import os from "node:os"
 import path from "node:path"
 import { windowsLaunchScript } from "../src/server/launch.ts"
 import { playCommand } from "../src/server/player.ts"
+import { WINDOWS_POINTER } from "../src/server/pointer.ts"
 import { checker } from "./companion.mjs"
 
 const { check, tally } = checker()
@@ -84,6 +86,21 @@ const launcher = await new Promise((resolve) => {
   ps.on("exit", (exitCode) => resolve({ exitCode, text }))
 })
 check("The app launcher's script parses and reports a missing app", !/ParserError|unexpected token|Missing closing/i.test(launcher.text) && /cannot|find|not/i.test(launcher.text), launcher.text.trim().slice(0, 300))
+
+// The trackpad helper compiles and reports bad lines as one JSON object each.
+// Both lines fail while being parsed, before any mouse or key event is made.
+const pointerHelper = await new Promise((resolve) => {
+  const encoded = Buffer.from(WINDOWS_POINTER, "utf16le").toString("base64")
+  const ps = spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { windowsHide: true })
+  let out = ""
+  let err = ""
+  ps.stdout.on("data", (chunk) => { out += chunk })
+  ps.stderr.on("data", (chunk) => { err += chunk })
+  ps.on("exit", () => resolve({ out, err }))
+  ps.stdin.write("m 1 nope\nk 999\nq\n")
+})
+const pointerErrors = pointerHelper.out.split(/\r?\n/).filter(Boolean).map((line) => { try { return JSON.parse(line).error } catch { return null } })
+check("The trackpad helper compiles and reports errors as JSON", pointerErrors.length === 2 && pointerErrors.every((error) => typeof error === "string" && error.length > 0), `${pointerHelper.out} ${pointerHelper.err}`.trim().slice(0, 400))
 
 fs.rmSync(dir, { recursive: true, force: true })
 console.log(`\n${tally.pass} passed, ${tally.fail} failed`)

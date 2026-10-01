@@ -23,19 +23,39 @@ export type Pointer = ReturnType<typeof createPointer>
 
 // Scroll arrives in pixels (positive is up and left). Windows counts wheel
 // units, 120 to a notch, with positive meaning up and right.
-const WINDOWS = String.raw`
+export const WINDOWS_POINTER = String.raw`
 Add-Type -TypeDefinition @"
 using System;
+using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
 public static class PunchboardPointer {
   [DllImport("user32.dll")] static extern void mouse_event(uint flags, int dx, int dy, int data, UIntPtr extra);
   [DllImport("user32.dll")] static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
+  // Numbers come from the companion, never in this computer's own format.
+  static int Int(string text) { return int.Parse(text, NumberStyles.Integer, CultureInfo.InvariantCulture); }
+  static byte Key(string text) { return byte.Parse(text, NumberStyles.Integer, CultureInfo.InvariantCulture); }
+  // Only these keys are "extended". Flagging a plain modifier presses its
+  // right-hand twin instead: Alt becomes AltGr on Spanish and German layouts.
+  static bool Extended(byte k) {
+    return k == 0x5B || k == 0x5C || (k >= 0x21 && k <= 0x28) || k == 0x2D || k == 0x2E || (k >= 0xAD && k <= 0xB7);
+  }
+  // A message may hold quotes, backslashes or line breaks; the companion reads one JSON object per line.
+  public static string Error(string message) {
+    var text = new StringBuilder("{\"error\":\"");
+    foreach (char c in message ?? "") {
+      if (c == '"' || c == '\\') text.Append('\\').Append(c);
+      else if (c < ' ') text.Append("\\u").Append(((int)c).ToString("x4", CultureInfo.InvariantCulture));
+      else text.Append(c);
+    }
+    return text.Append("\"}").ToString();
+  }
   public static void Run(string line) {
     var p = line.Split(' ');
     switch (p[0]) {
-      case "m": mouse_event(0x0001, int.Parse(p[1]), int.Parse(p[2]), 0, UIntPtr.Zero); break;
+      case "m": mouse_event(0x0001, Int(p[1]), Int(p[2]), 0, UIntPtr.Zero); break;
       case "s":
-        int dy = int.Parse(p[2]) * 3, dx = -int.Parse(p[1]) * 3;
+        int dy = Int(p[2]) * 3, dx = -Int(p[1]) * 3;
         if (dy != 0) mouse_event(0x0800, 0, 0, dy, UIntPtr.Zero);
         if (dx != 0) mouse_event(0x1000, 0, 0, dx, UIntPtr.Zero);
         break;
@@ -46,14 +66,14 @@ public static class PunchboardPointer {
       case "d": mouse_event(0x0002, 0, 0, 0, UIntPtr.Zero); break;
       case "u": mouse_event(0x0004, 0, 0, 0, UIntPtr.Zero); break;
       case "z":
-        keybd_event(0x11, 0, 0, UIntPtr.Zero);
-        mouse_event(0x0800, 0, 0, int.Parse(p[1]) * 120, UIntPtr.Zero);
-        keybd_event(0x11, 0, 2, UIntPtr.Zero);
+        keybd_event(0xA2, 0, 0, UIntPtr.Zero);
+        mouse_event(0x0800, 0, 0, Int(p[1]) * 120, UIntPtr.Zero);
+        keybd_event(0xA2, 0, 2, UIntPtr.Zero);
         break;
       case "k":
-        var keys = Array.ConvertAll(p[1].Split(','), byte.Parse);
-        foreach (var k in keys) keybd_event(k, 0, 1, UIntPtr.Zero);
-        for (int i = keys.Length - 1; i >= 0; i--) keybd_event(keys[i], 0, 3, UIntPtr.Zero);
+        var keys = Array.ConvertAll(p[1].Split(','), Key);
+        foreach (var k in keys) keybd_event(k, 0, Extended(k) ? 1u : 0u, UIntPtr.Zero);
+        for (int i = keys.Length - 1; i >= 0; i--) keybd_event(keys[i], 0, Extended(keys[i]) ? 3u : 2u, UIntPtr.Zero);
         break;
     }
   }
@@ -61,7 +81,7 @@ public static class PunchboardPointer {
 "@
 while ($null -ne ($line = [Console]::In.ReadLine())) {
   if ($line -eq "q") { break }
-  try { [PunchboardPointer]::Run($line) } catch { [Console]::Out.WriteLine('{"error":"' + $_.Exception.Message.Replace('"', "'") + '"}') }
+  try { [PunchboardPointer]::Run($line) } catch { [Console]::Out.WriteLine([PunchboardPointer]::Error($_.Exception.Message)) }
 }
 `
 
@@ -89,8 +109,10 @@ const MAC_GESTURES: Record<string, string> = {
   pinch: "app" // the app launcher, opened by name below
 }
 
-// Windows virtual keys, pressed in order and released in reverse.
-const VK = { win: 0x5b, ctrl: 0x11, alt: 0x12, shift: 0x10, tab: 0x09, d: 0x44, s: 0x53, left: 0x25, right: 0x27 }
+// Windows virtual keys, pressed in order and released in reverse. Modifiers
+// are the left-hand keys (VK_LCONTROL, VK_LMENU, VK_LSHIFT), sent without the
+// extended flag, so no keyboard layout reads Alt as AltGr.
+const VK = { win: 0x5b, ctrl: 0xa2, alt: 0xa4, shift: 0xa0, tab: 0x09, d: 0x44, s: 0x53, left: 0x25, right: 0x27 }
 const win = (...keys: number[]): string => `k ${keys.join(",")}`
 const WINDOWS_GESTURES: Record<string, string> = {
   up: win(VK.win, VK.tab), // Task View
@@ -136,24 +158,63 @@ export function pointerLine(message: PointerMessage | unknown, platform: NodeJS.
   return null
 }
 
-export function createPointer(options: PointerOptions) {
+/** A helper that dies sooner than this after starting counts as failing. */
+const QUICK_DEATH_MS = 10000
+/** The longest wait before starting a failing helper again. */
+const MAX_RETRY_MS = 30000
+/** Quick deaths in a row before the deck is told. */
+const DEATHS_REPORTED = 3
+
+function spawnHelper(macHelper: string): ChildProcess | null {
+  if (process.platform === "darwin") {
+    return spawn("osascript", ["-l", "JavaScript", macHelper], { stdio: ["pipe", "pipe", "ignore"] })
+  }
+  if (process.platform === "win32") {
+    const encoded = Buffer.from(WINDOWS_POINTER, "utf16le").toString("base64")
+    return spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
+  }
+  return null
+}
+
+/** Who sent a message: each open trackpad socket is its own owner. */
+export type PointerOwner = object
+
+export function createPointer(options: PointerOptions & {
+  /** Tests start a stand-in helper here, so the real mouse is never touched. */
+  spawn?: () => ChildProcess | null
+  /** Tests ignore PUNCHBOARD_POINTER_LOG with this, to reach the helper. */
+  ignoreTestLog?: boolean
+}) {
   let helper: ChildProcess | null = null
   let buffered = ""
+  // The computer has one left button and one pinch in progress, whoever holds
+  // them. A deck that goes away lets go only of what it holds itself, never
+  // of a drag another deck is in the middle of.
   let leftHeld = false
+  let leftOwner: PointerOwner | null = null
+  let pinchOpen = false
+  let pinchOwner: PointerOwner | null = null
+  let stopping = false
+  // A helper that keeps dying (osascript refused, PowerShell blocked) is
+  // started again after a growing wait, not on every move a finger sends.
+  let quickDeaths = 0
+  let retryAt = 0
+  let reported = false
 
   function start(): ChildProcess | null {
     if (helper) return helper
-    let child: ChildProcess
-    if (process.platform === "darwin") {
-      child = spawn("osascript", ["-l", "JavaScript", options.macHelper], { stdio: ["pipe", "pipe", "ignore"] })
-    } else if (process.platform === "win32") {
-      const encoded = Buffer.from(WINDOWS, "utf16le").toString("base64")
-      child = spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { stdio: ["pipe", "pipe", "ignore"], windowsHide: true })
-    } else {
-      options.onProblem("The trackpad works on macOS and Windows only for now.")
+    if (Date.now() < retryAt) return null
+    const child = options.spawn ? options.spawn() : spawnHelper(options.macHelper)
+    if (!child) {
+      if (!reported) options.onProblem("The trackpad works on macOS and Windows only for now.")
+      reported = true
       return null
     }
     helper = child
+    const startedAt = Date.now()
+    // A helper that dies while moves stream in makes its stdin fail with
+    // EPIPE, after the write has returned. Unheard, that error ends the companion.
+    child.stdin?.on("error", (error) => options.log(`The trackpad helper stopped reading: ${error.message}`))
     child.stdout?.on("data", (chunk: Buffer) => {
       buffered += chunk.toString("utf8")
       const lines = buffered.split(/\r?\n/)
@@ -172,6 +233,21 @@ export function createPointer(options: PointerOptions) {
       if (helper !== child) return
       helper = null
       buffered = ""
+      if (stopping) return
+      if (Date.now() - startedAt >= QUICK_DEATH_MS) {
+        // It ran a good while: start the next one straight away.
+        quickDeaths = 0
+        retryAt = 0
+        reported = false
+        return
+      }
+      quickDeaths += 1
+      retryAt = Date.now() + Math.min(MAX_RETRY_MS, 500 * 2 ** (quickDeaths - 1))
+      if (quickDeaths >= DEATHS_REPORTED && !reported) {
+        reported = true
+        options.log("The trackpad helper keeps stopping; trying again less often.")
+        options.onProblem("The trackpad helper on this computer keeps stopping. Restart Punchboard; if it goes on, check that nothing blocks osascript or PowerShell.")
+      }
     }
     child.on("error", (error) => {
       options.log(`The trackpad helper could not start: ${error.message}`)
@@ -181,20 +257,29 @@ export function createPointer(options: PointerOptions) {
     return child
   }
 
-  // Tests set PUNCHBOARD_POINTER_LOG to a file: lines go there, the mouse stays put.
-  const testLog = process.env.PUNCHBOARD_POINTER_LOG
+  /** Writes a line if the helper is alive to read it. */
+  function write(child: ChildProcess | null, line: string): void {
+    const stdin = child?.stdin
+    if (!child || !stdin || child.exitCode !== null || child.signalCode !== null || stdin.destroyed || !stdin.writable) return
+    stdin.write(`${line}\n`)
+  }
 
-  function send(message: unknown): void {
+  // Tests set PUNCHBOARD_POINTER_LOG to a file: lines go there, the mouse stays put.
+  const testLog = options.ignoreTestLog ? undefined : process.env.PUNCHBOARD_POINTER_LOG
+
+  function send(message: unknown, owner: PointerOwner | null = null): void {
     const line = pointerLine(message)
     if (!line) return
-    if (line === "d") leftHeld = true
-    if (line === "u") leftHeld = false
+    if (line === "d") { leftHeld = true; leftOwner = owner }
+    if (line === "u") { leftHeld = false; leftOwner = null }
+    const phase: unknown = Array.isArray(message) && message[0] === "p" ? message[1] : undefined
+    if (phase === "begin" || phase === "change") { pinchOpen = true; pinchOwner = owner }
+    if (phase === "end") { pinchOpen = false; pinchOwner = null }
     // Turned into zoom steps before anything is written, so tests see what the computer would.
     if (line.startsWith("pinch ")) return pinchSteps(line)
     if (testLog) return fs.appendFileSync(testLog, `${line}\n`)
     if (line === "app") return openLauncher()
-    const child = start()
-    if (child?.stdin?.writable) child.stdin.write(`${line}\n`)
+    write(start(), line)
   }
 
   // Windows: a pinch becomes Ctrl + wheel steps, about one per 35% of zoom.
@@ -221,16 +306,20 @@ export function createPointer(options: PointerOptions) {
     tryApp(["Apps", "Launchpad"])
   }
 
-  /** A deck went away mid-drag: never leave the button held down. */
-  function release(): void {
-    if (leftHeld) send(["u"])
+  /** A deck went away mid-drag or mid-pinch: never leave the button held
+      down or a pinch open. Only what this owner started is let go; null lets
+      go of everything. */
+  function release(owner: PointerOwner | null = null): void {
+    if (leftHeld && (owner === null || leftOwner === owner)) send(["u"])
+    if (pinchOpen && (owner === null || pinchOwner === owner)) send(["p", "end", 0])
   }
 
   function dispose(): void {
     release()
+    stopping = true
     const child = helper
     if (!child) return
-    child.stdin?.write("q\n")
+    write(child, "q")
     setTimeout(() => { if (helper === child) child.kill() }, 300).unref()
   }
 

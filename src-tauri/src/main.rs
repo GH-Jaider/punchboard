@@ -156,9 +156,13 @@ fn open_window(app: &AppHandle, page: &str) {
         // Center takes files through its own pickers, never by dropping.
         .disable_drag_drop_handler()
         // "Open deck" and other new-window links belong in the real browser.
+        // Only web addresses go out: a page should never get to hand the
+        // system a file:// path or another app's URL scheme to open.
         .on_new_window(move |url, _features| {
-            #[allow(deprecated)]
-            let _ = opener.shell().open(url.as_str(), None);
+            if matches!(url.scheme(), "http" | "https") {
+                #[allow(deprecated)]
+                let _ = opener.shell().open(url.as_str(), None);
+            }
             tauri::webview::NewWindowResponse::Deny
         })
         // "Back up" saves to Downloads, next to any earlier backup rather than over it.

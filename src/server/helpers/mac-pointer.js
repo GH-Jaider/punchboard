@@ -12,7 +12,8 @@
 //   k <code> <flags>  press a key (macOS key code) with modifier flags, for gestures
 //   p <phase> <mag>   a pinch as a trackpad makes it: phase 1 began, 2 changed,
 //                   4 ended; mag the magnification since the last one
-//   q               quit
+//   q               quit, releasing the button and ending a pinch first (as
+//                   the end of stdin does)
 //
 // Needs the Accessibility permission, like key combinations. Errors go to
 // stdout as {"error": "..."}.
@@ -37,8 +38,11 @@ var HID = 0
 var MOVED = 5, LEFT_DOWN = 1, LEFT_UP = 2, RIGHT_DOWN = 3, RIGHT_UP = 4, LEFT_DRAGGED = 6
 var CLICK_STATE = 1
 /** A left press this soon after the last one, and this close to it, is the
-    next click of the same series: the second is a double click. */
-var DOUBLE_CLICK_MS = 400
+    next click of the same series: the second is a double click. A slow
+    double tap reaches here as the first tap's press, its release up to the
+    deck's drag wait later (dragMs, 300 ms in src/shared/touchpad/tuning.ts),
+    then a second tap of up to tapMs (180 ms): about 500 ms between presses. */
+var DOUBLE_CLICK_MS = 550
 var DOUBLE_CLICK_PX = 6
 /** How long a click holds the button. A press and release at the same instant
     is sometimes dropped (Chrome is known to), and no finger clicks that fast. */
@@ -215,7 +219,10 @@ var FIELD_MAGNIFICATION = 113
 var FIELD_PHASE = 132
 var KIND_MAGNIFY = 8
 
+var pinchOpen = false
+
 function pinch(phase, magnification) {
+  pinchOpen = phase !== 4
   var event = sourced($.CGEventCreate(null))
   $.CGEventSetType(event, GESTURE)
   $.CGEventSetFlags(event, GESTURE_FLAGS)
@@ -235,7 +242,18 @@ function handle(line) {
   if (cmd === "p") return pinch(Number(parts[1]) || 2, Number(parts[2]) || 0)
   if (cmd === "d") return leftPress(pressPoint())
   if (cmd === "u") return leftRelease(here())
-  if (cmd === "q") $.exit(0)
+  if (cmd === "q") quit()
+}
+
+/** Leaves nothing held on the way out: macOS keeps a pressed button or an
+    open pinch down until it hears otherwise, so a companion that quit or
+    crashed mid-drag would leave every window dragging. */
+function quit() {
+  try {
+    if (leftDown) leftRelease(here())
+    if (pinchOpen) pinch(4, 0)
+  } catch (error) { /* exiting either way */ }
+  $.exit(0)
 }
 
 if (!$.CGPreflightPostEventAccess()) {
@@ -246,7 +264,7 @@ if (!$.CGPreflightPostEventAccess()) {
 var pending = ""
 for (;;) {
   var data = stdin.availableData
-  if (data.length === 0) $.exit(0)
+  if (data.length === 0) quit()
   pending += $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js
   var lines = pending.split("\n")
   pending = lines.pop()
