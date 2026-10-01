@@ -26,6 +26,7 @@ import type { Profile, TrackpadSettings } from "../../shared/types.ts"
 import { el, storage } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, streamUrl } from "./api.ts"
+import { haptic } from "./haptics.ts"
 import { toast } from "./ui.ts"
 
 /** One zoom step (an app's Cmd/Ctrl +) per this much change in finger spread:
@@ -161,15 +162,18 @@ function handle(events: TouchpadEvent[]): void {
         if (clicked) {
           flush()
           send(["c", event.button])
+          haptic("click")
           i += 1
         } else if (event.button === "right") {
           if (event.state === "down") {
             flush()
             send(["c", "right"])
+            haptic("click")
           }
         } else if (event.state === "down") {
           flush()
           send(["d"])
+          haptic("click")
           held = true
         } else if (held) {
           flush()
@@ -205,12 +209,15 @@ function handle(events: TouchpadEvent[]): void {
         break
       case "swipe":
         send(["g", event.fingers, event.direction])
+        haptic("tap")
         break
       case "fingers":
         send(["g", 4, event.gesture])
+        haptic("tap")
         break
       case "tap":
         send(["g", 3, "tap"])
+        haptic("tap")
         break
       default:
         assertNever(event)
