@@ -174,10 +174,25 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     if (changed) broadcast()
   }
 
+  /** Levels nobody can vouch for any more read as unknown on the decks
+      (the fader shows "–"), not as wherever they last were. */
+  function dropLevels(keys: string[]): void {
+    let changed = false
+    for (const key of keys) {
+      if (!(key in levels)) continue
+      delete levels[key]
+      changed = true
+    }
+    if (changed) broadcast()
+  }
+
+  /** OBS went away: its faders' levels are as unknown as its toggles. */
+  const clearObsLevels = (): void => dropLevels(Object.keys(levels).filter((key) => key.startsWith("obs:")))
+
   function soundsChanged(): void {
     soundsRev += 1
     broadcast()
   }
 
-  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, toggleValue, setLevels, soundsChanged }
+  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, toggleValue, setLevels, dropLevels, clearObsLevels, soundsChanged }
 }

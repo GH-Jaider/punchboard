@@ -132,7 +132,7 @@ const live = createLive({
   soundFile: (slot) => sounds.file(slot).file
 }, player, config.soundVolume)
 // What OBS is doing (live scene, mutes, stream…), followed from its events.
-const obsState = createObsState({ library: library.get, setToggles: live.setToggles, setLevels: live.setLevels })
+const obsState = createObsState({ library: library.get, setToggles: live.setToggles, setLevels: live.setLevels, dropLevels: live.dropLevels })
 // Meters are only read for OBS inputs that a fader on a connected page shows.
 const obs = createObsLink({
   config,
@@ -143,6 +143,7 @@ const obs = createObsLink({
     if (obs.status() !== "connected") {
       obsState.detach()
       live.clearToggles()
+      live.clearObsLevels()
     }
     live.broadcast()
   },
@@ -383,11 +384,17 @@ const routes: Route[] = [
     const data = await jsonBody(req)
     if (data.accent && !isHexColor(data.accent)) throw new HttpError(400, "Choose a six-digit colour.")
     if (data.theme !== undefined && !isThemeId(data.theme)) throw new HttpError(400, "That theme does not exist.")
+    // Checked before anything is saved, so a rejected address changes nothing
+    // (and does not stop Punchboard following OBS's own settings).
+    const obsAddress = typeof data.obsAddress === "string" ? data.obsAddress.trim() : null
+    if (obsAddress && (obsAddress.length >= 160 || !/^wss?:\/\/[^\s/]+/i.test(obsAddress))) {
+      throw new HttpError(400, "The OBS address starts with ws:// (or wss://) and the computer running OBS, like ws://192.168.1.20:4455.")
+    }
     if (isHexColor(data.accent)) config.theme.accent = data.accent
     if (isThemeId(data.theme)) config.theme.name = data.theme
     const obsBefore = `${config.obs.address}\n${config.obs.password}`
-    if (typeof data.obsAddress === "string" || typeof data.obsPassword === "string") config.obs.source = "manual"
-    if (typeof data.obsAddress === "string" && data.obsAddress.length < 160) config.obs.address = data.obsAddress
+    if (obsAddress !== null || typeof data.obsPassword === "string") config.obs.source = "manual"
+    if (obsAddress !== null) config.obs.address = obsAddress
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
     if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
     writeConfig()

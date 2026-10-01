@@ -1,10 +1,14 @@
 // A stand-in for OBS Studio's WebSocket server (protocol v5, in JSON or
 // MessagePack like the real one), with a small scene collection, for testing
-// without touching anyone's real OBS.
+// without touching anyone's real OBS. It can also misbehave like a real one:
+// `helloDelayMs` (null: never) holds back its greeting, as a busy or wedged
+// OBS would, request types in `obs.stalled` are never answered, and
+// those in `obs.delays` answer late.
 import { decode, encode } from "@msgpack/msgpack"
 import { WebSocketServer } from "ws"
 
-export function startFakeObs() {
+export function startFakeObs({ helloDelayMs = 0 } = {}) {
+  const behaviour = { helloDelayMs }
   const obs = {
     currentScene: "Main",
     studioMode: false,
@@ -17,7 +21,10 @@ export function startFakeObs() {
     // Scene names with their items; the list is in OBS's bottom-up order.
     scenes: { BRB: [], Main: [{ id: 1, source: "Camera", enabled: true }, { id: 2, source: "Mic", enabled: true }], Intro: [] },
     sceneOrder: ["BRB", "Main", "Intro"],
-    calls: []
+    calls: [],
+    stalled: new Set(),
+    // Request type -> ms before its answer is sent.
+    delays: {}
   }
 
   const server = new WebSocketServer({ port: 0, host: "0.0.0.0" })
@@ -108,27 +115,38 @@ export function startFakeObs() {
   server.on("connection", (socket) => {
     clients.add(socket)
     socket.on("close", () => clients.delete(socket))
-    send(socket, 0, { obsWebSocketVersion: "5.5.0", rpcVersion: 1 })
+    const hello = () => { if (socket.readyState === socket.OPEN) send(socket, 0, { obsWebSocketVersion: "5.5.0", rpcVersion: 1 }) }
+    if (behaviour.helloDelayMs === 0) hello()
+    else if (behaviour.helloDelayMs !== null) setTimeout(hello, behaviour.helloDelayMs)
     socket.on("message", (raw) => {
       const { op, d } = packed(socket) ? decode(raw) : JSON.parse(String(raw))
       if (op === 1) return send(socket, 2, { negotiatedRpcVersion: 1 })
       if (op !== 6) return
       obs.calls.push(d.requestType)
+      if (obs.stalled.has(d.requestType)) return
       const handler = handlers[d.requestType]
+      let answer
       try {
         if (!handler) fail(`Fake OBS has no ${d.requestType}`)
         const responseData = handler(d.requestData ?? {})
-        send(socket, 7, { requestType: d.requestType, requestId: d.requestId, requestStatus: { result: true, code: 100 }, responseData })
+        answer = { requestType: d.requestType, requestId: d.requestId, requestStatus: { result: true, code: 100 }, responseData }
       } catch (error) {
-        send(socket, 7, { requestType: d.requestType, requestId: d.requestId, requestStatus: { result: false, code: error.code ?? 600, comment: error.message } })
+        answer = { requestType: d.requestType, requestId: d.requestId, requestStatus: { result: false, code: error.code ?? 600, comment: error.message } }
       }
+      // A delayed answer is read now and arrives later, like a slow OBS's.
+      const delay = obs.delays[d.requestType]
+      if (delay) setTimeout(() => { if (socket.readyState === socket.OPEN) send(socket, 7, answer) }, delay)
+      else send(socket, 7, answer)
     })
   })
 
   return new Promise((resolve) => {
     server.on("listening", () => resolve({
       obs,
+      behaviour,
       port: server.address().port,
+      /** How many clients are connected right now. */
+      clients: () => clients.size,
       emit,
       /** Drops every connection, as OBS closing would. */
       disconnect: () => { for (const socket of clients) socket.terminate() },
