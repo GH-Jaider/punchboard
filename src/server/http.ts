@@ -57,21 +57,32 @@ export function staticFile(res: ServerResponse, file: string): void {
   })
 }
 
-/** Reads the body once and keeps it, because a signature covers the exact bytes sent. */
+/** Reads the body once and keeps it, because a signature covers the exact bytes sent.
+    A body over the limit is refused without being kept: the 413 goes out
+    first and the connection closes after it (the error reply in main.ts), so
+    the client reads why rather than a reset. A Content-Length over the limit
+    is refused before a byte of the body is read. */
 export function rawBody(req: Request, limit: number): Promise<Buffer> {
   if (req.rawBody) return Promise.resolve(req.rawBody)
+  const tooLarge = (): HttpError => new HttpError(413, "That request is too large.")
+  const declared = Number(req.headers["content-length"])
+  if (Number.isFinite(declared) && declared > limit) return Promise.reject(tooLarge())
   return new Promise((resolve, reject) => {
     const chunks: Buffer[] = []
     let size = 0
-    req.on("data", (chunk: Buffer) => {
+    const onData = (chunk: Buffer): void => {
       size += chunk.length
-      if (size > limit) {
-        reject(new HttpError(413, "That request is too large."))
-        req.destroy()
+      if (size <= limit) {
+        chunks.push(chunk)
         return
       }
-      chunks.push(chunk)
-    })
+      // Nothing more is kept; the rest is read and dropped while the reply goes out.
+      req.off("data", onData)
+      chunks.length = 0
+      req.resume()
+      reject(tooLarge())
+    }
+    req.on("data", onData)
     req.on("end", () => {
       req.rawBody = Buffer.concat(chunks)
       resolve(req.rawBody)

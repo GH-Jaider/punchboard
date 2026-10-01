@@ -23,8 +23,10 @@ export function startCompanion({ config } = {}) {
   const port = 18000 + Math.floor(Math.random() * 1000)
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-test-"))
   if (config) fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(config))
+  // Pointer commands always go to a file, so no test can move the real mouse.
+  const pointerLog = process.env.PUNCHBOARD_POINTER_LOG || path.join(dataDir, "pointer.log")
   const child = spawn(process.execPath, ["src/server/main.ts"], {
-    env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1" },
+    env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1", PUNCHBOARD_POINTER_LOG: pointerLog },
     stdio: ["pipe", "pipe", "inherit"]
   })
   let out = ""
@@ -63,7 +65,9 @@ export function startCompanion({ config } = {}) {
   }
 
   const cleanup = () => fs.rmSync(dataDir, { recursive: true, force: true })
-  return { port, dataDir, ready, stop, request, cleanup, log: () => out }
+  /** True while the companion process is still running. */
+  const alive = () => child.exitCode === null && child.signalCode === null
+  return { port, dataDir, ready, stop, request, cleanup, alive, log: () => out }
 }
 
 export const JSON_TYPE = { "Content-Type": "application/json" }
