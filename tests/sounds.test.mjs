@@ -286,7 +286,8 @@ const upload = (slot, data, type, name) => request({ method: "PUT", path: `/api/
 try {
   await companion.ready
   check("A saved sounds volume of null loads as full, not muted", (await status()).levels.sounds === 1, JSON.stringify((await status()).levels))
-  const saved = await request({ method: "PUT", path: "/api/library", headers: JSON_TYPE, body: JSON.stringify(library) })
+  const rev = (await request({ path: "/api/library" })).headers["x-library-rev"]
+  const saved = await request({ method: "PUT", path: `/api/library?rev=${rev}`, headers: JSON_TYPE, body: JSON.stringify(library) })
   check("The fader deck saves", saved.status === 200, saved.text)
 
   // --- faders: the sounds fader goes to 0 first, so nothing below is heard
