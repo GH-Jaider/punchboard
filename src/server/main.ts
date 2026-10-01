@@ -52,7 +52,7 @@ import { createLibraryStore } from "./library.ts"
 import { getLocalIPv4, ownHostnames } from "./net.ts"
 import { createSoundStore, isAudio } from "./sounds.ts"
 import type { AudioType } from "./sounds.ts"
-import { readLevel, writeLevel } from "./volume.ts"
+import { isLevel, readLevel, writeLevel } from "./volume.ts"
 import type { VolumeContext } from "./volume.ts"
 import { claimPort } from "./port.ts"
 import { appVersion, DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
@@ -83,7 +83,17 @@ const writeConfig = (): void => saveConfig(paths.config, config)
 let configTimer: NodeJS.Timeout | undefined
 const writeConfigSoon = (): void => {
   clearTimeout(configTimer)
-  configTimer = setTimeout(writeConfig, 400)
+  configTimer = setTimeout(() => {
+    configTimer = undefined
+    writeConfig()
+  }, 400)
+}
+/** Writes a pending debounced save now, so quitting never loses it. */
+const flushConfig = (): void => {
+  if (configTimer === undefined) return
+  clearTimeout(configTimer)
+  configTimer = undefined
+  writeConfig()
 }
 
 const library = createLibraryStore(paths.library, log)
@@ -453,6 +463,8 @@ const routes: Route[] = [
   // --- faders, also looked up from the saved deck
   route<LevelsResponse>("POST", "/api/volume", "deck", async ({ req }) => {
     const data = await jsonBody(req)
+    // Checked first: a missing or non-numeric level must never reach a fader as 0.
+    if (!isLevel(data.level)) throw new HttpError(400, "The level must be a number from 0 to 1.")
     const button = library.findButton(data.profileId, data.buttonId)
     if (!button || button.control !== "fader") throw new HttpError(404, "That fader no longer exists.")
     try {
@@ -481,13 +493,20 @@ const routes: Route[] = [
     const type = audioType(String(req.headers["content-type"] ?? "").split(";")[0] ?? "")
     const data = await rawBody(req, LIMITS.maxSoundBytes)
     if (!type || !isAudio(data, type)) throw new HttpError(400, "That file is not a readable WAV or MP3.")
-    sounds.saveUpload(Number(params[1]), type, data, req.headers["x-sound-name"])
+    const slot = Number(params[1])
+    // The old sound stops first: it would play on, let go of its file late
+    // (Windows), and teach the new file its run time.
+    await player.stopAndWait(slot)
+    sounds.saveUpload(slot, type, data, req.headers["x-sound-name"])
     live.soundsChanged()
     return { ok: true, slots: sounds.slots() }
   }),
   // Puts a slot back to the generated tone it shipped with.
-  route<SoundsChanged>("DELETE", /^\/api\/sounds\/([1-8])$/, "local", ({ params }) => {
-    if (!sounds.revert(Number(params[1]))) throw new HttpError(400, "That slot already holds the built-in tone.")
+  route<SoundsChanged>("DELETE", /^\/api\/sounds\/([1-8])$/, "local", async ({ params }) => {
+    const slot = Number(params[1])
+    if (!sounds.isCustom(slot)) throw new HttpError(400, "That slot already holds the built-in tone.")
+    await player.stopAndWait(slot)
+    if (!sounds.revert(slot)) throw new HttpError(400, "That slot already holds the built-in tone.")
     live.soundsChanged()
     return { ok: true, slots: sounds.slots() }
   }),
@@ -731,6 +750,7 @@ function shutdown(): void {
   pointer.dispose()
   obs.stop()
   auth.flush()
+  flushConfig()
   live.closeAll()
   server.close()
   setTimeout(() => process.exit(0), 200).unref()

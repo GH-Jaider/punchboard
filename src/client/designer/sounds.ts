@@ -80,6 +80,17 @@ export function showPlaying(playing: number[]): void {
 
 const WAV_TYPES = ["audio/wav", "audio/x-wav", "audio/wave"]
 
+/** The file's name for the companion to show. Headers are ASCII, so it goes
+    URI-encoded; letters of every script stay (the companion does the real
+    filtering), only control characters and slashes go here. */
+function soundNameHeader(name: string): string {
+  try {
+    return encodeURIComponent(name.replace(/[\u0000-\u001f\u007f/\\]/g, ""))
+  } catch {
+    return "" // a broken character in the name: no name rather than no upload
+  }
+}
+
 export async function uploadSound(slot: number, file: File, row: HTMLElement | null): Promise<void> {
   if (file.size > LIMITS.maxSoundBytes) return toast("Keep sounds under 8 MB.", true)
   const given = file.type === "audio/mp3" ? "audio/mpeg" : file.type
@@ -90,7 +101,7 @@ export async function uploadSound(slot: number, file: File, row: HTMLElement | n
   try {
     const result = await request<SoundsChanged>(`/api/sounds/${slot}`, {
       method: "PUT",
-      headers: { "Content-Type": type, "X-Sound-Name": file.name.replace(/[^\w .()[\]-]/g, "") },
+      headers: { "Content-Type": type, "X-Sound-Name": soundNameHeader(file.name) },
       body: file
     })
     slotsChanged(result.slots)

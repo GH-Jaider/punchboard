@@ -57,13 +57,19 @@ function play(slot, file, level) {
   send({ event: "started", slot: slot })
 }
 
+// A volume is a number within 0..1; anything else is not a volume at all.
+function level(value) {
+  return typeof value === "number" && isFinite(value) ? Math.max(0, Math.min(1, value)) : null
+}
+
 function handle(command) {
-  if (command.cmd === "play") return play(Number(command.slot), String(command.file), typeof command.volume === "number" ? command.volume : volume)
+  if (command.cmd === "play") return play(Number(command.slot), String(command.file), level(command.volume) === null ? volume : level(command.volume))
   if (command.cmd === "stop") return stop(Number(command.slot))
   if (command.cmd === "stopall") { for (var slot in players) stop(Number(slot)); return }
   if (command.cmd === "quit") $.exit(0)
   if (command.cmd === "volume") {
-    volume = Number(command.volume)
+    if (level(command.volume) === null) return
+    volume = level(command.volume)
     for (var each in players) players[each].volume = volume
   }
 }

@@ -30,7 +30,8 @@ export function loadConfig(file: string, log: (message: string) => void): Config
   }
   const theme = isObject(raw.theme) ? raw.theme : {}
   const obs = isObject(raw.obs) ? raw.obs : {}
-  const soundVolume = Number(raw.soundVolume)
+  // Only a real number counts: Number(null) would be 0, a muted fader.
+  const soundVolume = typeof raw.soundVolume === "number" ? raw.soundVolume : NaN
   return {
     port: Number(raw.port) || DEFAULTS.port,
     theme: {

@@ -44,24 +44,104 @@ interface SoundEntry { ext: Extension; name: string; uploadedAt?: string   /** L
   durationMs?: number
 }
 
-/** Checks the file's own header rather than trusting its extension. */
-export function isAudio(data: Buffer, type: AudioType): boolean {
-  if (type === "audio/wav") return data.subarray(0, 4).toString() === "RIFF" && data.subarray(8, 12).toString() === "WAVE"
-  return data.subarray(0, 3).toString() === "ID3" || (data[0] === 0xff && ((data[1] ?? 0) & 0xe0) === 0xe0)
+/** Reads `length` bytes at `position`, fewer at the end: from a buffer or an open file. */
+type Reader = (position: number, length: number) => Buffer
+
+const bufferReader = (data: Buffer): Reader => (position, length) => data.subarray(position, position + length)
+
+function fileReader(handle: number, size: number): Reader {
+  return (position, length) => {
+    const buffer = Buffer.alloc(Math.max(0, Math.min(length, size - position)))
+    if (buffer.length) fs.readSync(handle, buffer, 0, buffer.length, position)
+    return buffer
+  }
 }
 
-/** Only ever shown back to the user; the file on disk is always sound-N.ext. */
-const safeName = (value: unknown): string => String(value ?? "").replace(/[^\w .()[\]-]/g, "").slice(0, 80)
+/** Runs `parse` on a file opened for reading; any failure is null. */
+function withFile<T>(file: string, parse: (read: Reader, size: number) => T | null): T | null {
+  let handle: number | null = null
+  try {
+    handle = fs.openSync(file, "r")
+    const size = fs.fstatSync(handle).size
+    return parse(fileReader(handle, size), size)
+  } catch {
+    return null
+  } finally {
+    if (handle !== null) fs.closeSync(handle)
+  }
+}
+
+interface WavInfo { byteRate: number; dataBytes: number }
+
+/** A WAV's format and data chunks. Chunks are walked rather than assumed at
+    fixed offsets, since editors add LIST chunks (album art can be large). */
+function wavInfo(read: Reader, size: number): WavInfo | null {
+  const head = read(0, 12)
+  if (head.length < 12 || head.toString("latin1", 0, 4) !== "RIFF" || head.toString("latin1", 8, 12) !== "WAVE") return null
+  let fmt: Buffer | null = null
+  let offset = 12
+  for (let chunks = 0; offset + 8 <= size && chunks < 1000; chunks += 1) {
+    const chunk = read(offset, 8)
+    if (chunk.length < 8) return null
+    const id = chunk.toString("latin1", 0, 4)
+    const length = chunk.readUInt32LE(4)
+    if (id === "fmt ") {
+      fmt = length >= 16 ? read(offset + 8, 16) : null
+      if (!fmt || fmt.length < 16) return null
+    }
+    if (id === "data") {
+      if (!fmt) return null
+      const channels = fmt.readUInt16LE(2)
+      const sampleRate = fmt.readUInt32LE(4)
+      const byteRate = fmt.readUInt32LE(8)
+      const blockAlign = fmt.readUInt16LE(12)
+      if (!channels || !sampleRate || !byteRate || !blockAlign) return null
+      // A streaming writer may leave the size blank; the file's tail is the data then.
+      const tail = size - offset - 8
+      const dataBytes = length && length !== 0xffffffff ? Math.min(length, tail) : tail
+      return dataBytes > 0 ? { byteRate, dataBytes } : null
+    }
+    offset += 8 + length + (length % 2)
+  }
+  return null
+}
+
+/** Where the audio starts past the ID3v2 tags in front (a file can carry
+    more than one). A tag's size is a 28-bit "syncsafe" number, plus a
+    10-byte footer when its flags say so. Null if a tag is malformed. */
+function audioStart(read: Reader): number | null {
+  let offset = 0
+  for (let tags = 0; tags < 8; tags += 1) {
+    const header = read(offset, 10)
+    if (header.length < 10 || header.toString("latin1", 0, 3) !== "ID3") return offset
+    if ((header[6]! | header[7]! | header[8]! | header[9]!) & 0x80) return null
+    const footer = header[5]! & 0x10 ? 10 : 0
+    offset += 10 + footer + ((header[6]! << 21) | (header[7]! << 14) | (header[8]! << 7) | header[9]!)
+  }
+  return offset
+}
 
 const MP3_BITRATES_V1 = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320]
 const MP3_BITRATES_V2 = [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160]
 const MP3_SAMPLE_RATES: Record<number, number[]> = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] }
+/** How far past the tags the first frame is looked for (encoders may pad). */
+const FRAME_SEARCH = 4096
+/** The longest Layer III frame: 320 kbps at 32 kHz, padded. */
+const LONGEST_FRAME = 1441
 
-interface Mp3Frame { bitrate: number; sampleRate: number; samplesPerFrame: number; xingFrames: number | null }
+interface Mp3Frame {
+  /** Where the frame starts in the buffer searched, and its size in bytes. */
+  at: number
+  length: number
+  bitrate: number
+  sampleRate: number
+  samplesPerFrame: number
+  xingFrames: number | null
+}
 
 /** Reads the first Layer III frame header at or after `start`. Exposed for tests. */
 export function mp3Frame(data: Buffer, start: number): Mp3Frame | null {
-  for (let i = start; i + 4 <= data.length && i < start + 4096; i += 1) {
+  for (let i = start; i + 4 <= data.length && i < start + FRAME_SEARCH; i += 1) {
     const b1 = data[i + 1]!
     if (data[i] !== 0xff || (b1 & 0xe0) !== 0xe0) continue
     const version = (b1 >> 3) & 3          // 3 = MPEG1, 2 = MPEG2, 0 = MPEG2.5
@@ -74,18 +154,77 @@ export function mp3Frame(data: Buffer, start: number): Mp3Frame | null {
     const bitrate = (version === 3 ? MP3_BITRATES_V1 : MP3_BITRATES_V2)[bitrateIndex]! * 1000
     const sampleRate = MP3_SAMPLE_RATES[version]![rateIndex]!
     const samplesPerFrame = version === 3 ? 1152 : 576
+    const length = Math.floor((samplesPerFrame / 8) * bitrate / sampleRate) + ((b2 >> 1) & 1)
     const mono = ((data[i + 3]! >> 6) & 3) === 3
     // The Xing/Info header follows the side info, whose size depends on version and channels.
     const sideInfo = version === 3 ? (mono ? 17 : 32) : (mono ? 9 : 17)
     const tag = i + 4 + sideInfo
     let xingFrames: number | null = null
-    const tagName = data.toString("ascii", tag, tag + 4)
-    if ((tagName === "Xing" || tagName === "Info") && (data[tag + 7]! & 1) && tag + 12 <= data.length) {
+    const tagName = data.toString("latin1", tag, tag + 4)
+    if ((tagName === "Xing" || tagName === "Info") && tag + 12 <= data.length && (data[tag + 7]! & 1)) {
       xingFrames = data.readUInt32BE(tag + 8)
     }
-    return { bitrate, sampleRate, samplesPerFrame, xingFrames }
+    return { at: i, length, bitrate, sampleRate, samplesPerFrame, xingFrames }
   }
   return null
+}
+
+/** An MP3's first real frame, past any ID3 tags: one whose end is where the
+    next frame starts (or the end of the file), so stray sync bytes do not
+    count. `offset` is its place in the file. */
+function firstMp3Frame(read: Reader, size: number): { frame: Mp3Frame; offset: number } | null {
+  const offset = audioStart(read)
+  if (offset === null || offset >= size) return null
+  // Read at the frame, not from the file's start: album art makes tags large.
+  const head = read(offset, FRAME_SEARCH + 2 * LONGEST_FRAME + 4)
+  let from = 0
+  for (;;) {
+    const frame = mp3Frame(head, from)
+    if (!frame || frame.at >= FRAME_SEARCH) return null
+    const next = frame.at + frame.length
+    const ends = offset + next >= size
+    const followed = !ends && mp3Frame(head, next)?.at === next
+    if (offset + next <= size && (ends || followed)) return { frame, offset: offset + frame.at }
+    from = frame.at + 1
+  }
+}
+
+/** An MP3's length from its first frame: a Xing/Info header gives the
+    frame count (VBR), otherwise the bitrate is taken as constant. Layer III
+    only, which is what an .mp3 is; anything odd returns null. */
+function mp3Duration(read: Reader, size: number): number | null {
+  const found = firstMp3Frame(read, size)
+  if (!found) return null
+  const frame = found.frame
+  if (frame.xingFrames) return Math.round((frame.xingFrames * frame.samplesPerFrame / frame.sampleRate) * 1000)
+  return Math.round(((size - found.offset) * 8 / frame.bitrate) * 1000)
+}
+
+/** An MP3 file's length, or null. Exposed for tests. */
+export const mp3DurationMs = (file: string): number | null => withFile(file, mp3Duration)
+
+/** A WAV file's length from its header: data bytes over the byte rate. Exposed for tests. */
+export const wavDurationMs = (file: string): number | null => withFile(file, (read, size) => {
+  const info = wavInfo(read, size)
+  return info ? Math.round((info.dataBytes / info.byteRate) * 1000) : null
+})
+
+/** Checks the file's own structure rather than trusting its extension or
+    first bytes: a WAV needs its format and data chunks, an MP3 a real
+    Layer III frame after any ID3 tags. */
+export function isAudio(data: Buffer, type: AudioType): boolean {
+  const read = bufferReader(data)
+  if (type === "audio/wav") return wavInfo(read, data.length) !== null
+  return firstMp3Frame(read, data.length) !== null
+}
+
+/** Only ever shown back to the user; the file on disk is always sound-N.ext.
+    The Control Center sends it URI-encoded, since a header is ASCII. Letters
+    and numbers of any script stay; NFC keeps a Mac's decomposed accents whole. */
+export function safeName(value: unknown): string {
+  let text = String(value ?? "")
+  try { text = decodeURIComponent(text) } catch { /* sent as is */ }
+  return Array.from(text.normalize("NFC").replace(/[^\p{L}\p{M}\p{N}_ .()[\]-]/gu, "")).slice(0, 80).join("")
 }
 
 export type SoundStore = ReturnType<typeof createSoundStore>
@@ -131,61 +270,6 @@ export function createSoundStore(dir: string) {
     for (let slot = 1; slot <= LIMITS.soundSlots; slot++) {
       if (custom.has(slot)) continue
       if (!fs.existsSync(path.join(dir, `sound-${slot}.wav`))) writeTone(slot)
-    }
-  }
-
-  /** A WAV's length from its header: data bytes over the byte rate. Chunks are
-      walked rather than assumed at fixed offsets, since editors add LIST chunks. */
-  function wavDurationMs(file: string): number | null {
-    let handle: number | null = null
-    try {
-      handle = fs.openSync(file, "r")
-      const size = fs.fstatSync(handle).size
-      const head = Buffer.alloc(Math.min(size, 64 * 1024))
-      fs.readSync(handle, head, 0, head.length, 0)
-      if (head.length < 12 || head.toString("ascii", 0, 4) !== "RIFF" || head.toString("ascii", 8, 12) !== "WAVE") return null
-      let byteRate = 0
-      let offset = 12
-      while (offset + 8 <= head.length) {
-        const id = head.toString("ascii", offset, offset + 4)
-        const length = head.readUInt32LE(offset + 4)
-        if (id === "fmt " && offset + 16 <= head.length) byteRate = head.readUInt32LE(offset + 16)
-        if (id === "data") {
-          // A streaming writer may leave the size blank; the file's tail is the data then.
-          const dataBytes = length && length !== 0xffffffff ? length : size - offset - 8
-          return byteRate > 0 ? Math.round((dataBytes / byteRate) * 1000) : null
-        }
-        offset += 8 + length + (length % 2)
-      }
-      return null
-    } catch {
-      return null
-    } finally {
-      if (handle !== null) fs.closeSync(handle)
-    }
-  }
-
-  /** An MP3's length from its first frame: a Xing/Info header gives the
-      frame count (VBR), otherwise the bitrate is taken as constant. Layer III
-      only, which is what an .mp3 is; anything odd returns null. */
-  function mp3DurationMs(file: string): number | null {
-    try {
-      const size = fs.statSync(file).size
-      const handle = fs.openSync(file, "r")
-      const head = Buffer.alloc(Math.min(size, 64 * 1024))
-      try { fs.readSync(handle, head, 0, head.length, 0) } finally { fs.closeSync(handle) }
-      let offset = 0
-      // An ID3v2 tag sits in front: its size is a 28-bit "syncsafe" number.
-      if (head.toString("ascii", 0, 3) === "ID3" && head.length >= 10) {
-        offset = 10 + ((head[6]! & 0x7f) << 21 | (head[7]! & 0x7f) << 14 | (head[8]! & 0x7f) << 7 | (head[9]! & 0x7f))
-      }
-      const parsed = mp3Frame(head, offset)
-      if (!parsed) return null
-      const xing = parsed.xingFrames
-      if (xing) return Math.round((xing * parsed.samplesPerFrame / parsed.sampleRate) * 1000)
-      return Math.round(((size - offset) * 8 / parsed.bitrate) * 1000)
-    } catch {
-      return null
     }
   }
 
@@ -250,5 +334,8 @@ export function createSoundStore(dir: string) {
     return true
   }
 
-  return { ensureDefaults, slots, file, saveUpload, revert, durationMs, setDuration }
+  /** Whether a slot holds an uploaded file rather than its built-in tone. */
+  const isCustom = (slot: number): boolean => entry(slot) !== null
+
+  return { ensureDefaults, slots, file, isCustom, saveUpload, revert, durationMs, setDuration }
 }
