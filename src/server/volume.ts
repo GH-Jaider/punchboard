@@ -31,9 +31,40 @@ async function readSystem(): Promise<number> {
   throw new Error("The computer's volume can be controlled on macOS and Windows only.")
 }
 
+/** Runs one write at a time; while one is in flight only the newest level
+    waits, and goes next. A drag posts every ~90 ms and each write takes about
+    as long, so writes run side by side would finish in any order and could
+    leave an older level set. Callers that arrive meanwhile share the write in
+    flight. Exposed for tests. */
+export function latestWins(write: (level: number) => Promise<number>): (level: number) => Promise<number> {
+  let inFlight: Promise<number> | null = null
+  let next: number | null = null
+  const run = (level: number): Promise<number> => {
+    if (inFlight) {
+      next = level
+      return inFlight
+    }
+    inFlight = write(level).finally(() => {
+      inFlight = null
+      if (next !== null) {
+        const queued = next
+        next = null
+        run(queued).catch(() => { /* reported by the next caller */ })
+      }
+    })
+    return inFlight
+  }
+  return run
+}
+
+const writeMacVolume = latestWins(async (level) => {
+  await osascript(`set volume output volume ${Math.round(level * 100)}`)
+  return level
+})
+
 async function writeSystem(level: number): Promise<number> {
   if (process.platform === "darwin") {
-    await osascript(`set volume output volume ${Math.round(level * 100)}`)
+    await writeMacVolume(level)
     return level
   }
   if (process.platform === "win32") return writeWindowsVolume(level)
