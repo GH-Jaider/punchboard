@@ -329,6 +329,50 @@ function scenarios() {
   events = d.take()
   check("The finger left behind after a scroll moves the cursor, without clicking", leftClicks(events) === 0 && count(events, (e) => e.type === "move") > 0 && summarize(events)[0] === "scroll", JSON.stringify(summarize(events)))
 
+  // A gesture that has moved is never a tap after it: a third finger brushing
+  // the glass mid-scroll used to be a three-finger tap (Look Up, Win+S).
+  d = device()
+  pair = [c(1, 100, 300), c(2, 160, 300)]
+  d.frame(0, pair)
+  pair = d.slide(pair, 0, -60, 6)
+  check("Two fingers scrolling are held, not tapping", d.pad.state().tap === "touch2_hold" && d.pad.state().gesture === "scroll", JSON.stringify(d.pad.state()))
+  d.frame(d.time() + 16, pair.concat([c(3, 300, 320)]))
+  check("A third finger landing on a scroll joins the hold: no tap is armed", d.pad.state().tap === "touch3_hold", d.pad.state().tap)
+  d.frame(d.time() + 40, pair)
+  pair = d.slide(pair, 0, -60, 6)
+  d.frame(d.time() + 16, []).wait(800)
+  events = d.take()
+  check("A brief third touch mid-scroll is no three-finger tap", count(events, (e) => e.type === "tap") === 0 && count(events, (e) => e.type === "button") === 0, JSON.stringify(summarize(events)))
+  d.frame(2000, pair)
+  pair = d.slide(pair, 0, -60, 6)
+  d.frame(d.time() + 16, pair.concat([c(3, 300, 320)])).frame(d.time() + 40, pair).frame(d.time() + 20, []).wait(800)
+  events = d.take()
+  check("…nor when all three lift together right after", count(events, (e) => e.type === "tap") === 0 && count(events, (e) => e.type === "button") === 0, JSON.stringify(summarize(events)))
+
+  d = device()
+  d.frame(0, [c(1, 150, 300), c(2, 250, 300)])
+  for (let i = 1; i <= 10; i += 1) d.frame(i * 16, [c(1, 150 - i * 8, 300), c(2, 250 + i * 8, 300)])
+  d.frame(176, [c(1, 70, 300), c(2, 330, 300), c(3, 200, 450)]).frame(220, [c(1, 70, 300), c(2, 330, 300)]).frame(240, []).wait(800)
+  events = d.take()
+  check("A brief third touch mid-pinch is no three-finger tap", count(events, (e) => e.type === "tap") === 0 && summarize(events)[0] === "pinch", JSON.stringify(summarize(events)))
+
+  // The gesture machine's veto: after a scroll, a finger put back down is part
+  // of it, so two fingers then lifting quickly are no right click.
+  d = device()
+  pair = [c(1, 100, 300), c(2, 160, 300)]
+  d.frame(0, pair)
+  pair = d.slide(pair, 0, -60, 6)
+  d.frame(d.time() + 16, [pair[0]]).wait(TUNING.debounceMs + 40)
+  d.frame(d.time(), [pair[0], c(3, 220, 200)])
+  check("A finger put back on a scroll lands as already moved", d.pad.state().tap === "touch2_hold", d.pad.state().tap)
+  d.frame(d.time() + 50, [pair[0]]).frame(d.time() + 20, []).wait(800)
+  events = d.take()
+  check("Scroll, one finger off and back, both up quickly: no right click", count(events, (e) => e.type === "button") === 0, JSON.stringify(summarize(events)))
+  d.frame(4000, [c(1, 100, 300), c(2, 160, 300)]).frame(4060, []).wait(800)
+  check("The next two-finger tap after that is a right click again", same(d.summary(), ["click right"]), "")
+  d.frame(6000, [c(1, 100, 300), c(2, 150, 300), c(3, 200, 300)]).frame(6060, []).wait(800)
+  check("…and a three-finger tap is still one", same(d.summary(), ["tap 3"]), "")
+
   const script = (dev) => {
     dev.frame(0, [c(1, 100, 100)]).frame(60, []).frame(90, [c(2, 100, 100)])
     dev.slide([c(2, 100, 100)], 50, 20)
@@ -421,7 +465,7 @@ function randomScript(random) {
     }
   }
 
-  const kinds = ["tap", "bounceTap", "doubleTap", "tapDrag", "twoTap", "threeTap", "scroll", "pinch", "swipe", "four", "hold", "garbage", "pause"]
+  const kinds = ["tap", "bounceTap", "doubleTap", "tapDrag", "twoTap", "threeTap", "scroll", "brushedScroll", "pinch", "swipe", "four", "hold", "garbage", "pause"]
   const gestures = int(1, 6)
   for (let g = 0; g < gestures; g += 1) {
     const kind = pick(kinds)
@@ -457,6 +501,24 @@ function randomScript(random) {
         f = moveAll(f, () => dx, () => dy, int(2, 30), gesture)
         if (random() < 0.3) now += int(100, 400)
         lift(f, gesture)
+        break
+      }
+      case "brushedScroll": {
+        // A scroll that a third finger touches briefly on the way.
+        let f = stagger(landed(2), gesture)
+        const dx = jitter(300)
+        const dy = random() < 0.5 ? 150 : -150
+        f = moveAll(f, () => dx / 2, () => dy / 2, int(4, 15), gesture)
+        const brush = finger(f[0].x + jitter(200), f[0].y + 120)
+        push(f.concat([brush]), gesture)
+        now += int(10, TUNING.tapMs - 40)
+        if (random() < 0.5) {
+          push(f, gesture)
+          f = moveAll(f, () => dx / 2, () => dy / 2, int(2, 15), gesture)
+          lift(f, gesture)
+        } else {
+          lift(f.concat([brush]), gesture)
+        }
         break
       }
       case "pinch": {
@@ -597,6 +659,17 @@ function fuzzOne(seed) {
     byGesture.set(frame.gesture, list)
   }
   for (const [gesture, list] of byGesture) {
+    if (gesture.kind === "brushedScroll") {
+      // A gesture that moved is never a tap after it, whatever joins it. A
+      // click or tap from just before would arrive within it, so only one
+      // that stands alone is judged.
+      const first = list[0].time
+      const before = frames.filter((f) => f.gesture !== gesture && f.time < first).map((f) => f.time)
+      if (before.length && first - Math.max(...before) <= 800) continue
+      const own = events.filter((e) => e.gesture === gesture).map((e) => e.event)
+      if (own.some((e) => e.type === "tap" || (e.type === "button" && e.state === "down"))) fail(`a scroll brushed by a third finger tapped: ${JSON.stringify(summarize(own))}`)
+      continue
+    }
     if (gesture.kind !== "tap" && gesture.kind !== "bounceTap") continue
     const first = list[0].time
     const last = list[list.length - 1].time

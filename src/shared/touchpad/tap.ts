@@ -23,7 +23,9 @@
 //
 // Moving past the threshold or waiting out the tap time turns a touchN
 // state into touchN_hold, and lifts walk the holds back down until idle;
-// a fourth finger is "dead": nothing here until all are up. Bounces are
+// a finger joining two held ones holds too (touch3_hold), so a brief third
+// touch during a scroll is not a three-finger tap; a fourth finger is
+// "dead": nothing here until all are up. Bounces are
 // filtered out before they get here (engine.ts).
 //
 // Where this differs from libinput, on purpose: a finger that lifts out of
@@ -32,7 +34,9 @@
 // rather than a drag (a device screen is tapped and then scrolled far more
 // often than dragged with two fingers); a double tap is over when the
 // second finger lifts, with nothing held for a third; the middle button is
-// a "tap" event instead, and there is no drag lock.
+// a "tap" event instead, there is no drag lock, and a finger landing on
+// two held fingers does not start a three-finger tap (libinput's
+// TOUCH_2_HOLD goes to TOUCH_3).
 import type { Button, TapState, TouchpadEvent } from "./types.ts"
 import { TUNING } from "./tuning.ts"
 
@@ -124,7 +128,9 @@ export function createTapMachine(): TapMachine {
 
   function touch2Hold(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("touch3", time, TAP)
+      // Two fingers that are already scrolling or pinching are no tap, and a
+      // third one brushing the glass does not make them one: it joins the hold.
+      case "touch": return go("touch3_hold", time, null)
       case "release": return go("hold", time, null)
       case "motion":
       case "timeout": return
