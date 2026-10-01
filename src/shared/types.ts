@@ -160,6 +160,9 @@ export type PinchZoom = "gesture" | "keys"
 export interface Profile {
   id: string
   name: string
+  /** Kept in the Control Center but not offered on devices: no tab, though a
+      "Go to another deck" button still opens it (a folder). */
+  hidden?: boolean
   /** Present on a trackpad deck. Its buttons, if any, are kept for switching back. */
   trackpad?: TrackpadSettings
   /** 2..8 */

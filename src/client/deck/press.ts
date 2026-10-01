@@ -81,5 +81,5 @@ function goToDeck(profileId: string | null): void {
     toast("Choose which deck this button opens, in the Control Center.")
     return
   }
-  if (!showDeck(profileId)) toast("That deck no longer exists.", true)
+  if (!showDeck(profileId, true)) toast("That deck no longer exists.", true)
 }

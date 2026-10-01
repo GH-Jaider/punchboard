@@ -1,6 +1,6 @@
 // The Control Center: builds decks on this computer and serves as its sound
 // output. This file wires the modules together and loads the first state.
-import type { SettingsResponse } from "../../shared/api.ts"
+import type { Ok, SettingsResponse } from "../../shared/api.ts"
 import { byId } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { bindAppearance, setTheme, showAccent } from "./appearance.ts"
@@ -59,6 +59,13 @@ async function start(): Promise<void> {
     store.activeId = library.activeProfileId
 
     byId("app-version").textContent = settings.version === "dev" ? "dev" : `v${settings.version}`
+    // The desktop app's window opens no tabs: the deck opens in the computer's browser.
+    if (settings.desktop) {
+      byId("open-deck").addEventListener("click", (event) => {
+        event.preventDefault()
+        request<Ok>("/api/open-deck", { method: "POST" }).catch((error: unknown) => toast(errorMessage(error), true))
+      })
+    }
     showAccent(settings.accent)
     setTheme(settings.theme)
     showObsSettings(settings)

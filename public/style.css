@@ -392,6 +392,8 @@ select {
 .profile-row:hover { background: var(--surface-2); }
 .profile-row.active { border-color: var(--accent-line); background: var(--accent-soft); }
 .profile-row.active strong { color: var(--accent-text); font-weight: var(--w-bold); }
+/* A deck switched off on devices: still here, plainly set aside. */
+.profile-row.is-hidden strong, .profile-row.is-hidden small { opacity: 0.55; }
 
 /* The custom colour swatch: a colour wheel, opening the system picker. */
 .swatch-custom {

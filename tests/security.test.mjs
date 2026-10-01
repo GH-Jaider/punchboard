@@ -51,6 +51,8 @@ async function main() {
   check("Tablet cannot overwrite the library", r.status === 403, r.status)
   r = await remote({ method: "PUT", path: "/api/settings", headers: JSON_TYPE, body: '{"obsPassword":"x"}' })
   check("Tablet cannot change settings / OBS password", r.status === 403, r.status)
+  r = await remote({ method: "POST", path: "/api/open-deck", headers: JSON_TYPE, body: "{}" })
+  check("A device cannot open windows on this computer", r.status === 403, r.status)
   r = await remote({ path: "/api/pair" })
   check("Tablet cannot read the pairing code", r.status === 403, r.status)
 

@@ -14,12 +14,13 @@ export function renderProfiles(): void {
   list.innerHTML = ""
   for (const profile of library().profiles) {
     const active = profile.id === store.activeId
-    const row = el("button", `profile-row${active ? " active" : ""}`)
+    const row = el("button", `profile-row${active ? " active" : ""}${profile.hidden ? " is-hidden" : ""}`)
     row.type = "button"
     row.setAttribute("aria-pressed", String(active))
     row.appendChild(el("strong", null, profile.name))
     const count = profile.buttons.length
-    row.appendChild(el("small", null, profile.trackpad ? "Trackpad" : `${count}${count === 1 ? " button · " : " buttons · "}${profile.columns}×${profile.rows}`))
+    const detail = profile.trackpad ? "Trackpad" : `${count}${count === 1 ? " button · " : " buttons · "}${profile.columns}×${profile.rows}`
+    row.appendChild(el("small", null, profile.hidden ? `Hidden · ${detail}` : detail))
     row.onclick = () => {
       store.activeId = profile.id
       store.selectedSlot = null

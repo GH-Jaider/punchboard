@@ -217,6 +217,8 @@ export interface SettingsResponse {
   platform: string
   /** Punchboard's version, as the desktop app or package.json gives it. */
   version: string
+  /** Running inside the desktop app, whose window cannot open new tabs. */
+  desktop: boolean
 }
 
 export interface SettingsUpdate {

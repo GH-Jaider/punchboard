@@ -139,8 +139,12 @@ function normalizeProfile(raw: unknown): Profile {
   const updatedAt = text(fields.updatedAt)
   if (updatedAt) profile.updatedAt = updatedAt
   if (isRecord(fields.trackpad)) profile.trackpad = normalizeTrackpad(fields.trackpad)
+  if (fields.hidden === true) profile.hidden = true
   return profile
 }
+
+/** The decks devices offer as tabs: every deck not switched off. */
+export const shownProfiles = (library: Library): Profile[] => library.profiles.filter((profile) => !profile.hidden)
 
 export const TRACKPAD_SPEED = { min: 0.5, max: 3 } as const
 export const DEFAULT_TRACKPAD: TrackpadSettings = { speed: 1.5, naturalScroll: true, pinchZoom: "gesture" }

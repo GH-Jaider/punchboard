@@ -4,7 +4,7 @@
 import { stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
-import { isStateful, isSwitch, soundSlotOf } from "../../shared/model.ts"
+import { isStateful, isSwitch, shownProfiles, soundSlotOf } from "../../shared/model.ts"
 import type { Button, PressButton } from "../../shared/types.ts"
 import { applyTileColor, byId, el } from "../common/dom.ts"
 import { faderMarkup, syncFaders } from "./faders.ts"
@@ -23,9 +23,11 @@ const profilesEl = byId("profiles")
 export function renderProfiles(): void {
   const library = state.library
   profilesEl.innerHTML = ""
-  // One profile is not a choice, so the row stays out of the way.
-  if (!library || library.profiles.length < 2) return
-  for (const profile of library.profiles) {
+  // One deck is not a choice, so the row stays out of the way. Hidden decks
+  // get no tab; a button can still open them.
+  const shown = library ? shownProfiles(library) : []
+  if (shown.length < 2) return
+  for (const profile of shown) {
     const tab = el("button", profile.id === state.activeId ? "active" : "", profile.name)
     tab.type = "button"
     tab.setAttribute("aria-pressed", String(profile.id === state.activeId))
@@ -34,10 +36,15 @@ export function renderProfiles(): void {
   }
 }
 
+/** The hidden deck a "Go to another deck" button opened, kept through reloads. */
+let viaButton: string | null = null
+export const openedByButton = (profileId: string): boolean => viaButton === profileId
+
 /** Shows one of the decks; false when there is no such deck. */
-export function showDeck(profileId: string): boolean {
+export function showDeck(profileId: string, byButton = false): boolean {
   const library = state.library
   if (!library || !library.profiles.some((profile) => profile.id === profileId)) return false
+  viaButton = byButton ? profileId : null
   state.activeId = profileId
   renderProfiles()
   renderGrid()

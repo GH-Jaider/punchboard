@@ -2,12 +2,12 @@
 // pushed over a signed EventSource (or polled where there is none).
 import type { LibraryResponse, MetersEvent, Snapshot, StatusResponse } from "../../shared/api.ts"
 import { nameDecksWith } from "../../shared/actions.ts"
-import { isStateful, normalizeLibrary } from "../../shared/model.ts"
+import { isStateful, normalizeLibrary, shownProfiles } from "../../shared/model.ts"
 import type { Button } from "../../shared/types.ts"
 import { applyAccent, applyTheme } from "../common/dom.ts"
 import { api, eventsUrl, UnpairedError } from "./api.ts"
 import { levelFor, showLevel, syncFaders } from "./faders.ts"
-import { gridEl, renderGrid, renderProfiles } from "./grid.ts"
+import { gridEl, openedByButton, renderGrid, renderProfiles } from "./grid.ts"
 import { applyMeters, updatePlayback } from "./indicators.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
@@ -18,7 +18,12 @@ export async function loadLibrary(): Promise<void> {
   const library = normalizeLibrary(next)
   state.library = library
   nameDecksWith((id) => library.profiles.find((profile) => profile.id === id)?.name)
-  if (!library.profiles.some((profile) => profile.id === state.activeId)) state.activeId = library.activeProfileId
+  // A deck that is gone, or that is no longer offered here, gives way to one that is.
+  const current = library.profiles.find((profile) => profile.id === state.activeId)
+  if (!current || (current.hidden && !openedByButton(current.id))) {
+    const first = shownProfiles(library).find((profile) => profile.id === library.activeProfileId) ?? shownProfiles(library)[0]
+    state.activeId = first ? first.id : library.activeProfileId
+  }
   renderProfiles()
   renderGrid()
   syncFaders()

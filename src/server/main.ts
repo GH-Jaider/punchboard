@@ -59,6 +59,8 @@ import { appVersion, DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
 
 const PUBLIC_DIR = paths.public
 const VERSION = appVersion()
+/** Run by the desktop app (Tauri) rather than from a terminal. */
+const DESKTOP = process.env.PUNCHBOARD_DESKTOP === "1"
 // Libraries carry custom icons as data URIs, so they can be large.
 const LIBRARY_LIMIT = 24 * 1024 * 1024
 // Thirty seconds of fingers at 120 Hz, with what the engine made of them.
@@ -365,7 +367,8 @@ const routes: Route[] = [
     obsConfigured: Boolean(config.obs.password),
     obsSource: config.obs.source,
     platform: process.platform,
-    version: VERSION
+    version: VERSION,
+    desktop: DESKTOP
   })),
   route<SettingsSaved>("PUT", "/api/settings", "local", async ({ req }) => {
     const data = await jsonBody(req)
@@ -468,6 +471,17 @@ const routes: Route[] = [
   }),
 
   route<AppsResponse>("GET", "/api/apps", "local", () => ({ apps: listApps() })),
+
+  // The desktop app's window opens no new tabs: Open deck asks for the deck in
+  // this computer's own browser instead.
+  route<Ok>("POST", "/api/open-deck", "local", async () => {
+    try {
+      await open(`http://localhost:${PORT}/deck`)
+    } catch (error) {
+      throw new HttpError(500, `Could not open the browser. (${errorText(error)})`)
+    }
+    return { ok: true }
+  }),
 
   // Scene, source, input and filter names for the Control Center's pickers.
   route<ObsNames>("GET", "/api/obs/names", "local", async () => {
@@ -642,7 +656,6 @@ function openControlCenter(port: number): void {
 
 // The desktop app runs the companion as a child process: it reads the port
 // from this line and asks for a clean exit by writing "quit" to stdin.
-const DESKTOP = process.env.PUNCHBOARD_DESKTOP === "1"
 function desktopReady(port: number): void {
   if (DESKTOP) console.log(`PUNCHBOARD_READY ${port}`)
 }

@@ -1,7 +1,7 @@
 // The deck's live state, shared by its modules. Plain module-level values:
 // the deck is one page with one of everything.
 import type { SoundPlayback } from "../../shared/api.ts"
-import { buttonStateKey } from "../../shared/model.ts"
+import { buttonStateKey, shownProfiles } from "../../shared/model.ts"
 import type { Button, Library, Profile } from "../../shared/types.ts"
 
 export const state = {
@@ -25,7 +25,8 @@ export const state = {
 export function activeProfile(): Profile | null {
   const library = state.library
   if (!library) return null
-  return library.profiles.find((profile) => profile.id === state.activeId) ?? library.profiles[0] ?? null
+  // A hidden deck can still be the one showing: a "Go to another deck" button opened it.
+  return library.profiles.find((profile) => profile.id === state.activeId) ?? shownProfiles(library)[0] ?? null
 }
 
 /** The live state a button shows, or a key of its own for buttons without one. */
