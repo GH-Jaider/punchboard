@@ -36,6 +36,7 @@ import { listApps } from "./apps.ts"
 import { createObsLink } from "./obs.ts"
 import { createObsState, readObsNames } from "./obs-state.ts"
 import { stopWindowsVolume } from "./win-volume.ts"
+import { stopWindowsKeys } from "./keys.ts"
 import { createPointer } from "./pointer.ts"
 import { WebSocketServer } from "ws"
 import type { WebSocket } from "ws"
@@ -674,6 +675,7 @@ if (DESKTOP) {
 function shutdown(): void {
   player.dispose()
   stopWindowsVolume()
+  stopWindowsKeys()
   pointer.dispose()
   obs.stop()
   auth.flush()
