@@ -316,6 +316,19 @@ select {
 .save-chip.is-saving .dot { background: var(--warn); animation: pulse 1s var(--ease) infinite; }
 .save-chip.is-error { background: var(--danger-soft); color: var(--danger); }
 .save-chip.is-error .dot { background: var(--danger); }
+/* "Not saved · Retry": saves are retried by themselves, this tries now. */
+.save-retry[hidden] { display: none; }
+.save-retry {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.save-retry::before { margin-right: var(--s-2); content: "·"; text-decoration: none; display: inline-block; }
 
 @keyframes pulse { 50% { opacity: 0.35; } }
 
@@ -778,6 +791,10 @@ select {
   line-height: 16px;
   text-transform: uppercase;
 }
+/* Small tiles in the Control Center (layoutStage sets the size): a smaller
+   badge tucked into the corner, and none at all on the smallest. */
+.design-grid[data-size="compact"] .tile .step-count { top: 3px; right: 3px; padding: 0 3px; font-size: 8px; letter-spacing: 0; line-height: 12px; }
+.design-grid[data-size="tiny"] .tile .step-count { display: none; }
 
 .add-slot {
   display: grid;
@@ -829,7 +846,10 @@ select {
 .notice .notice-icon { flex: none; color: var(--warn); }
 .notice .notice-icon svg { width: 18px; height: 18px; }
 .notice strong { display: block; margin-bottom: 2px; }
-.notice .notice-actions { display: flex; gap: var(--s-2); margin-top: var(--s-2); }
+/* The text column may shrink below its buttons' width; they wrap instead. */
+.notice > div { min-width: 0; }
+.notice .notice-actions { display: flex; flex-wrap: wrap; gap: var(--s-2); margin-top: var(--s-2); }
+.notice .notice-actions .btn { flex: 0 1 auto; min-width: 0; max-width: 100%; white-space: normal; }
 
 /* ------------------------------------------------------------- inspector */
 
@@ -1859,12 +1879,32 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   .inspector .panel-head { position: static; }
   .pair-shell, .pair-grid { grid-template-columns: minmax(0, 1fr); }
   .pair-qr { justify-self: center; }
+  /* The column no longer has a height to share out, so the stage would
+     collapse to its padding. layoutStage() gives it the frame's height. */
+  .canvas-col { gap: var(--s-3); }
+  .stage { flex: none; min-height: 256px; }
 }
 
 @media (max-width: 560px) {
   .appbar { min-height: 48px; padding: var(--s-2) var(--s-3); }
   .appbar .hide-sm { display: none; }
+  .designer-page .appbar { flex-wrap: wrap; row-gap: var(--s-2); }
+  .designer-page .app-version { display: none; }
+  /* The bar wraps rather than pushing the page sideways: the devices and
+     Open deck buttons drop to a second row when they do not fit. */
+  .designer-page .appbar-actions { margin-left: auto; }
+  .save-chip { min-width: 0; }
+  #save-text { overflow: hidden; text-overflow: ellipsis; }
+  .canvas-col { padding: var(--s-4) var(--s-3) var(--s-6); }
+  .canvas-head h1 { font-size: 22px; }
   .inspector-body { padding: var(--s-3); }
+  /* Dialogs keep inside a phone's screen, scrolling within themselves. */
+  dialog, dialog.wide { width: calc(100vw - 16px); max-width: calc(100vw - 16px); max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); }
+  .dialog-head, .dialog-body { padding: var(--s-3); }
+  .dialog-foot { flex-wrap: wrap; padding: var(--s-3); }
+  .obs-fields { grid-template-columns: minmax(0, 1fr); }
+  .google-options { flex-wrap: wrap; }
+  .app-path-row { flex-wrap: wrap; }
 }
 
 /* Short-and-wide: a phone on its side. The bar shrinks but nothing is
