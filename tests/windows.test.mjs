@@ -1,13 +1,19 @@
 // Windows-only pieces, on Windows only (CI runs them there): the sound player
-// takes a new volume while it plays and never hangs, and the app launcher's
-// script runs. Elsewhere it reports itself skipped. Nothing is heard on CI.
+// takes a new volume while it plays and never hangs; the key script compiles
+// and builds the right scan codes (dry: nothing is pressed); the app
+// launcher decides right for real shortcuts (dry: nothing is started) and
+// reports a missing one in plain words. Elsewhere it reports itself skipped.
+// Nothing is heard on CI.
 //   node tests/windows.test.mjs
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
-import { windowsLaunchScript } from "../src/server/launch.ts"
+import { SCAN_KEYS_TYPE, WIN_MODIFIER_SCAN_CODES, WIN_SCAN_CODES, stopWindowsKeys, windowsInputs, windowsKeyLine, windowsKeyRequest } from "../src/server/keys.ts"
+import { launchApp, windowsLaunchScript } from "../src/server/launch.ts"
 import { playCommand } from "../src/server/player.ts"
+import { cleanPowerShellError, powershellArgs, powershellPath, psQuote, runPowerShell } from "../src/server/powershell.ts"
+import { KEY_NAMES, parseCombo } from "../src/shared/keys.ts"
 import { checker } from "./companion.mjs"
 
 const { check, tally } = checker()
@@ -75,15 +81,100 @@ if (length === 60000 || !length) {
   check("Volume changes while playing do not hold the sound past its end", took < length + 3000, `${took} ms for a ${length} ms sound`)
 }
 
-// The app launcher: a shortcut that is not there is reported, not a script error.
-const launcher = await new Promise((resolve) => {
-  const encoded = Buffer.from(windowsLaunchScript("C:\\nowhere\\Missing app.lnk"), "utf16le").toString("base64")
-  const ps = spawn("powershell", ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-EncodedCommand", encoded], { windowsHide: true })
+/** Runs a script through Punchboard's own runner; the error's message on failure. */
+const attempt = (script) => runPowerShell(script, 90000).then((out) => ({ out: out.trim(), error: "" }), (error) => ({ out: "", error: error.message }))
+const plain = (text) => !/CLIXML|<Objs|<S S=|At line:\d|CategoryInfo|FullyQualifiedErrorId/.test(text)
+
+check("PowerShell is found at its full path", /\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i.test(powershellPath()), powershellPath())
+
+// Errors come back as a sentence: from the runner's own catch, and from
+// PowerShell's CLIXML when something escapes it.
+const thrown = await attempt(`throw ${psQuote("Bob’s ‘test’ failure")}`)
+check("A failing script's error is its plain message", thrown.error === "Bob’s ‘test’ failure", thrown.error)
+const raw = await new Promise((resolve) => {
+  const ps = spawn(powershellPath(), powershellArgs(`Write-Error ${psQuote("boom from Write-Error")}; exit 3`), { windowsHide: true })
   let text = ""
   ps.stderr.on("data", (chunk) => { text += chunk })
-  ps.on("exit", (exitCode) => resolve({ exitCode, text }))
+  ps.on("exit", () => resolve(text))
 })
-check("The app launcher's script parses and reports a missing app", !/ParserError|unexpected token|Missing closing/i.test(launcher.text) && /cannot|find|not/i.test(launcher.text), launcher.text.trim().slice(0, 300))
+const rawClean = cleanPowerShellError(raw)
+check("CLIXML on stderr is decoded to the message", /boom from Write-Error/.test(rawClean) && plain(rawClean), `${rawClean} <- ${raw.slice(0, 300)}`)
+
+// ------------------------------------------------------------------ keys
+// Dry runs through the real helper: the C# compiles and the events are built
+// exactly as planned, but nothing is sent, so no key is pressed on the CI
+// machine. The helper answers several commands in a row and one it does not
+// know without stopping.
+const ask = (line) => windowsKeyRequest(line, 60000).then((out) => ({ out, error: "" }), (error) => ({ out: "", error: error.message }))
+for (const text of ["a", "ctrl+equal", "ctrl+shift+bracketleft", "meta+left", "ctrl+alt+shift+meta+f24", "alt+f17", "shift+delete"]) {
+  const combo = parseCombo(text)
+  const inputs = windowsInputs(combo)
+  const result = await ask(windowsKeyLine(combo, true))
+  const match = /^(\d+) (\d+) ([\d,]+) ([\d,]+)$/.exec(result.out)
+  const size = process.arch === "ia32" ? 28 : 40
+  check(`The key helper builds ${text} without sending it`,
+    match && Number(match[1]) === inputs.length && Number(match[2]) === size &&
+    match[3] === inputs.map((input) => input.scan).join(",") && match[4] === inputs.map((input) => input.flags).join(","),
+    result.error || result.out)
+}
+const unknown = await ask("bogus 1 2 3")
+check("The key helper answers an unknown command with an error and keeps going", /does not know/.test(unknown.error) && !(await ask(windowsKeyLine(parseCombo("ctrl+a"), true))).error, unknown.error || unknown.out)
+const malformed = await ask("dry 1 30,x 8,10")
+check("A malformed number is an error, not a crash", malformed.error !== "" && !/stopped/.test(malformed.error), malformed.error)
+stopWindowsKeys()
+
+// Each scan code is the key it is named after: Windows' US layout (which
+// KeyboardEvent.code names keys by) maps it to that key's virtual key.
+const VK = {
+  enter: 0x0d, space: 0x20, tab: 0x09, escape: 0x1b, backspace: 0x08, delete: 0x2e,
+  up: 0x26, down: 0x28, left: 0x25, right: 0x27, home: 0x24, end: 0x23, pageup: 0x21, pagedown: 0x22,
+  minus: 0xbd, equal: 0xbb, comma: 0xbc, period: 0xbe, slash: 0xbf, backquote: 0xc0,
+  bracketleft: 0xdb, backslash: 0xdc, bracketright: 0xdd, quote: 0xde, semicolon: 0xba
+}
+const vkOf = (name) => VK[name] ?? (/^[a-z0-9]$/.test(name) ? name.toUpperCase().charCodeAt(0) : 0x6f + Number(name.slice(1)))
+const named = KEY_NAMES.map((name) => ({ name, code: WIN_SCAN_CODES[name], vk: vkOf(name) }))
+  .concat([["ctrl", 0xa2], ["alt", 0xa4], ["shift", 0xa0], ["meta", 0x5b]].map(([name, vk]) => ({ name, code: WIN_MODIFIER_SCAN_CODES[name], vk })))
+const mapped = await attempt([
+  `Add-Type -IgnoreWarnings -TypeDefinition ${psQuote(SCAN_KEYS_TYPE)}`,
+  `Add-Type -Name Layout -Namespace PunchboardTest -MemberDefinition ${psQuote("[DllImport(\"user32.dll\")] public static extern System.IntPtr LoadKeyboardLayout(string id, uint flags); [DllImport(\"user32.dll\")] public static extern uint MapVirtualKeyEx(uint code, uint mapType, System.IntPtr layout);")}`,
+  "$us = [PunchboardTest.Layout]::LoadKeyboardLayout('00000409', 0)",
+  // MAPVK_VSC_TO_VK_EX (3) reads an E0 prefix in the high byte.
+  `foreach ($code in [int[]]@(${named.map((entry) => entry.code).join(",")})) { [PunchboardTest.Layout]::MapVirtualKeyEx($code, 3, $us) }`
+].join("\n"))
+const vks = mapped.out.split(/\s+/).map(Number)
+const wrong = named.filter((entry, i) => vks[i] !== entry.vk).map((entry) => `${entry.name}: 0x${entry.code.toString(16)} is VK 0x${(vks[named.indexOf(entry)] ?? 0).toString(16)}, not 0x${entry.vk.toString(16)}`)
+check("Every key's scan code is that physical key (US layout), modifiers the left-hand ones", !mapped.error && vks.length === named.length && wrong.length === 0, mapped.error || wrong.join("; "))
+
+// ------------------------------------------------------------ the launcher
+// Dry runs on real shortcuts, curly quotes in their names, then one real run
+// on a shortcut that is not there. No app is started.
+const apps = path.join(dir, "Start Menu ‘test’")
+fs.mkdirSync(path.join(apps, "Squirrel"), { recursive: true })
+const tool = path.join(process.env.SystemRoot || "C:\\Windows", "System32", "whoami.exe")
+fs.copyFileSync(tool, path.join(apps, "Squirrel", "Update.exe"))
+fs.writeFileSync(path.join(apps, "Dota 2.url"), "[InternetShortcut]\r\nURL=steam://rungameid/570\r\n")
+const shortcuts = [
+  ["Bob’s ‘tool’.lnk", tool, "", "focus whoami idle"],
+  ["Chrome - Work profile.lnk", tool, "--profile-directory=\"Profile 1\"", "start arguments"],
+  ["Console.lnk", path.join(path.dirname(tool), "cmd.exe"), "", "start launcher cmd"],
+  ["Discord.lnk", path.join(apps, "Squirrel", "Update.exe"), "--processStart \"Discord.exe\"", "focus Discord idle"],
+  ["Slack.lnk", path.join(apps, "Squirrel", "Update.exe"), "--processStart slack.exe", "focus slack idle"],
+  ["Teams.lnk", path.join(apps, "Squirrel", "Update.exe"), "--processStart \"Teams.exe\" --process-start-args \"--profile=AAD\"", "start arguments"]
+]
+const made = await attempt([
+  "$shell = New-Object -ComObject WScript.Shell",
+  ...shortcuts.map(([name, target, args]) => `$l = $shell.CreateShortcut(${psQuote(path.join(apps, name))}); $l.TargetPath = ${psQuote(target)}; $l.Arguments = ${psQuote(args)}; $l.Save()`)
+].join("\n"))
+check("Test shortcuts with curly quotes in their names are made", !made.error && shortcuts.every(([name]) => fs.existsSync(path.join(apps, name))), made.error)
+const cases = shortcuts.map(([name, , , want]) => [path.join(apps, name), want])
+  .concat([[path.join(apps, "Dota 2.url"), "start not a program"], [tool, "focus whoami idle"], ["C:\\nowhere\\Bob’s missing app.lnk", "start not a program"]])
+for (const [target, want] of cases) {
+  const result = await attempt(windowsLaunchScript(target, true))
+  check(`The launcher would ${want}: ${path.basename(target)}`, result.out === want, result.error || result.out)
+}
+
+const missing = await launchApp("C:\\nowhere\\Bob’s ‘missing’ app.lnk").then(() => "", (error) => error.message)
+check("A missing app is reported in plain words, not CLIXML", /^Could not open that app\. \(.+\)$/.test(missing) && plain(missing), missing)
 
 fs.rmSync(dir, { recursive: true, force: true })
 console.log(`\n${tally.pass} passed, ${tally.fail} failed`)
