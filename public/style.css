@@ -752,7 +752,11 @@ select {
 }
 .tile .tile-label.is-empty { color: var(--text-subtle); font-weight: var(--w-regular); }
 
-.tile:hover { border-color: var(--tile-line, var(--accent-line)); }
+/* Only where something can hover: on a touchscreen a tapped tile would keep
+   its hover look until the next tap somewhere else. */
+@media (hover: hover) {
+  .tile:hover { border-color: var(--tile-line, var(--accent-line)); }
+}
 .tile.pressed { transform: scale(0.96); }
 
 /* Editing selection in the designer. Deliberately a different language from
@@ -1224,19 +1228,27 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   display: flex;
   flex: none;
   align-items: center;
-  gap: var(--s-2);
   padding: var(--s-2) var(--s-3);
   border-bottom: 1px solid var(--border);
 }
+/* Margins, not gap, all through the deck: flexbox gap needs Safari 14.1 and
+   Chrome 84, and the deck runs on tablets older than both. */
+.deck-bar > * + * { margin-left: var(--s-2); }
+/* A hidden control must stay hidden even where a class sets its display. */
+.deck-page [hidden] { display: none !important; }
 .deck-bar .brand { font-size: var(--fs-xs); }
 .deck-bar .brand-mark { width: 24px; height: 24px; }
 .deck-bar .brand-mark svg { width: 14px; height: 14px; }
 .deck-bar .spacer { flex: 1 1 auto; }
+.deck-page .btn { gap: 0; }
+.deck-page .btn > * + * { margin-left: var(--s-2); }
+/* Haptic feedback on or off, for this device only. */
+.deck-bar .haptics-btn { width: 38px; height: 38px; }
+.deck-bar .haptics-btn[aria-pressed="false"] { color: var(--text-subtle); }
 
 .link-status {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
   color: var(--text-muted);
   font-size: var(--fs-xs);
   font-weight: var(--w-medium);
@@ -1246,6 +1258,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   width: 8px;
   height: 8px;
   flex: none;
+  margin-right: 6px;
   border-radius: 50%;
   background: var(--ok);
 }
@@ -1257,19 +1270,22 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   flex: 1 1 auto;
   min-height: 0;
   flex-direction: column;
-  gap: var(--s-2);
   padding: var(--s-2) var(--s-3) var(--s-3);
 }
+/* The banner and the tab row space themselves from the grid, so a hidden
+   one leaves no gap behind. */
+.deck-main > .offline-banner,
+.deck-main > .deck-profiles { margin-bottom: var(--s-2); }
 
 .deck-profiles {
   display: flex;
   flex: none;
-  gap: var(--s-2);
   overflow-x: auto;
   padding-bottom: 2px;
   -webkit-overflow-scrolling: touch;
 }
 .deck-profiles:empty { display: none; }
+.deck-profiles button + button { margin-left: var(--s-2); }
 .deck-profiles button {
   min-height: 36px;
   flex: none;
@@ -1296,7 +1312,14 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   display: grid;
   flex: 1 1 auto;
   min-height: 0;
+  grid-gap: var(--deck-gap, 10px);
   gap: var(--deck-gap, 10px);
+  /* Room for a lit tile's ring and a focus ring at the edges, which the
+     grid's own overflow would otherwise cut off. Taken back with a negative
+     margin so the tiles stay where they were; scaleTiles() measures inside it. */
+  margin: calc(var(--grid-pad) * -1);
+  padding: var(--grid-pad);
+  --grid-pad: 5px;
   overflow: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -1304,9 +1327,11 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .deck-grid .tile {
   height: 100%;
   min-height: 0;
+  gap: 0;
   border-radius: var(--r-md);
   background: var(--surface-1);
 }
+.deck-grid .tile .tile-label { margin-top: var(--s-2); }
 .deck-grid .tile:active { transform: scale(0.97); }
 /* iPhone haptics: an invisible switch over the whole button, flipped by the
    tap that presses it (haptics.ts). */
@@ -1435,6 +1460,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   background: var(--tile-color, var(--accent));
   color: var(--tile-ink, #08100f);
   box-shadow: 0 0 0 1px var(--tile-color, var(--accent)), 0 6px 20px var(--tile-glow, var(--accent-glow));
+  box-shadow: 0 0 0 2px var(--tile-edge, var(--tile-color, var(--accent))), 0 6px 20px var(--tile-glow, var(--accent-glow));
 }
 .deck-grid .tile.is-on .tile-icon {
   background: rgba(0, 0, 0, 0.16);
@@ -1451,7 +1477,9 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.42);
+  /* In the ink, so it shows on dark and light colours alike. */
+  background: var(--tile-ink, #08100f);
+  opacity: 0.7;
   content: "";
 }
 
@@ -1459,6 +1487,11 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .deck-grid .tile.is-playing::before { -webkit-animation: pulse 1s infinite; animation: pulse 1s infinite; }
 
 .deck-grid .tile.is-busy { opacity: 0.6; }
+
+/* Offline, live state is only what it was last time anyone knew: lit keys
+   fade so they do not claim to be live. */
+.deck-page.is-offline .deck-grid .tile.is-on,
+.deck-page.is-offline .deck-grid .tile.fader { opacity: 0.45; }
 
 /* Sound progress: a bar along the bottom and the time left, drawn only while
    the companion says that slot is playing (deck/indicators.ts). */
@@ -1535,6 +1568,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .tile.fader .tile-label { position: relative; }
 .tile.fader .fader-value {
   position: absolute;
+  z-index: 1;
   top: 7px;
   right: 9px;
   color: var(--text-muted);
@@ -1573,6 +1607,11 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   transition: height 80ms linear;
 }
 .tile.fader.has-meter .fader-value { right: 18px; }
+/* Small tiles: the level readout gets a row of its own above the icon, in a
+   smaller size, instead of sitting on top of it. */
+.deck-grid.is-compact .tile.fader { padding-top: 20px; }
+.deck-grid.is-compact .tile.fader .fader-value { top: 4px; right: 6px; font-size: 10px; }
+.deck-grid.is-compact .tile.fader.has-meter .fader-value { right: 15px; }
 
 .deck-grid .tile.fader:active { transform: none; }
 .deck-grid .tile.fader.is-dragging { border-color: var(--tile-color, var(--accent)); }
@@ -1588,19 +1627,22 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 /* Immersive mode. The reveal used to be :hover, which a tablet cannot do —
    entering it on an iPad left no way back. Now there is a real control. */
 .deck-page.immersive .deck-bar { display: none; }
-.deck-page.immersive .deck-main { padding-top: var(--s-3); }
+/* The grip has a strip of its own above the deck, so it never covers a tab
+   or the top row of tiles. */
+.deck-page.immersive .deck-main { padding-top: 22px; }
 
 .reveal-grip {
   position: fixed;
   top: 0;
+  top: env(safe-area-inset-top);
   left: 50%;
   z-index: 50;
   display: none;
-  min-height: 26px;
+  height: 20px;
   align-items: center;
-  gap: 6px;
-  padding: 0 var(--s-4);
-  margin-left: -58px;
+  padding: 0 var(--s-3);
+  -webkit-transform: translateX(-50%);
+  transform: translateX(-50%);
   border: 1px solid var(--border);
   border-top: 0;
   border-radius: 0 0 var(--r-md) var(--r-md);
@@ -1610,12 +1652,13 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   font-weight: var(--w-medium);
 }
 .deck-page.immersive .reveal-grip { display: flex; }
-.reveal-grip svg { width: 12px; height: 12px; }
+.reveal-grip svg { width: 12px; height: 12px; margin-right: 6px; }
 
 .deck-empty {
   display: grid;
   align-content: center;
   justify-items: center;
+  grid-gap: var(--s-3);
   gap: var(--s-3);
   padding: var(--s-8) var(--s-4);
   border: 1px dashed var(--border-strong);
@@ -1633,7 +1676,6 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   display: none;
   flex: none;
   align-items: center;
-  gap: var(--s-2);
   padding: var(--s-2) var(--s-3);
   border: 1px solid var(--danger-line);
   border-radius: var(--r-sm);
@@ -1643,23 +1685,28 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   font-weight: var(--w-medium);
 }
 .deck-page.is-offline .offline-banner { display: flex; }
-.offline-banner svg { width: 15px; height: 15px; flex: none; }
+.offline-banner svg { width: 15px; height: 15px; flex: none; margin-right: var(--s-2); }
 
 /* Pairing: until the tablet has its secret, this is all it shows. */
 .pair-screen { display: none; }
 .deck-page.needs-pairing .deck-main,
 .deck-page.needs-pairing .deck-bar { display: none; }
+/* It scrolls: on a phone on its side the card is taller than the screen.
+   The card centres itself with auto margins, which, unlike align-items,
+   never pushes its top out of reach. */
 .deck-page.needs-pairing .pair-screen {
   display: -webkit-box;
   display: flex;
   flex: 1 1 auto;
-  align-items: center;
-  justify-content: center;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   padding: var(--s-6) var(--s-4);
 }
 .pair-card {
   width: 100%;
   max-width: 420px;
+  margin: auto;
   padding: var(--s-8) var(--s-6);
   border: 1px solid var(--border);
   border-radius: var(--r-xl);
@@ -1686,6 +1733,7 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .toast {
   position: fixed;
   z-index: 60;
+  bottom: 16px;
   bottom: calc(16px + env(safe-area-inset-bottom));
   left: 50%;
   max-width: 82vw;
@@ -1705,6 +1753,9 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 .toast.is-error { border-color: var(--danger-line); background: var(--toast-error-bg); color: var(--toast-error-text); }
 .toast.has-action { display: flex; align-items: center; gap: var(--s-3); padding-right: var(--s-2); }
+/* The deck's own toast spaces its button with a margin, for old tablets. */
+.deck-page .toast.has-action { gap: 0; }
+.deck-page .toast-action { margin-left: var(--s-3); }
 .toast.show.has-action { pointer-events: auto; }
 .toast-action {
   flex: none;
@@ -1873,9 +1924,20 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   .deck-bar { padding: var(--s-1) var(--s-3); }
   .deck-bar .brand span:not(.brand-mark) { display: none; }
   .deck-bar .btn { min-height: 32px; }
-  .deck-main { gap: var(--s-1); padding: var(--s-1) var(--s-2) var(--s-2); }
+  .deck-bar .icon-btn { width: 32px; height: 32px; }
+  .deck-main { padding: var(--s-1) var(--s-2) var(--s-2); }
+  .deck-main > .offline-banner,
+  .deck-main > .deck-profiles { margin-bottom: var(--s-1); }
+  .offline-banner { padding: 2px var(--s-3); }
   .deck-profiles button { min-height: 30px; padding: 0 var(--s-3); }
-  .deck-grid { --deck-gap: 6px; }
+  /* The pairing card, compact: no logo, tighter spacing. */
+  .deck-page.needs-pairing .pair-screen { padding: var(--s-2) var(--s-4); }
+  .pair-card { padding: var(--s-4) var(--s-5); }
+  .pair-card .brand-mark { display: none; }
+  .pair-card p { margin-bottom: var(--s-3); }
+  .pair-card .pair-code { min-height: 48px; font-size: 26px; }
+  .pair-card .pair-error { margin-bottom: var(--s-2); }
+  .pair-card .btn { min-height: 42px; }
 }
 
 @media (prefers-reduced-motion: reduce) {

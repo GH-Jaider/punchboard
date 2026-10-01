@@ -2,15 +2,16 @@
 // Boot order: sync the clock (and colours), pair if needed, then load the
 // library and connect to live state.
 import type { SettingsResponse } from "../../shared/api.ts"
-import { applyAccent, applyTheme } from "../common/dom.ts"
+import { applyAccent, applyTheme, byId } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, hasDevice, loadDevice, syncClock, UnpairedError, whenUnpaired } from "./api.ts"
-import { scaleTiles } from "./grid.ts"
+import { relayoutIfResized, renderGrid, scaleTiles, watchGridSize } from "./grid.ts"
+import { initHapticsToggle } from "./haptics.ts"
 import { initImmersive } from "./immersive.ts"
 import { initWakeLock } from "./wake.ts"
 import { connect, loadLibrary } from "./live.ts"
 import { claim, initPairing, showPairing, takeHashCode } from "./pairing.ts"
-import { setOnline, toast } from "./ui.ts"
+import { setOnline, toast, whenChromeChanges } from "./ui.ts"
 
 function start(): void {
   api<SettingsResponse>("/api/settings")
@@ -37,6 +38,12 @@ whenUnpaired(() => showPairing())
 initPairing(start)
 initImmersive()
 initWakeLock()
+initHapticsToggle(byId<HTMLButtonElement>("haptics-btn"), renderGrid)
+
+// The offline banner comes and goes above the grid: lay the tiles out again
+// (ResizeObserver does it too where there is one, for any other change).
+whenChromeChanges(() => window.setTimeout(relayoutIfResized, 0))
+watchGridSize()
 
 // Only the measurements change on resize, so tiles are not rebuilt.
 let resizeTimer: number | undefined

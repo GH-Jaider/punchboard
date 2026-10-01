@@ -30,7 +30,14 @@ export function showLevel(tile: HTMLElement, level: number | null): void {
   const value = tile.querySelector<HTMLElement>(".fader-value")
   if (fill) fill.style.height = `${percent}%`
   if (value) value.textContent = known ? `${percent}%` : "–"
-  if (known) tile.setAttribute("aria-valuenow", String(percent))
+  // No value is claimed until the companion has said where the level is.
+  if (known) {
+    tile.setAttribute("aria-valuenow", String(percent))
+    tile.setAttribute("aria-valuetext", `${percent}%`)
+  } else {
+    tile.removeAttribute("aria-valuenow")
+    tile.setAttribute("aria-valuetext", "Level not known yet")
+  }
 }
 
 export function faderMarkup(button: FaderButton): HTMLElement {
@@ -130,11 +137,20 @@ function bindFader(tile: HTMLElement, button: FaderButton): void {
     document.addEventListener("mouseup", onUp)
   })
 
+  // The slider keys: arrows by 5%, Page Up / Down by 20%, Home and End to the ends.
+  const KEY_STEPS: Record<string, number> = {
+    ArrowUp: 0.05, ArrowRight: 0.05, Up: 0.05, Right: 0.05,
+    ArrowDown: -0.05, ArrowLeft: -0.05, Down: -0.05, Left: -0.05,
+    PageUp: 0.2, PageDown: -0.2, Home: -1, End: 1
+  }
   tile.addEventListener("keydown", (event: KeyboardEvent) => {
-    const step = event.key === "ArrowUp" || event.key === "ArrowRight" ? 0.05
-      : event.key === "ArrowDown" || event.key === "ArrowLeft" ? -0.05 : 0
-    if (!step) return
+    const step = KEY_STEPS[event.key]
+    if (step === undefined) return
     event.preventDefault()
+    if (isOffline()) {
+      toast("Companion offline — nothing was sent.", true)
+      return
+    }
     const level = clamp01((levelFor(button) ?? 0.5) + step)
     setLevel(button, level)
     showLevel(tile, level)
