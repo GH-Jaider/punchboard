@@ -6,7 +6,7 @@ import { errorMessage, request } from "../common/http.ts"
 import { confirmAction } from "./dialogs.ts"
 import { toast, view } from "./hub.ts"
 import { library, store, touch } from "./state.ts"
-import { recordUndo } from "./undo.ts"
+import { clearUndo, recordUndo } from "./undo.ts"
 
 const INTRO_KEY = "punchboard-intro-seen"
 
@@ -40,6 +40,9 @@ async function importBackup(file: File): Promise<void> {
   store.library = normalizeLibrary(next)
   store.activeId = store.library.activeProfileId
   store.selectedSlot = null
+  // Earlier entries point into the library just replaced. Undoing the restore
+  // itself still works: it puts that whole library back.
+  clearUndo()
   if (previous) {
     recordUndo("Restored from file", () => {
       store.library = previous

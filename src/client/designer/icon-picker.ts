@@ -74,6 +74,9 @@ function drawGoogleIcons(button: Button): void {
     host.appendChild(el("p", "field-help", "Loading Google icons…"))
     request<GoogleIconsResponse>("/api/icons/google").then((data) => {
       googleCatalog = data.icons
+      // Google's catalog grows, so the count comes from the catalog itself.
+      const hundreds = Math.floor(data.icons.length / 100) * 100
+      if (hundreds >= 100) search().placeholder = `Search ${hundreds.toLocaleString("en-US")}+ icons`
       if (dialog().open) drawGoogleIcons(button)
     }).catch((error: unknown) => {
       host.innerHTML = ""
