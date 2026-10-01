@@ -56,7 +56,8 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
       "$ms = if ($p.NaturalDuration.HasTimeSpan) { [int]$p.NaturalDuration.TimeSpan.TotalMilliseconds } else { 60000 }",
       // The length found and the volume taken, for tests: a machine with no
       // sound device never learns the length.
-      "[Console]::Out.WriteLine('length ' + $ms + ' start ' + $p.Volume.ToString([Globalization.CultureInfo]::InvariantCulture))",
+      "Start-Sleep -Milliseconds 100",
+      "[Console]::Out.WriteLine('length ' + $ms + ' start ' + $p.Volume.ToString([Globalization.CultureInfo]::InvariantCulture) + ' opened ' + $p.NaturalDuration.HasTimeSpan + ' error ' + ($p.HasAudio))",
       "$end = [DateTime]::Now.AddMilliseconds($ms + 200)",
       "$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput())",
       "$read = $in.ReadLineAsync()",
