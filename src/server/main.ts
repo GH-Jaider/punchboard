@@ -55,9 +55,10 @@ import type { AudioType } from "./sounds.ts"
 import { readLevel, writeLevel } from "./volume.ts"
 import type { VolumeContext } from "./volume.ts"
 import { claimPort } from "./port.ts"
-import { DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
+import { appVersion, DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
 
 const PUBLIC_DIR = paths.public
+const VERSION = appVersion()
 // Libraries carry custom icons as data URIs, so they can be large.
 const LIBRARY_LIMIT = 24 * 1024 * 1024
 // Thirty seconds of fingers at 120 Hz, with what the engine made of them.
@@ -363,7 +364,8 @@ const routes: Route[] = [
     obsAddress: config.obs.address,
     obsConfigured: Boolean(config.obs.password),
     obsSource: config.obs.source,
-    platform: process.platform
+    platform: process.platform,
+    version: VERSION
   })),
   route<SettingsSaved>("PUT", "/api/settings", "local", async ({ req }) => {
     const data = await jsonBody(req)

@@ -215,6 +215,8 @@ export interface SettingsResponse {
   /** "auto": taken from OBS's settings on this computer; "manual": typed in. */
   obsSource: "auto" | "manual"
   platform: string
+  /** Punchboard's version, as the desktop app or package.json gives it. */
+  version: string
 }
 
 export interface SettingsUpdate {

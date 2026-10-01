@@ -411,6 +411,9 @@ select {
 .on-icon { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); }
 .on-icon .icon-trigger { flex: 1 1 auto; min-width: 0; }
 
+/* The version, small, beside the name in the bar. */
+.app-version { align-self: center; margin-left: var(--s-2); color: var(--text-subtle); font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); font-size: 11px; }
+
 /* The + menu: an empty deck or a ready-made one. */
 .add-menu {
   position: fixed;

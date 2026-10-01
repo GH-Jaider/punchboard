@@ -58,6 +58,7 @@ async function start(): Promise<void> {
     store.library = library
     store.activeId = library.activeProfileId
 
+    byId("app-version").textContent = settings.version === "dev" ? "dev" : `v${settings.version}`
     showAccent(settings.accent)
     setTheme(settings.theme)
     showObsSettings(settings)

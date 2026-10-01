@@ -210,6 +210,7 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
         .args([script.to_string_lossy().to_string()])
         .env("PUNCHBOARD_APP_DIR", resources.to_string_lossy().to_string())
         .env("PUNCHBOARD_DESKTOP", "1")
+        .env("PUNCHBOARD_VERSION", app.package_info().version.to_string())
         .env("PUNCHBOARD_NO_OPEN", "1")
         .spawn()?;
     *app.state::<Companion>().child.lock().unwrap() = Some(child);

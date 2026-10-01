@@ -21,6 +21,17 @@ export function defaultDataDir(): string {
   return path.join(process.env.XDG_CONFIG_HOME ?? path.join(home, ".config"), "punchboard")
 }
 
+/** This Punchboard's version: the desktop app passes its own; run from the
+    source, it is package.json's. */
+export function appVersion(): string {
+  if (process.env.PUNCHBOARD_VERSION) return process.env.PUNCHBOARD_VERSION
+  try {
+    const pkg = JSON.parse(fs.readFileSync(path.join(APP_DIR, "package.json"), "utf8")) as { version?: unknown }
+    if (typeof pkg.version === "string") return pkg.version
+  } catch { /* not beside the source */ }
+  return "dev"
+}
+
 /** PUNCHBOARD_DATA_DIR overrides it (tests, a portable copy). */
 export const DATA_DIR = process.env.PUNCHBOARD_DATA_DIR ?? defaultDataDir()
 
