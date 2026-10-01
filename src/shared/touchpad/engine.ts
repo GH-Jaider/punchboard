@@ -39,6 +39,10 @@ export function createTouchpad(initial: TrackpadSettings): Touchpad {
   let slots: Slot[] = []
   /** The latest time seen, so a clock that steps back cannot run anything twice. */
   let latest = -Infinity
+  /** Whether the fingers on the surface have scrolled, pinched or swiped
+      since it was last empty. A finger joining them then is part of that
+      gesture, not the start of a tap: it lands as one that already moved. */
+  let gestured = false
 
   function release(slot: Slot, out: TouchpadEvent[]): void {
     slots = slots.filter((other) => other !== slot)
@@ -141,8 +145,11 @@ export function createTouchpad(initial: TrackpadSettings): Touchpad {
           break
         }
       }
-      slots.push({ id: contact.id, startX: contact.x, startY: contact.y, x: contact.x, y: contact.y, moved: false, liftedAt: null })
+      slots.push({ id: contact.id, startX: contact.x, startY: contact.y, x: contact.x, y: contact.y, moved: gestured, liftedAt: null })
       tap.handle("touch", now, out)
+      // The gesture vetoes the tap: two fingers that scrolled, one lifted
+      // and put back, then both up quickly, are not a right click.
+      if (gestured) tap.handle("motion", now, out)
     }
 
     for (let i = 0; i < slots.length; i += 1) {
@@ -155,6 +162,9 @@ export function createTouchpad(initial: TrackpadSettings): Touchpad {
     }
 
     gestures.frame(contacts, now, tap.dragging(), out)
+    const kind = gestures.state()
+    if (contacts.length === 0) gestured = false
+    else if (kind === "scroll" || kind === "pinch" || kind === "done") gestured = true
     return out
   }
 
@@ -172,6 +182,7 @@ export function createTouchpad(initial: TrackpadSettings): Touchpad {
     const out: TouchpadEvent[] = []
     tap.reset(out)
     slots = []
+    gestured = false
     gestures.cancel(out)
     return out
   }
