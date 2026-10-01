@@ -52,7 +52,7 @@ import { createLibraryStore } from "./library.ts"
 import { getLocalIPv4, ownHostnames } from "./net.ts"
 import { createSoundStore, isAudio } from "./sounds.ts"
 import type { AudioType } from "./sounds.ts"
-import { readLevel, writeLevel } from "./volume.ts"
+import { isLevel, readLevel, writeLevel } from "./volume.ts"
 import type { VolumeContext } from "./volume.ts"
 import { claimPort } from "./port.ts"
 import { appVersion, DATA_DIR, migrateLegacyData, paths } from "./paths.ts"
@@ -83,7 +83,17 @@ const writeConfig = (): void => saveConfig(paths.config, config)
 let configTimer: NodeJS.Timeout | undefined
 const writeConfigSoon = (): void => {
   clearTimeout(configTimer)
-  configTimer = setTimeout(writeConfig, 400)
+  configTimer = setTimeout(() => {
+    configTimer = undefined
+    writeConfig()
+  }, 400)
+}
+/** Writes a pending debounced save now, so quitting never loses it. */
+const flushConfig = (): void => {
+  if (configTimer === undefined) return
+  clearTimeout(configTimer)
+  configTimer = undefined
+  writeConfig()
 }
 
 const library = createLibraryStore(paths.library, log)
@@ -419,6 +429,8 @@ const routes: Route[] = [
   // --- faders, also looked up from the saved deck
   route<LevelsResponse>("POST", "/api/volume", "deck", async ({ req }) => {
     const data = await jsonBody(req)
+    // Checked first: a missing or non-numeric level must never reach a fader as 0.
+    if (!isLevel(data.level)) throw new HttpError(400, "The level must be a number from 0 to 1.")
     const button = library.findButton(data.profileId, data.buttonId)
     if (!button || button.control !== "fader") throw new HttpError(404, "That fader no longer exists.")
     try {
@@ -677,6 +689,7 @@ function shutdown(): void {
   pointer.dispose()
   obs.stop()
   auth.flush()
+  flushConfig()
   live.closeAll()
   server.close()
   setTimeout(() => process.exit(0), 200).unref()

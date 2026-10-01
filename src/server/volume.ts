@@ -61,7 +61,12 @@ export async function readLevel(fader: Fader, context: VolumeContext): Promise<n
   }
 }
 
+/** A level a fader can be set to: a finite number. Anything else (missing,
+    null, text) is refused rather than read as 0, which would mute. */
+export const isLevel = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value)
+
 export async function writeLevel(fader: Fader, level: unknown, context: VolumeContext): Promise<number> {
+  if (!isLevel(level)) throw new Error("The level must be a number from 0 to 1.")
   const value = clamp01(level)
   switch (fader.target) {
     case "sounds":
