@@ -87,6 +87,8 @@ const writeConfigSoon = (): void => {
 }
 
 const library = createLibraryStore(paths.library, log)
+/** Two-state macros running right now ("<profile id>\n<button id>"); see /api/press. */
+const busySwitches = new Set<string>()
 const auth = createAuth({ file: paths.devices, log })
 const sounds = createSoundStore(paths.sounds)
 sounds.ensureDefaults()
@@ -343,13 +345,20 @@ const routes: Route[] = [
 
   // --- the deck library
   route<void>("GET", "/api/library", "deck", ({ res }) => {
-    sendJson(res, 200, library.get(), { "X-Library-Rev": String(library.revision()) })
+    const headers: Record<string, string> = { "X-Library-Rev": String(library.revision()) }
+    // A damaged or too-new deck file, for the Control Center to explain once.
+    const notice = library.notice()
+    if (notice) headers["X-Library-Notice"] = encodeURIComponent(notice)
+    sendJson(res, 200, library.get(), headers)
   }),
   route<SaveLibraryResponse>("PUT", "/api/library", "local", async ({ req, url }) => {
     const data = await jsonBody(req, LIBRARY_LIMIT)
     if (!isLibraryShape(data)) throw new HttpError(400, "That is not a valid deck library.")
+    // Every save names the revision it was edited from; one without it could
+    // silently overwrite another window's work.
     const baseRev = url.searchParams.get("rev")
-    if (baseRev !== null && Number(baseRev) !== library.revision()) {
+    if (!baseRev) throw new HttpError(428, "A deck save must say which version it was edited from (?rev=).")
+    if (Number(baseRev) !== library.revision()) {
       throw new HttpError(409, "This deck was changed in another window. Reloading the latest version.", { libraryRev: library.revision() })
     }
     const libraryRev = library.save(normalizeLibrary(data))
@@ -394,13 +403,21 @@ const routes: Route[] = [
     if (button.control === "fader") throw new HttpError(400, "That is a fader; drag it instead.")
     // A two-state macro runs its first list when off and its second when on.
     const stateKey = buttonStateKey(button)
+    // Its state is read now and flipped only when the list has run, so a
+    // second press while the first runs (another device, another tab) would
+    // read the same state and run the same list again. It is refused instead.
+    const busyKey = isSwitch(button) ? `${String(data.profileId)}\n${button.id}` : null
+    if (busyKey !== null && busySwitches.has(busyKey)) throw new HttpError(409, "This button is still running its last press. Try again when it finishes.")
     const switchedOn = isSwitch(button) && stateKey !== null && live.toggleValue(stateKey)
     const steps = prepareSteps(switchedOn ? button.offSteps ?? [] : button.steps)
     let result
+    if (busyKey !== null) busySwitches.add(busyKey)
     try {
       result = await runSteps(steps, { config, obs, onSound: live.toggleSound, stopSounds: live.stopAllSounds })
     } catch (error) {
       throw new HttpError(400, errorText(error))
+    } finally {
+      if (busyKey !== null) busySwitches.delete(busyKey)
     }
     if (isSwitch(button) && stateKey) {
       // Only a list that ran to the end flips the switch.
@@ -412,7 +429,9 @@ const routes: Route[] = [
     }
     const response: PressResponse = { ok: true, tabletUrl: result.tabletUrl, deckId: result.deckId }
     if (typeof result.active === "boolean") response.active = result.active
-    if (steps.length > 1) response.message = `Ran ${steps.length} steps`
+    // "Do nothing" steps (pauses) are not worth counting.
+    const ran = steps.filter((step) => step.type !== "none").length
+    if (ran > 1) response.message = `Ran ${ran} steps`
     return response
   }),
 

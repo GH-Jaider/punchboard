@@ -185,6 +185,13 @@ export async function runSteps(steps: readonly Step[], context: ActionContext): 
 
   for (let index = 0; index < steps.length; index += 1) {
     const step = steps[index]!
+    // Every step's wait applies, in order, including the steps that do nothing
+    // here: "Do nothing" with a wait is a pause, and a link or deck change
+    // waits like any other step. The device opens the link or changes deck
+    // when the whole macro is done, so their wait delays the steps after them.
+    if (step.type === "none" || step.type === "browser_tile" || step.type === "go_to_deck") {
+      if (step.delayMs) await sleep(step.delayMs)
+    }
     if (step.type === "none") continue
     // Only the first link and deck count: a device can open one page or show one deck per press.
     if (step.type === "browser_tile") {
