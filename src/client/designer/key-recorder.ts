@@ -1,7 +1,7 @@
 // The "Keys" field of a Key combination step: click it, press the keys, and
 // the combination is recorded from the physical keys pressed.
 import { stepSummary } from "../../shared/actions.ts"
-import { KEY_NAMES, MODIFIERS, comboFromEvent, comboToString, formatCombo, isMacLike, modifierLabel, parseCombo } from "../../shared/keys.ts"
+import { KEY_NAMES, MODIFIERS, comboFromEvent, comboToString, currentKeyPlatform, formatCombo, isMacLike, modifierLabel, parseCombo, unsendableReason } from "../../shared/keys.ts"
 import type { Modifier } from "../../shared/keys.ts"
 import type { HotkeyStep } from "../../shared/types.ts"
 import { el, svg } from "../common/dom.ts"
@@ -30,11 +30,20 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   clear.title = "Clear"
   clear.setAttribute("aria-label", "Clear the key combination")
 
+  // A key this computer cannot press (F21 on a Mac) is said here, under the
+  // field, rather than as an error the first time the button is pressed.
+  const warning = el("p", "inline-note warn")
+  warning.setAttribute("role", "status")
+
   const show = (): void => {
     const text = formatCombo(step.keys, isMacLike())
     input.value = text
     input.placeholder = document.activeElement === input ? RECORDING_HINT : IDLE_HINT
     clear.hidden = !text
+    const combo = parseCombo(step.keys)
+    const problem = combo ? unsendableReason(combo.key, currentKeyPlatform()) : null
+    warning.textContent = problem ?? ""
+    warning.hidden = !problem
   }
 
   const record = (keys: string | undefined): void => {
@@ -62,6 +71,7 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   row.appendChild(clear)
   field.appendChild(label)
   field.appendChild(row)
+  field.appendChild(warning)
   field.appendChild(builder(step, record))
   field.appendChild(el("p", "field-help", "Goes to whatever is in front on this computer, so global hotkeys like OBS's work best. macOS asks for permission the first time."))
   show()

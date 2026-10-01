@@ -19,7 +19,7 @@
     "app:build": "node scripts/fetch-node.mjs && tauri build",
     "release:mac": "node scripts/release-mac.mjs && node scripts/latest-json.mjs",
     "release:windows": "node scripts/release-windows.mjs",
-    "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/obs.test.mjs && node tests/sounds.test.mjs && node tests/library.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/windows.test.mjs",
+    "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/obs.test.mjs && node tests/sounds.test.mjs && node tests/library.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/scripts.test.mjs && node tests/windows.test.mjs",
     "test:bundle": "node tests/bundle.smoke.mjs"
   },
   "dependencies": {
