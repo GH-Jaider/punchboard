@@ -9,7 +9,7 @@ import type { Config } from "./config.ts"
 import { HttpError } from "./http.ts"
 import { sendKeys, sendMediaKey } from "./keys.ts"
 import { launchApp } from "./launch.ts"
-import type { ObsLink } from "./obs.ts"
+import { obsCall, type ObsLink } from "./obs.ts"
 
 let openModule: Promise<(target: string) => Promise<unknown>> | null = null
 function loadOpen(): Promise<(target: string) => Promise<unknown>> {
@@ -70,16 +70,16 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     case "obs_scene": {
       if (!step.sceneName) throw new Error("Choose the OBS scene first.")
       const obs = await context.obs.connect()
-      await obs.call("SetCurrentProgramScene", { sceneName: step.sceneName })
+      await obsCall(obs, "SetCurrentProgramScene", { sceneName: step.sceneName })
       return { active: true }
     }
 
     case "obs_toggle_mute": {
       if (!step.sourceName) throw new Error("Choose the OBS audio input first.")
       const obs = await context.obs.connect()
-      const { inputMuted } = await obs.call("GetInputMute", { inputName: step.sourceName })
+      const { inputMuted } = await obsCall(obs, "GetInputMute", { inputName: step.sourceName })
       const muted = wanted(step.set, inputMuted)
-      if (muted !== inputMuted) await obs.call("SetInputMute", { inputName: step.sourceName, inputMuted: muted })
+      if (muted !== inputMuted) await obsCall(obs, "SetInputMute", { inputName: step.sourceName, inputMuted: muted })
       // Lit means muted: that is the state worth spotting from across a room.
       return { active: muted }
     }
@@ -87,59 +87,59 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     case "obs_toggle_source": {
       if (!step.sceneName || !step.sourceName) throw new Error("Choose the scene and the source first.")
       const obs = await context.obs.connect()
-      const { sceneItemId } = await obs.call("GetSceneItemId", { sceneName: step.sceneName, sourceName: step.sourceName })
-      const { sceneItemEnabled } = await obs.call("GetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId })
+      const { sceneItemId } = await obsCall(obs, "GetSceneItemId", { sceneName: step.sceneName, sourceName: step.sourceName })
+      const { sceneItemEnabled } = await obsCall(obs, "GetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId })
       const visible = wanted(step.set, sceneItemEnabled)
-      if (visible !== sceneItemEnabled) await obs.call("SetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId, sceneItemEnabled: visible })
+      if (visible !== sceneItemEnabled) await obsCall(obs, "SetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId, sceneItemEnabled: visible })
       return { active: visible }
     }
 
     case "obs_start_stop_stream": {
       const obs = await context.obs.connect()
-      const { outputActive } = await obs.call("GetStreamStatus")
+      const { outputActive } = await obsCall(obs, "GetStreamStatus")
       const live = wanted(step.set, outputActive)
-      if (live !== outputActive) await obs.call(live ? "StartStream" : "StopStream")
+      if (live !== outputActive) await obsCall(obs, live ? "StartStream" : "StopStream")
       return { active: live }
     }
 
     case "obs_toggle_record": {
       const obs = await context.obs.connect()
-      const { outputActive } = await obs.call("GetRecordStatus")
+      const { outputActive } = await obsCall(obs, "GetRecordStatus")
       const recording = wanted(step.set, outputActive)
-      if (recording !== outputActive) await obs.call(recording ? "StartRecord" : "StopRecord")
+      if (recording !== outputActive) await obsCall(obs, recording ? "StartRecord" : "StopRecord")
       return { active: recording }
     }
 
     case "obs_toggle_filter": {
       if (!step.sourceName || !step.filterName) throw new Error("Choose the source and the filter first.")
       const obs = await context.obs.connect()
-      const { filterEnabled } = await obs.call("GetSourceFilter", { sourceName: step.sourceName, filterName: step.filterName })
+      const { filterEnabled } = await obsCall(obs, "GetSourceFilter", { sourceName: step.sourceName, filterName: step.filterName })
       const enabled = wanted(step.set, filterEnabled)
-      if (enabled !== filterEnabled) await obs.call("SetSourceFilterEnabled", { sourceName: step.sourceName, filterName: step.filterName, filterEnabled: enabled })
+      if (enabled !== filterEnabled) await obsCall(obs, "SetSourceFilterEnabled", { sourceName: step.sourceName, filterName: step.filterName, filterEnabled: enabled })
       return { active: enabled }
     }
 
     case "obs_toggle_virtualcam": {
       const obs = await context.obs.connect()
-      const { outputActive } = await obs.call("GetVirtualCamStatus")
+      const { outputActive } = await obsCall(obs, "GetVirtualCamStatus")
       const running = wanted(step.set, outputActive)
-      if (running !== outputActive) await obs.call(running ? "StartVirtualCam" : "StopVirtualCam")
+      if (running !== outputActive) await obsCall(obs, running ? "StartVirtualCam" : "StopVirtualCam")
       return { active: running }
     }
 
     case "obs_save_replay": {
       const obs = await context.obs.connect()
-      const { outputActive } = await obs.call("GetReplayBufferStatus")
+      const { outputActive } = await obsCall(obs, "GetReplayBufferStatus")
       if (!outputActive) throw new Error("OBS's replay buffer is off. Start it in OBS (Start Replay Buffer, under Controls), then press again.")
-      await obs.call("SaveReplayBuffer")
+      await obsCall(obs, "SaveReplayBuffer")
       return { active: true }
     }
 
     case "obs_studio_transition": {
       const obs = await context.obs.connect()
-      const { studioModeEnabled } = await obs.call("GetStudioModeEnabled")
+      const { studioModeEnabled } = await obsCall(obs, "GetStudioModeEnabled")
       if (!studioModeEnabled) throw new Error("Studio Mode is off in OBS, so there is no preview to send live.")
-      await obs.call("TriggerStudioModeTransition")
+      await obsCall(obs, "TriggerStudioModeTransition")
       return {}
     }
 

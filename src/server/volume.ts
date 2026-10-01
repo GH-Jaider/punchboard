@@ -2,7 +2,7 @@
 // converts to its own scale.
 import { execFile } from "node:child_process"
 import type { Fader } from "../shared/types.ts"
-import type { ObsLink } from "./obs.ts"
+import { obsCall, type ObsLink } from "./obs.ts"
 import type { Config } from "./config.ts"
 import { faderPosition } from "./obs-state.ts"
 import { readWindowsVolume, writeWindowsVolume } from "./win-volume.ts"
@@ -55,7 +55,7 @@ export async function readLevel(fader: Fader, context: VolumeContext): Promise<n
       return readSystem()
     case "obs_input": {
       const obs = await context.obs.connect()
-      const { inputVolumeMul } = await obs.call("GetInputVolume", { inputName: requireInput(fader) })
+      const { inputVolumeMul } = await obsCall(obs, "GetInputVolume", { inputName: requireInput(fader) })
       return faderPosition(inputVolumeMul)
     }
   }
@@ -74,7 +74,7 @@ export async function writeLevel(fader: Fader, level: unknown, context: VolumeCo
       return value
     case "obs_input": {
       const obs = await context.obs.connect()
-      await obs.call("SetInputVolume", { inputName: requireInput(fader), inputVolumeMul: value ** 3 })
+      await obsCall(obs, "SetInputVolume", { inputName: requireInput(fader), inputVolumeMul: value ** 3 })
       return value
     }
   }
