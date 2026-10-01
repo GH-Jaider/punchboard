@@ -108,5 +108,30 @@ export function formatCombo(text: string | undefined, mac: boolean): string {
   return combo.modifiers.map((modifier) => OTHER_MODIFIER_NAMES[modifier]).concat(key).join("+")
 }
 
+/** The systems that send keys differently. */
+export type KeyPlatform = "mac" | "windows" | "other"
+
+/** Which of them a platform name is: Node's ("darwin", "win32") or the
+    browser's navigator.platform ("MacIntel", "Win32"). */
+export function keyPlatform(name: string): KeyPlatform {
+  if (/^darwin$|Mac|iPhone|iPad/i.test(name)) return "mac"
+  if (/^win/i.test(name)) return "windows"
+  return "other"
+}
+
+/** The platform of the computer this page edits decks for. The Control
+    Center opens on that computer only, so the browser's own is the one. */
+export const currentKeyPlatform = (): KeyPlatform => keyPlatform(typeof navigator !== "undefined" ? navigator.platform || "" : "")
+
+/** Why `key` cannot be pressed on `platform`, or null when it can. Said
+    when the key is recorded, so nobody finds out mid-stream. macOS has no
+    key codes for F21 to F24 (the server's MAC_CODES has none); Windows
+    sends every key here by its scan code. */
+export function unsendableReason(key: string, platform: KeyPlatform): string | null {
+  if (platform === "other") return "Key combinations work on macOS and Windows only for now."
+  if (platform === "mac" && /^f(2[1-4])$/.test(key)) return `macOS cannot press ${key.toUpperCase()}: it has no key code for F21 to F24. Pick another key.`
+  return null
+}
+
 /** Whether this page runs on a Mac, for the ⌘-style labels. */
 export const isMacLike = (): boolean => typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform || "")
