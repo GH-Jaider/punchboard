@@ -18,11 +18,16 @@ export function checker() {
   return { check, tally }
 }
 
-/** Starts a companion; `config` is written to its config.json first. */
-export function startCompanion({ config } = {}) {
+/** Starts a companion; `config` is written to its config.json first, and
+    `files` ({ "decks/library.json": text }) into its data folder. */
+export function startCompanion({ config, files = {} } = {}) {
   const port = 18000 + Math.floor(Math.random() * 1000)
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-test-"))
   if (config) fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(config))
+  for (const [name, text] of Object.entries(files)) {
+    fs.mkdirSync(path.dirname(path.join(dataDir, name)), { recursive: true })
+    fs.writeFileSync(path.join(dataDir, name), text)
+  }
   const child = spawn(process.execPath, ["src/server/main.ts"], {
     env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1" },
     stdio: ["pipe", "pipe", "inherit"]

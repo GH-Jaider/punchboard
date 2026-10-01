@@ -39,7 +39,17 @@ const library = {
         { id: "micFader", slot: 10, label: "Mic", icon: "tune", color: "accent", control: "fader", fader: { target: "obs_input", inputName: "Mic" }, steps: [] }
       ]
     },
-    { id: "music", name: "Music", columns: 4, rows: 3, buttons: [press("mic2", [step("obs_toggle_mute", { sourceName: "Mic" })], 0)] }
+    { id: "music", name: "Music", columns: 4, rows: 3, buttons: [press("mic2", [step("obs_toggle_mute", { sourceName: "Mic" })], 0)] },
+    {
+      id: "macros", name: "Macros", columns: 4, rows: 3,
+      buttons: [
+        press("pause", [step("none", { delayMs: 400 }), step("go_to_deck", { profileId: "music" })], 0),
+        { ...press("slowSwitch", [step("none", { delayMs: 500 }), step("obs_scene", { sceneName: "Intro" })], 1),
+          offSteps: [step("obs_scene", { sceneName: "Main" })] },
+        press("counted", [step("none"), step("obs_scene", { sceneName: "Intro" }), step("none", { delayMs: 10 }), step("obs_scene", { sceneName: "Main" })], 2),
+        press("single", [step("none", { delayMs: 10 }), step("obs_scene", { sceneName: "Main" })], 3)
+      ]
+    }
   ]
 }
 
@@ -71,7 +81,8 @@ async function main() {
   const muteMic = buttons.find((b) => b.label === "Mute mic")
   check("Toggle starters show a different icon while on", muteMic?.glyph?.name === "mic" && muteMic?.onGlyph?.name === "mic_off", JSON.stringify({ off: muteMic?.glyph?.name, on: muteMic?.onGlyph?.name }))
   check("The trackpad starter is a trackpad deck", Boolean(first.profiles[3]?.trackpad), JSON.stringify(first.profiles[3]))
-  const saved = await request({ method: "PUT", path: "/api/library", headers: JSON_TYPE, body: JSON.stringify(library) })
+  const rev = (await request({ path: "/api/library" })).headers["x-library-rev"]
+  const saved = await request({ method: "PUT", path: `/api/library?rev=${rev}`, headers: JSON_TYPE, body: JSON.stringify(library) })
   check("Deck with every new action saves", saved.status === 200, saved.text)
 
   // --- names for the pickers
@@ -154,6 +165,21 @@ async function main() {
   // --- deck switching
   r = await pressButton("toMusic")
   check("Go to another deck tells the device which deck", r.status === 200 && r.json?.deckId === "music", r.text)
+
+  // --- pauses, step counts, and a two-state macro pressed twice at once
+  const started = Date.now()
+  r = await pressButton("pause", "macros")
+  check("\"Do nothing\" with a wait pauses the macro", r.status === 200 && r.json?.deckId === "music" && Date.now() - started >= 380, `${Date.now() - started} ms ${r.text}`)
+  r = await pressButton("counted", "macros")
+  check("\"Ran N steps\" leaves out do-nothing steps", r.status === 200 && r.json?.message === "Ran 2 steps", r.text)
+  r = await pressButton("single", "macros")
+  check("One real step and a pause is not called a macro", r.status === 200 && r.json?.message === undefined, r.text)
+  const both = await Promise.all([pressButton("slowSwitch", "macros"), wait(100).then(() => pressButton("slowSwitch", "macros"))])
+  s = await status()
+  check("A two-state macro pressed again while running refuses the second press", both[0].status === 200 && both[0].json?.active === true && both[1].status === 409, `${both[0].text} ${both[1].text}`)
+  check("The second press did not run the same list again", s.toggles["switch:slowSwitch"] === true && fake.obs.currentScene === "Intro", `${JSON.stringify(s.toggles)} ${fake.obs.currentScene}`)
+  r = await pressButton("slowSwitch", "macros")
+  check("Once finished, the next press runs the second list", r.status === 200 && r.json?.active === false && fake.obs.currentScene === "Main", r.text)
 
   // --- OBS going away
   await fake.close()
