@@ -42,7 +42,10 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
   if (platform === "darwin") return { file: "afplay", args: ["-v", String(gain), file] }
   if (platform === "win32") {
     // MediaPlayer opens in the background: wait for the length (5 s at most),
-    // play, sleep it out, exit. Killing the process stops the sound.
+    // play, then wait it out while listening on stdin, where each line is a
+    // new volume (the fader moving while the sound plays). The stream is read
+    // asynchronously: Console.In would block, and the sound would never end.
+    // Killing the process stops the sound.
     const script = [
       "Add-Type -AssemblyName PresentationCore",
       "$p = New-Object System.Windows.Media.MediaPlayer",
@@ -51,7 +54,10 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
       `$p.Volume = ${gain}`,
       "$p.Play()",
       "$ms = if ($p.NaturalDuration.HasTimeSpan) { [int]$p.NaturalDuration.TimeSpan.TotalMilliseconds } else { 60000 }",
-      "Start-Sleep -Milliseconds ($ms + 200)",
+      "$end = [DateTime]::Now.AddMilliseconds($ms + 200)",
+      "$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput())",
+      "$read = $in.ReadLineAsync()",
+      "while ([DateTime]::Now -lt $end) { if ($read -and $read.IsCompleted) { $line = $read.Result; if ($null -eq $line) { $read = $null } else { $v = 0.0; if ([double]::TryParse($line, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $p.Volume = [Math]::Max(0, [Math]::Min(1, $v)) }; $read = $in.ReadLineAsync() } }; Start-Sleep -Milliseconds 40 }",
       "$p.Close()"
     ].join("; ")
     return { file: "powershell", args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script] }
@@ -137,7 +143,10 @@ export function createPlayer(options: PlayerOptions): Player {
     }
     const spec = playCommand(file, options.volume())
     if (!spec) throw new Error("Playing sounds works on macOS and Windows only for now.")
-    const child = spawn(spec.file, spec.args, { stdio: "ignore", windowsHide: true })
+    // stdin stays open on Windows: the fader's new volumes reach a playing sound there.
+    const child = spawn(spec.file, spec.args, { stdio: [process.platform === "win32" ? "pipe" : "ignore", "ignore", "ignore"], windowsHide: true })
+    // A sound that ends while a volume is on its way closes the pipe; that is not an error.
+    child.stdin?.on("error", () => { /* the sound has finished */ })
     const entry: Running = { child, startedAt: Date.now(), stopping: false }
     running.set(slot, entry)
     child.on("error", (error) => {
@@ -161,7 +170,12 @@ export function createPlayer(options: PlayerOptions): Player {
   }
 
   function setVolume(level: number): void {
-    if (helper) tell({ cmd: "volume", volume: gainFor(level) })
+    const gain = gainFor(level)
+    if (helper) tell({ cmd: "volume", volume: gain })
+    // Windows: each playing sound reads its new volume from stdin.
+    for (const entry of running.values()) {
+      if (entry.child?.stdin?.writable) entry.child.stdin.write(`${gain}\n`)
+    }
   }
 
   function dispose(): void {
