@@ -9,7 +9,27 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Seconds, before the builds spend ten minutes on a release that the
+  # publish job would then refuse.
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The tag and every version agree
+        run: |
+          PKG=$(node -p 'require("./package.json").version')
+          CONF=$(node -p 'require("./src-tauri/tauri.conf.json").version')
+          CARGO=$(sed -n 's/^version = "\(.*\)"$/\1/p' src-tauri/Cargo.toml | head -n 1)
+          echo "package.json $PKG, tauri.conf.json $CONF, Cargo.toml $CARGO, ref $GITHUB_REF_NAME"
+          if [ "$PKG" != "$CONF" ] || [ "$PKG" != "$CARGO" ]; then
+            echo "::error::The versions differ: package.json $PKG, src-tauri/tauri.conf.json $CONF, src-tauri/Cargo.toml $CARGO"; exit 1
+          fi
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "v$PKG" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $PKG"; exit 1
+          fi
+
   windows:
+    needs: version
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +54,7 @@ jobs:
           if-no-files-found: error
 
   mac:
+    needs: version
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -60,6 +81,8 @@ jobs:
           MAC_CERT_P12: ${{ secrets.MAC_CERT_P12 }}
           MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
       - run: npm ci
+      # The Mac-only paths (key presses, music, the trackpad) are tested here.
+      - run: npm test
       - run: node scripts/release-mac.mjs
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -101,5 +124,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cd "release/$VERSION"
-          gh release create "$GITHUB_REF_NAME" --draft --title "Punchboard $VERSION" --notes "Punchboard $VERSION" \
-            *.dmg *.exe *.app.tar.gz *.sig latest.json
+          FILES=(*.dmg *.exe *.app.tar.gz *.sig latest.json)
+          # A tag pushed again (after fixing a failed build) finds its draft
+          # already there: refresh its files. A published release is left alone.
+          if DRAFT=$(gh release view "$GITHUB_REF_NAME" --json isDraft --jq .isDraft 2>/dev/null); then
+            if [ "$DRAFT" != "true" ]; then echo "::error::$GITHUB_REF_NAME is already published; push a new version instead."; exit 1; fi
+            gh release upload "$GITHUB_REF_NAME" "${FILES[@]}" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" --draft --title "Punchboard $VERSION" --notes "Punchboard $VERSION" "${FILES[@]}"
+          fi

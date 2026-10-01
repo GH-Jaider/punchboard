@@ -45,6 +45,9 @@ for (const target of targets) {
   const app = path.join("src-tauri", "target", target, "release", "bundle", "macos", "Punchboard.app")
   if (signingAvailable()) {
     console.log(`Signed: ${signApp(app)}`)
+  } else if (process.env.CI) {
+    // A release without the certificate would cost every user their permissions.
+    throw new Error("No signing certificate in CI; run node scripts/mac-signing.mjs setup with the MAC_CERT_* secrets first.")
   } else {
     console.warn("No signing certificate: the app keeps an ad-hoc signature and macOS may forget its permissions on update.")
   }
@@ -56,7 +59,12 @@ for (const target of targets) {
   run("tar", ["-czf", archive, "-C", path.dirname(app), "Punchboard.app"])
   let signature = null
   if (updaterKey) {
-    execFileSync("npx", ["tauri", "signer", "sign", "-k", updaterKey, "-p", updaterPassword, archive], { stdio: ["ignore", "ignore", "inherit"] })
+    // The key goes in the environment, not as -k/-p: arguments are visible
+    // to every process on the machine (ps), the environment is not.
+    execFileSync("npx", ["tauri", "signer", "sign", archive], {
+      stdio: ["ignore", "ignore", "inherit"],
+      env: { ...process.env, TAURI_SIGNING_PRIVATE_KEY: updaterKey, TAURI_SIGNING_PRIVATE_KEY_PASSWORD: updaterPassword }
+    })
     signature = fs.readFileSync(`${archive}.sig`, "utf8").trim()
   } else {
     console.warn("No updater key: this build cannot be offered as an automatic update.")

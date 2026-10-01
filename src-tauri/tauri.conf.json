@@ -35,7 +35,10 @@
       "../dist/server/server.mjs": "server.mjs",
       "../public/": "public/",
       "../src/server/helpers/mac-player.js": "src/server/helpers/mac-player.js",
-      "../src/server/helpers/mac-pointer.js": "src/server/helpers/mac-pointer.js"
+      "../src/server/helpers/mac-pointer.js": "src/server/helpers/mac-pointer.js",
+      "../LICENSE": "licenses/LICENSE.txt",
+      "../dist/THIRD_PARTY_NOTICES.txt": "licenses/THIRD_PARTY_NOTICES.txt",
+      "binaries/node-LICENSE.txt": "licenses/node-LICENSE.txt"
     },
     "macOS": {
       "minimumSystemVersion": "11.0"

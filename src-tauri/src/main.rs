@@ -99,9 +99,19 @@ fn show_problem(app: &AppHandle, status: String) {
 /// The menu-bar item that checks for, and then offers, an update.
 struct Updates {
     item: MenuItem<tauri::Wry>,
-    /// A downloaded, installed update waiting for a restart.
-    ready: Mutex<Option<String>>,
+    /// A downloaded update waiting for the person to restart into it.
+    ready: Mutex<Option<Ready>>,
     checking: Mutex<bool>,
+}
+
+struct Ready {
+    version: String,
+    /// Windows only: the verified installer, run when the person picks
+    /// "Restart to update". Running it quits Punchboard on the spot (the
+    /// updater exits the process for the installer), so it must never happen
+    /// on its own in the middle of a stream. On macOS the new app is already
+    /// in place and this is None: a restart is all that is left.
+    installer: Option<(tauri_plugin_updater::Update, Vec<u8>)>,
 }
 
 const CHECK_LABEL: &str = "Check for updates…";
@@ -122,7 +132,7 @@ fn open_window(app: &AppHandle, page: &str) {
     let target = port(app).map(|port| control_center_url(port, page));
     if let Some(window) = app.get_webview_window("main") {
         if let Some(url) = target {
-            let _ = window.navigate(url);
+            go_to(&window, url);
         }
         let _ = window.show();
         let _ = window.unminimize();
@@ -138,7 +148,9 @@ fn open_window(app: &AppHandle, page: &str) {
     let built = WebviewWindowBuilder::new(app, "main", source)
         .title("Punchboard")
         .inner_size(1440.0, 900.0)
-        .min_inner_size(960.0, 640.0)
+        // Wider than the Control Center's stacked phone layout (980px and
+        // under), which has no place in a desktop window.
+        .min_inner_size(1040.0, 640.0)
         // Tauri's own file-drop handling swallows the page's drag and drop on
         // Windows (WebView2), so buttons could not be moved there. The Control
         // Center takes files through its own pickers, never by dropping.
@@ -166,6 +178,28 @@ fn open_window(app: &AppHandle, page: &str) {
         .build();
     if let Ok(window) = built {
         keep_running_on_close(&window);
+    }
+}
+
+/// Takes a window already showing the Control Center to `url` without
+/// reloading it: a reload would throw away whatever is half-edited there (an
+/// open dialog, a step being typed). Only a different page, or the starting
+/// screen, is navigated; "#pair" on the same page just sets the hash, which
+/// the Control Center listens for.
+fn go_to(window: &WebviewWindow, url: Url) {
+    let same_page = window.url().is_ok_and(|current| {
+        current.scheme() == url.scheme()
+            && current.host_str() == url.host_str()
+            && current.port_or_known_default() == url.port_or_known_default()
+            && current.path() == url.path()
+    });
+    if !same_page {
+        let _ = window.navigate(url);
+        return;
+    }
+    if let Some(fragment) = url.fragment() {
+        let script = format!("location.hash = {}", serde_json::to_string(fragment).unwrap_or_default());
+        let _ = window.eval(&script);
     }
 }
 
@@ -213,6 +247,7 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
         .env("PUNCHBOARD_VERSION", app.package_info().version.to_string())
         .env("PUNCHBOARD_NO_OPEN", "1")
         .spawn()?;
+    let pid = child.pid();
     *app.state::<Companion>().child.lock().unwrap() = Some(child);
 
     let app = app.clone();
@@ -246,7 +281,11 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
                 }
                 CommandEvent::Error(error) => note(&app, &format!("error: {error}")),
                 CommandEvent::Terminated(status) => {
-                    if *app.state::<Companion>().quitting.lock().unwrap() {
+                    // Stopped on purpose: by Quit, or for an update (which
+                    // may have started a new companion since, if installing
+                    // failed). Only the current one stopping is a problem.
+                    let current = app.state::<Companion>().child.lock().unwrap().as_ref().map(|c| c.pid());
+                    if *app.state::<Companion>().quitting.lock().unwrap() || current != Some(pid) {
                         break;
                     }
                     // A Punchboard already running (say, from the starter
@@ -280,9 +319,26 @@ fn stop_companion(app: &AppHandle) {
     }
 }
 
-/// Looks for an update and, if there is one, downloads and installs it in
-/// the background; the menu then offers the restart. `manual` reports
-/// "up to date" and failures in the menu too.
+/// The updater, set to stop the companion if it ever quits the app itself:
+/// on Windows, installing exits the process at once, skipping RunEvent::Exit,
+/// and a companion left running would hold node.exe while the installer
+/// replaces it.
+fn updater(app: &AppHandle) -> tauri_plugin_updater::Result<tauri_plugin_updater::Updater> {
+    let handle = app.clone();
+    app.updater_builder()
+        .on_before_exit(move || {
+            stop_companion(&handle);
+            // What the plugin's own hook does; this one replaces it.
+            handle.cleanup_before_exit();
+        })
+        .build()
+}
+
+/// Looks for an update and, if there is one, downloads it in the background
+/// (on macOS also putting it in place, which leaves the running app alone);
+/// the menu then offers the restart. On Windows nothing is installed until
+/// the person picks that. `manual` reports "up to date" and failures in the
+/// menu too.
 fn check_for_updates(app: &AppHandle, manual: bool) {
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -294,7 +350,7 @@ fn check_for_updates(app: &AppHandle, manual: bool) {
         if manual {
             let _ = updates.item.set_text("Checking for updates…");
         }
-        let found = match app.updater() {
+        let found = match updater(&app) {
             Ok(updater) => updater.check().await,
             Err(error) => Err(error),
         };
@@ -303,9 +359,9 @@ fn check_for_updates(app: &AppHandle, manual: bool) {
                 let version = update.version.clone();
                 let _ = updates.item.set_text(format!("Downloading version {version}…"));
                 let _ = updates.item.set_enabled(false);
-                match update.download_and_install(|_, _| {}, || {}).await {
-                    Ok(()) => {
-                        *updates.ready.lock().unwrap() = Some(version.clone());
+                match download(update).await {
+                    Ok(installer) => {
+                        *updates.ready.lock().unwrap() = Some(Ready { version: version.clone(), installer });
                         let _ = updates.item.set_text(format!("Restart to update to {version}"));
                     }
                     Err(error) => {
@@ -341,6 +397,46 @@ fn check_for_updates(app: &AppHandle, manual: bool) {
     });
 }
 
+/// Downloads and verifies an update. On Windows the installer is kept for
+/// later; elsewhere the new version is put in place now and takes over at
+/// the next start.
+async fn download(
+    update: tauri_plugin_updater::Update,
+) -> tauri_plugin_updater::Result<Option<(tauri_plugin_updater::Update, Vec<u8>)>> {
+    let bytes = update.download(|_, _| {}, || {}).await?;
+    if cfg!(windows) {
+        return Ok(Some((update, bytes)));
+    }
+    update.install(bytes)?;
+    Ok(None)
+}
+
+/// "Restart to update": stops the companion first (so it saves what is
+/// pending, and on Windows lets go of node.exe), then restarts into the new
+/// version.
+fn restart_to_update(app: &AppHandle) {
+    let Some(ready) = app.state::<Updates>().ready.lock().unwrap().take() else {
+        return;
+    };
+    stop_companion(app);
+    let Some((update, bytes)) = ready.installer else {
+        app.restart();
+    };
+    // Windows: starts the installer and exits; the installer opens the new
+    // version when it is done. Returning means it could not be started.
+    if let Err(error) = update.install(bytes) {
+        let message = format!("Update {} could not be installed: {error}", ready.version);
+        eprintln!("{message}");
+        note(app, &message);
+        let _ = app.state::<Updates>().item.set_text(CHECK_LABEL);
+        // Keep serving decks on this version.
+        *app.state::<Companion>().quitting.lock().unwrap() = false;
+        if let Err(error) = start_companion(app, false) {
+            show_problem(app, format!("could not start again: {error}"));
+        }
+    }
+}
+
 async fn tokio_sleep(duration: Duration) {
     let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(duration)).await;
 }
@@ -374,10 +470,9 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
                 let _ = login_item.set_checked(autolaunch.is_enabled().unwrap_or(false));
             }
             "update" => {
-                let ready = app.state::<Updates>().ready.lock().unwrap().clone();
-                if ready.is_some() {
-                    stop_companion(app);
-                    app.restart();
+                let ready = app.state::<Updates>().ready.lock().unwrap().is_some();
+                if ready {
+                    restart_to_update(app);
                 } else {
                     check_for_updates(app, true);
                 }

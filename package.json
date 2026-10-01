@@ -19,7 +19,8 @@
     "app:build": "node scripts/fetch-node.mjs && tauri build",
     "release:mac": "node scripts/release-mac.mjs && node scripts/latest-json.mjs",
     "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/library.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/windows.test.mjs",
-    "release:windows": "node scripts/release-windows.mjs"
+    "release:windows": "node scripts/release-windows.mjs",
+    "test:bundle": "node tests/bundle.smoke.mjs"
   },
   "dependencies": {
     "obs-websocket-js": "^5.0.6",

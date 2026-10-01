@@ -52,6 +52,12 @@ function setup() {
     console.log("Signing certificate restored from CI secrets.")
     return
   }
+  if (process.env.CI) {
+    // A new certificate would sign this build as a different app: every
+    // user's Accessibility permission would silently stop applying after the
+    // update. Missing or misnamed secrets must stop the release instead.
+    throw new Error("MAC_CERT_P12 and MAC_CERT_PASSWORD are not set. In CI the release must be signed with the existing certificate (node scripts/mac-signing.mjs export prints them); refusing to create a new one.")
+  }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-cert-"))
   const key = path.join(tmp, "key.pem")
   const password = crypto.randomBytes(24).toString("hex")
