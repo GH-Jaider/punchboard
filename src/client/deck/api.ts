@@ -13,6 +13,7 @@ let device: DeviceCredentials | null = null
 /** Server clock minus ours, so signatures are on time. */
 let clockOffset = 0
 let onUnpaired: () => void = () => {}
+let onUnreachable: () => void = () => {}
 
 /** Thrown when the companion no longer knows this deck; the pairing screen is already up. */
 export class UnpairedError extends Error {
@@ -46,6 +47,32 @@ export function setServerTime(serverTime: number): void {
 /** Called when a request finds this deck unpaired. */
 export function whenUnpaired(handler: () => void): void {
   onUnpaired = handler
+}
+
+/** Thrown when the companion could not be reached at all: wifi gone, the
+    computer asleep or Punchboard closed. The browser's own wording for it
+    ("Failed to fetch", "Load failed") means nothing to anyone. */
+export class OfflineError extends Error {
+  constructor() {
+    super("Can't reach the companion.")
+  }
+}
+
+/** Called when a request cannot reach the companion. */
+export function whenUnreachable(handler: () => void): void {
+  onUnreachable = handler
+}
+
+/** Gives up on a request that hangs, as one does on a dead connection: old
+    tablets have no AbortController to cancel it with. */
+export function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = window.setTimeout(() => reject(new OfflineError()), ms)
+    promise.then(
+      (value) => { window.clearTimeout(timer); resolve(value) },
+      (error: unknown) => { window.clearTimeout(timer); reject(error) }
+    )
+  })
 }
 
 /** This computer's clock corrected to the companion's, for signatures and progress. */
@@ -94,7 +121,13 @@ export async function api<T>(url: string, options: DeckRequest = {}, retried = f
     headers["X-Punchboard-Nonce"] = signed.nonce
     headers["X-Punchboard-Signature"] = signed.signature
   }
-  const response = await fetch(url, { method, headers, body: body || undefined })
+  let response: Response
+  try {
+    response = await fetch(url, { method, headers, body: body || undefined })
+  } catch {
+    onUnreachable()
+    throw new OfflineError()
+  }
   try {
     return await readJson<T>(response)
   } catch (error) {

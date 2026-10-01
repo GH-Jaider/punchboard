@@ -5,7 +5,7 @@ import { webAddress } from "../../shared/links.ts"
 import { isConfigured, isSwitch } from "../../shared/model.ts"
 import type { PressButton } from "../../shared/types.ts"
 import { errorMessage } from "../common/http.ts"
-import { api, UnpairedError } from "./api.ts"
+import { api, OfflineError, UnpairedError } from "./api.ts"
 import { showDeck } from "./grid.ts"
 import { setToggle, state, toggleKey } from "./state.ts"
 import { paintState } from "./tile-state.ts"
@@ -44,6 +44,11 @@ export function press(button: PressButton, tile: HTMLElement): void {
   }
   const allSteps = button.steps.concat(button.offSteps ?? [])
   const linkWindow = allSteps.some((step) => step.type === "browser_tile") ? window.open("", "_blank") : null
+  // Opened blank so the popup blocker allows it, which rules out "noopener"
+  // (that returns no window to send on). Cut the link back to the deck by hand.
+  if (linkWindow) {
+    try { linkWindow.opener = null } catch { /* not allowed: harmless */ }
+  }
 
   const key = toggleKey(button)
   state.inflight[key] = true
@@ -71,7 +76,8 @@ export function press(button: PressButton, tile: HTMLElement): void {
       tile.classList.add("is-error")
       setTimeout(() => tile.classList.remove("is-error"), 1600)
       haptic("error")
-      toast(errorMessage(error), true)
+      // Unreachable: the deck has gone offline already (live.ts); say it plainly.
+      toast(error instanceof OfflineError ? "Can't reach the companion. Check that it is running and on the same wifi." : errorMessage(error), true)
     })
     .then(() => { delete state.inflight[key] })
 }
