@@ -130,7 +130,7 @@ const live = createLive({
   soundFile: (slot) => sounds.file(slot).file
 }, player, config.soundVolume)
 // What OBS is doing (live scene, mutes, stream…), followed from its events.
-const obsState = createObsState({ library: library.get, setToggles: live.setToggles, setLevels: live.setLevels })
+const obsState = createObsState({ library: library.get, setToggles: live.setToggles, setLevels: live.setLevels, dropLevels: live.dropLevels })
 // Meters are only read for OBS inputs that a fader on a connected page shows.
 const obs = createObsLink({
   config,
@@ -141,6 +141,7 @@ const obs = createObsLink({
     if (obs.status() !== "connected") {
       obsState.detach()
       live.clearToggles()
+      live.clearObsLevels()
     }
     live.broadcast()
   },

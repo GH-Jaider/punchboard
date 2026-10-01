@@ -57,6 +57,11 @@ export function applyState(snapshot: Snapshot): void {
   if (snapshot.playing) state.playing = snapshot.playing
   if (snapshot.playback) updatePlayback(snapshot.playback)
   if (snapshot.levels) {
+    // An OBS fader the companion no longer reports (OBS closed, input
+    // renamed) is unknown, like an OBS toggle: it shows "–", not its last level.
+    for (const key of Object.keys(state.levels)) {
+      if (key.indexOf("obs:") === 0 && snapshot.levels[key] === undefined) delete state.levels[key]
+    }
     for (const key of Object.keys(snapshot.levels)) {
       const value = snapshot.levels[key]
       if (value !== undefined) state.levels[key] = value
