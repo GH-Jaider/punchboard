@@ -4,12 +4,22 @@
 // movement past the tap threshold and timeout is one input; the state says
 // what the next one means. Written from the documentation, not ported.
 //
-//   idle ─touch→ touch ─release→ click, tapped ─touch→ drag_or_tap ─move/timeout→ dragging ─release→ up
-//                  │ move/timeout             │ timeout                 │ release: click, tapped again
+//   idle ─touch→ touch ─release→ down, tapped ─touch→ drag_or_tap ─move/timeout→ dragging ─release→ up
+//                  │ move/timeout             │ timeout: up             │ release: up, down, up
 //                  ▼                          ▼
 //                 hold                       idle
 //   touch ─touch→ touch2 ─release→ touch2_release ─release→ right click
 //   touch2 ─touch→ touch3 ─release→ touch3_release ─release→ touch3_release2 ─release→ three-finger tap
+//
+// A tap presses the button when the finger lifts and lets go of it only
+// when the drag time (TUNING.dragMs) has run out. A finger that lands again
+// in that time and moves, or rests, drags with the press the tap made, so
+// the computer never sees a click before a drag: on a Dock icon or in a
+// file list that click would open the thing instead of moving it. The
+// price is that a lone tap's release comes up to dragMs late; the press is
+// at once, which is what highlights a button or opens a menu. A second tap
+// in that time completes the first click and makes the second at once, a
+// double click, whose timing the computer counts for itself.
 //
 // Moving past the threshold or waiting out the tap time turns a touchN
 // state into touchN_hold, and lifts walk the holds back down until idle;
@@ -18,10 +28,11 @@
 //
 // Where this differs from libinput, on purpose: a finger that lifts out of
 // a two- or three-finger group and lands straight back rejoins it; two
-// fingers landing after a tap start a two-finger group rather than a drag
-// (a device screen is tapped and then scrolled far more often than dragged
-// with two fingers); the middle button is a "tap" event instead, and there
-// is no drag lock.
+// fingers landing after a tap end its click and start a two-finger group
+// rather than a drag (a device screen is tapped and then scrolled far more
+// often than dragged with two fingers); a double tap is over when the
+// second finger lifts, with nothing held for a third; the middle button is
+// a "tap" event instead, and there is no drag lock.
 import type { Button, TapState, TouchpadEvent } from "./types.ts"
 import { TUNING } from "./tuning.ts"
 
@@ -31,7 +42,10 @@ export interface TapMachine {
   state(): TapState
   /** When the pending timeout is due, or null. */
   deadline(): number | null
-  /** Whether the left button is held for a drag. */
+  /** Whether the left button is down, pressed by a tap: waiting for the
+      drag time to run out, or held under a finger that drags. */
+  held(): boolean
+  /** Whether a finger is dragging with the held button. */
   dragging(): boolean
   handle(input: TapInput, time: number, out: TouchpadEvent[]): void
   /** Back to idle at once, releasing the button if it was held. */
@@ -78,7 +92,9 @@ export function createTapMachine(): TapMachine {
     switch (input) {
       case "touch": return go("touch2", time, TAP)
       case "release":
-        click("left", out)
+        // The press only: the release waits for the drag time, in case the
+        // finger comes back to drag with it.
+        button("left", true, out)
         return go("tapped", time, DRAG)
       case "motion":
       case "timeout": return go("hold", time, null)
@@ -170,26 +186,39 @@ export function createTapMachine(): TapMachine {
     }
   }
 
-  function tapped(input: TapInput, time: number): void {
+  /** The button is down and no finger is: a tap whose release is on its way. */
+  function tapped(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
       case "touch": return go("drag_or_tap", time, TAP)
-      case "timeout": return go("idle", time, null)
-      // No finger is down here, so these cannot happen; idle is the safe place.
+      case "timeout":
+        // No finger came back: the tap was a click after all.
+        button("left", false, out)
+        return go("idle", time, null)
+      // No finger is down here, so these cannot happen; idle, with the
+      // button let go, is the safe place.
       case "release":
-      case "motion": return go("idle", time, null)
+      case "motion":
+        button("left", false, out)
+        return go("idle", time, null)
       default: return assertNever(input)
     }
   }
 
+  /** The button is down from a tap and a finger has landed in time. */
   function dragOrTap(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
-      case "touch": return go("touch2", time, TAP)
+      case "touch":
+        // Two fingers scroll rather than drag: the tap's click ends first.
+        button("left", false, out)
+        return go("touch2", time, TAP)
       case "release":
+        // A second tap: the first click ends and the second is made at once.
+        button("left", false, out)
         click("left", out)
-        return go("tapped", time, DRAG)
+        return go("idle", time, null)
       case "motion":
       case "timeout":
-        button("left", true, out)
+        // The press the tap made carries on as the drag: nothing new is sent.
         return go("dragging", time, null)
       default: return assertNever(input)
     }
@@ -247,7 +276,7 @@ export function createTapMachine(): TapMachine {
       case "touch3_hold": return touch3Hold(input, time)
       case "touch3_release": return touch3Release(input, time)
       case "touch3_release2": return touch3Release2(input, time, out)
-      case "tapped": return tapped(input, time)
+      case "tapped": return tapped(input, time, out)
       case "drag_or_tap": return dragOrTap(input, time, out)
       case "dragging": return dragging(input, time, out)
       case "dragging2": return dragging2(input, time, out)
@@ -257,14 +286,16 @@ export function createTapMachine(): TapMachine {
   }
 
   const isDragging = (): boolean => state === "dragging" || state === "dragging2"
+  const isHeld = (): boolean => state === "tapped" || state === "drag_or_tap" || isDragging()
 
   return {
     state: () => state,
     deadline: () => deadline,
+    held: isHeld,
     dragging: isDragging,
     handle,
     reset(out) {
-      if (isDragging()) button("left", false, out)
+      if (isHeld()) button("left", false, out)
       state = "idle"
       deadline = null
       fingers = 0

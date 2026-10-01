@@ -149,7 +149,12 @@ function handle(events: TouchpadEvent[]): void {
         }
         break
       case "button": {
-        // The protocol has clicks, and a held left button for drags; nothing else.
+        // The protocol has clicks, and a held left button; nothing else. A
+        // tap's down and up arrive apart (the up waits in case a finger
+        // comes back to drag with the same press), so each goes as it comes:
+        // "d", then moves if any, then "u". A second tap in that time brings
+        // the up and a down-up pair together: "u", then "c", which the
+        // computer counts as the double click.
         if (event.button === "middle") break
         const next = events[i + 1]
         const clicked = event.state === "down" && next !== undefined && next.type === "button" && next.button === event.button && next.state === "up"
@@ -449,3 +454,9 @@ export function hideTrackpad(): void {
 }
 
 window.addEventListener("pagehide", hideTrackpad)
+// A page in the background gets no frames, and frames are the engine's clock:
+// the release a tap's press is waiting for could not go out until the page
+// came back. Let go now; the fingers cannot be followed from there anyway.
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden && shown) letGo()
+})

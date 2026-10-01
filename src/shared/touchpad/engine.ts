@@ -6,7 +6,7 @@
 // Between the frames and the tap machine sits the bounce filter. A finger
 // that lifts and lands straight back, close to where it left, never lifted
 // as far as tapping is concerned; otherwise a tap that bounced would be
-// two clicks, and a drag that bounced would drop. So a lift is held back
+// a double tap, and a drag that bounced would drop. So a lift is held back
 // for debounceMs before the tap machine hears of it, at the time it really
 // happened; a timeout due in between waits for the verdict. The gesture
 // machine is told at once, since a bounce mid-scroll costs nothing but a

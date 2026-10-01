@@ -10,8 +10,12 @@ export const TUNING = {
       not tapping. Per finger, from its own landing point. (libinput: 1.3 mm) */
   tapMovePx: 8,
   /** After a tap, a finger landing again within this may be a second tap or
-      the start of a drag. Also how long a finger resting after a tap takes to
-      become a drag. (libinput's drag timeout: 300) */
+      the start of a drag, so the tap's press is held this long before its
+      release goes out: a lone tap is a click whose release is this late. A
+      shorter window would give the release sooner but turn a slow return to
+      the surface into a click and a cursor move instead of a drag, which is
+      the worse failure (the click opens what was to be moved), which is why
+      libinput gives this more than its tap time. (libinput's drag timeout: 300) */
   dragMs: 300,
 
   // --- bounces (see engine.ts)

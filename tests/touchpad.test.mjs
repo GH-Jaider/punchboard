@@ -29,6 +29,12 @@ function device(settings = SETTINGS) {
       events.push(...pad.frame({ time, contacts }))
       return api
     },
+    /** One tick at exactly this time, for checking when a timeout fires. */
+    tick(time) {
+      now = Math.max(now, time)
+      events.push(...pad.tick(time))
+      return api
+    },
     /** Time passes with ticks every 16 ms, as the deck's frame loop would. */
     wait(ms) {
       const until = now + ms
@@ -72,11 +78,21 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b)
 // ---------------------------------------------------------------- scenarios
 
 function scenarios() {
+  // A tap presses at once and releases when the drag time has run out, so a
+  // finger coming back in time can drag with the same press (libinput's model).
   let d = device()
+  d.frame(0, [c(1, 100, 100)]).frame(60, []).tick(60 + TUNING.debounceMs)
+  check("A tap presses the button as soon as the lift is sure, and holds it", same(d.summary(), ["left down"]) && d.pad.state().tap === "tapped", JSON.stringify(d.pad.state()))
+  d.tick(60 + TUNING.dragMs - 1)
+  check("The press is held while a finger may still come back", d.take().length === 0 && d.pad.needsTick(), "")
+  d.tick(60 + TUNING.dragMs)
+  check("Tap on nothing, then nothing: the button is released when the drag time runs out", same(d.summary(), ["left up"]), "")
+  d.wait(800)
+  check("Nothing is pending after a tap", d.take().length === 0 && !d.pad.needsTick() && d.pad.state().tap === "idle", JSON.stringify(d.pad.state()))
+  d = device()
   d.frame(0, [c(1, 100, 100)]).frame(60, []).wait(800)
   let events = d.take()
   check("A tap is exactly one click", leftClicks(events) === 1 && events.length === 2, JSON.stringify(summarize(events)))
-  check("Nothing is pending after a tap", !d.pad.needsTick() && d.pad.state().tap === "idle", JSON.stringify(d.pad.state()))
 
   d = device()
   d.frame(0, [c(1, 100, 100)]).frame(10, []).frame(30, [c(2, 103, 101)]).frame(120, []).wait(800)
@@ -88,6 +104,14 @@ function scenarios() {
   check("A second finger just outside the bounce window is a double tap", same(d.summary(), ["click left", "click left"]), "")
 
   d = device()
+  d.frame(0, [c(1, 100, 100)]).frame(70, []).frame(160, [c(2, 100, 100)])
+  check("The first tap of a double tap presses; the second finger landing sends nothing yet", same(d.summary(), ["left down"]) && d.pad.state().tap === "drag_or_tap", d.pad.state().tap)
+  d.frame(230, []).tick(230 + TUNING.debounceMs)
+  events = d.take()
+  check("The second tap releases, then clicks at once: up, down, up", same(events.map((e) => `${e.button} ${e.state}`), ["left up", "left down", "left up"]) && d.pad.state().tap === "idle", JSON.stringify(events))
+  d.wait(800)
+  check("Nothing follows a double tap", d.take().length === 0 && !d.pad.needsTick(), "")
+  d = device()
   d.frame(0, [c(1, 100, 100)]).frame(70, []).frame(160, [c(2, 100, 100)]).frame(230, []).wait(800)
   events = d.take()
   check("A double tap is two clicks", leftClicks(events) === 2 && events.length === 4, JSON.stringify(summarize(events)))
@@ -96,21 +120,35 @@ function scenarios() {
 
   d = device()
   d.frame(0, [c(1, 100, 100)]).frame(70, []).frame(160, [c(2, 100, 100)])
+  const pressed = d.take()
   d.slide([c(2, 100, 100)], 60, 0)
+  const dragged = d.take()
   d.frame(d.time() + 16, []).wait(800)
-  events = d.take()
-  check("Tap and drag: click, down, moves, up", same(summarize(events), ["click left", "left down", "move", "left up"]), JSON.stringify(summarize(events)))
-  check("The drag moved the cursor", events.filter((e) => e.type === "move").reduce((sum, e) => sum + e.dx, 0) > 40, "")
+  const dropped = d.take()
+  check("Tap and drag: the tap presses, and nothing clicks before the drag", same(summarize(pressed), ["left down"]), JSON.stringify(summarize(pressed)))
+  check("The returning finger drags with that press: moves, no second down", same(summarize(dragged), ["move"]) && dragged.filter((e) => e.type === "move").reduce((sum, e) => sum + e.dx, 0) > 40, JSON.stringify(summarize(dragged)))
+  check("Lifting drops it: the one release", same(summarize(dropped), ["left up"]), JSON.stringify(summarize(dropped)))
+  events = pressed.concat(dragged, dropped)
+  check("Tap and drag is exactly one down and one up", count(events, (e) => e.type === "button" && e.state === "down") === 1 && count(events, (e) => e.type === "button" && e.state === "up") === 1, JSON.stringify(summarize(events)))
 
   d = device()
   d.frame(0, [c(1, 100, 100)]).frame(70, []).frame(160, [c(2, 100, 100)]).wait(TUNING.tapMs + 40)
-  check("A finger resting after a tap becomes a drag", same(d.summary(), ["click left", "left down"]) && d.pad.state().tap === "dragging", d.pad.state().tap)
+  check("A finger resting after a tap drags with its press", same(d.summary(), ["left down"]) && d.pad.state().tap === "dragging", d.pad.state().tap)
   d.frame(d.time(), [c(2, 100, 100)]).frame(d.time() + 16, [])
   d.frame(d.time() + 20, [c(3, 101, 100)])
   const bouncedDrag = d.slide([c(3, 101, 100)], 40, 0)
   d.frame(d.time() + 16, []).wait(800)
   events = d.take()
   check("A bounce mid-drag keeps the button held", same(summarize(events), ["move", "left up"]) && bouncedDrag.length === 1, JSON.stringify(summarize(events)))
+
+  d = device()
+  d.frame(0, [c(1, 100, 100)]).frame(60, []).frame(200, [c(2, 100, 300)]).frame(220, [c(2, 100, 300), c(3, 160, 300)])
+  events = d.take()
+  check("Two fingers landing after a tap end its click", same(events.map((e) => `${e.button} ${e.state}`), ["left down", "left up"]), JSON.stringify(events))
+  const two = d.slide([c(2, 100, 300), c(3, 160, 300)], 0, -100)
+  d.frame(d.time() + 16, two).frame(d.time() + 16, []).wait(800)
+  events = d.take()
+  check("…and scroll, with no button left down", same(summarize(events).slice(0, 2), ["scroll", "scroll end"]) && count(events, (e) => e.type === "button") === 0, JSON.stringify(summarize(events)))
 
   d = device()
   d.frame(0, [c(1, 100, 100), c(2, 160, 100)]).frame(60, []).wait(800)
@@ -264,6 +302,11 @@ function scenarios() {
   events = d.pad.cancel(2030)
   d.wait(800)
   check("Cancelling mid-tap clicks nothing", events.length === 0 && d.take().length === 0, "")
+  d.frame(3000, [c(1, 100, 100)]).frame(3060, []).tick(3060 + TUNING.debounceMs)
+  d.take()
+  events = d.pad.cancel(3200)
+  d.wait(800)
+  check("Cancelling while a tap's press is held releases it", same(summarize(events), ["left up"]) && d.take().length === 0 && d.pad.state().tap === "idle", JSON.stringify(events))
   d.frame(4000, [c(1, 100, 100)]).frame(4070, []).frame(4160, [c(2, 100, 100)])
   d.slide([c(2, 100, 100)], 60, 0)
   d.take()
@@ -481,10 +524,17 @@ function fuzzOne(seed) {
   let session = 0
   let swipesInSession = 0
   let fingersDown = 0
+  /** When the last finger lifted, while none is down; null while one is. */
+  let zeroSince = null
+  // A tap's press waits dragMs for a finger to come back; after that, with
+  // nothing on the surface, the button must be up. Lifts are sure debounceMs
+  // late and ticks come up to 38 ms apart.
+  const HELD_LIMIT = TUNING.dragMs + TUNING.debounceMs + 40
   let problem = null
   const fail = (message) => { if (!problem) problem = message }
 
-  const observe = (list, gesture) => {
+  const observe = (list, gesture, at) => {
+    if (held.left && zeroSince !== null && at - zeroSince > HELD_LIMIT) fail(`the left button was still held ${at - zeroSince} ms after the last finger lifted`)
     for (const event of list) {
       events.push({ event, gesture })
       for (const key of Object.keys(event)) {
@@ -520,16 +570,17 @@ function fuzzOne(seed) {
     // what they emit belongs to the gesture that just ended.
     while (time + 8 < frame.time) {
       time += 8 + Math.floor(random() * 30)
-      if (time < frame.time) observe(pad.tick(time), current)
+      if (time < frame.time) observe(pad.tick(time), current, time)
     }
     current = frame.gesture
     time = frame.time
     if (fingersDown === 0 && frame.contacts.length > 0) { session += 1; swipesInSession = 0 }
     fingersDown = frame.contacts.length
-    observe(pad.frame(frame), frame.gesture)
+    if (fingersDown === 0) { if (zeroSince === null) zeroSince = time } else zeroSince = null
+    observe(pad.frame(frame), frame.gesture, time)
     if (problem) return { problem, frames, events }
   }
-  for (let i = 0; i < 2500; i += 16) observe(pad.tick(time + i), current)
+  for (let i = 0; i < 2500; i += 16) observe(pad.tick(time + i), current, time + i)
   if (held.left || held.right || held.middle) fail("a button is still held after everything lifted")
   if (scrollActive || pinchActive) fail("a scroll or pinch is still open after everything lifted")
   if (pad.needsTick()) fail("something is still pending after everything lifted")
@@ -537,7 +588,8 @@ function fuzzOne(seed) {
   if (state.tap !== "idle" || state.gesture !== "none" || state.fingers !== 0) fail(`not idle at the end: ${JSON.stringify(state)}`)
 
   // A lone single tap, with or without a bounce, is one click at most; a clean
-  // one is exactly one. "Lone" means nothing else near it in time.
+  // one is exactly one, its down at the lift and its up from a tick after.
+  // "Lone" means nothing else near it in time.
   const byGesture = new Map()
   for (const frame of frames) {
     const list = byGesture.get(frame.gesture) ?? []
@@ -552,10 +604,15 @@ function fuzzOne(seed) {
     const after = frames.filter((f) => f.gesture !== gesture && f.time > last).map((f) => f.time)
     const lone = (!before.length || first - Math.max(...before) > 800) && (!after.length || Math.min(...after) - last > 800)
     if (!lone) continue
-    const clicks = leftClicks(events.filter((e) => e.gesture === gesture).map((e) => e.event))
+    const own = events.filter((e) => e.gesture === gesture).map((e) => e.event)
+    const clicks = leftClicks(own)
     if (clicks > 1) fail(`a lone ${gesture.kind} produced ${clicks} clicks`)
     const moved = list.some((f) => f.contacts.length && Math.abs(f.contacts[0].x - list[0].contacts[0].x) + Math.abs(f.contacts[0].y - list[0].contacts[0].y) > TUNING.tapMovePx / 2)
-    if (gesture.kind === "tap" && !moved && last - first < TUNING.tapMs - 40 && clicks !== 1) fail(`a lone clean tap produced ${clicks} clicks`)
+    if (gesture.kind === "tap" && !moved && last - first < TUNING.tapMs - 40) {
+      if (clicks !== 1) fail(`a lone clean tap produced ${clicks} clicks`)
+      const buttons = own.filter((e) => e.type === "button").map((e) => `${e.button} ${e.state}`)
+      if (!same(buttons, ["left down", "left up"])) fail(`a lone clean tap sent ${JSON.stringify(buttons)}`)
+    }
   }
   return problem ? { problem, frames, events } : null
 }

@@ -26,8 +26,12 @@ export type ScrollPhase = "begin" | "change" | "end" | "momentum"
 export type PinchPhase = "begin" | "change" | "end"
 
 /** What the fingers meant. Moves and scrolls are already scaled by the
-    settings (cursor speed, natural scrolling) and may be fractions; a click
-    is a "down" followed at once by an "up" of the same button. Scroll
+    settings (cursor speed, natural scrolling) and may be fractions. A tap
+    is a left "down" when the finger lifts and an "up" from a tick up to
+    TUNING.dragMs later, unless a finger lands in between and drags with the
+    same press (moves, then the "up" when it lifts); a second tap in that
+    time ends the first click and makes the second at once. Other clicks are
+    a "down" followed at once by an "up" of the same button. Scroll
     "momentum" events arrive from ticks after the fingers have lifted. A
     pinch's scale is the factor since the previous pinch event. */
 export type TouchpadEvent =

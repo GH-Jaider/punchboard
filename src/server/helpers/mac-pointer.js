@@ -4,8 +4,11 @@
 //
 //   m <dx> <dy>     move the cursor by that many points (drags while the button is down)
 //   s <dx> <dy>     scroll by that many pixels
-//   c left|right    click where the cursor is (a quick second left click is a double click)
-//   d / u           press / release the left button, for dragging
+//   c left|right    click where the cursor is
+//   d / u           press / release the left button: a tap (its release comes
+//                   later) or a drag (moves in between). A left press soon after
+//                   the last one, at the same spot, is the second click of a
+//                   double click, whichever of c and d made either.
 //   k <code> <flags>  press a key (macOS key code) with modifier flags, for gestures
 //   p <phase> <mag>   a pinch as a trackpad makes it: phase 1 began, 2 changed,
 //                   4 ended; mag the magnification since the last one
@@ -33,7 +36,10 @@ ObjC.bindFunction("CGRequestPostEventAccess", ["bool", []])
 var HID = 0
 var MOVED = 5, LEFT_DOWN = 1, LEFT_UP = 2, RIGHT_DOWN = 3, RIGHT_UP = 4, LEFT_DRAGGED = 6
 var CLICK_STATE = 1
+/** A left press this soon after the last one, and this close to it, is the
+    next click of the same series: the second is a double click. */
 var DOUBLE_CLICK_MS = 400
+var DOUBLE_CLICK_PX = 6
 /** How long a click holds the button. A press and release at the same instant
     is sometimes dropped (Chrome is known to), and no finger clicks that fast. */
 var CLICK_HOLD_S = 0.02
@@ -52,7 +58,8 @@ function sourced(event) {
 var stdin = $.NSFileHandle.fileHandleWithStandardInput
 var stdout = $.NSFileHandle.fileHandleWithStandardOutput
 var leftDown = false
-var lastClickAt = 0
+var lastDownAt = 0
+var lastDownPoint = { x: 0, y: 0 }
 var clickCount = 1
 var screens = []
 var screensAt = 0
@@ -115,23 +122,48 @@ function scroll(dx, dy) {
   $.CGEventPost(HID, event)
 }
 
-function click(which) {
+/** Presses the left button at the cursor, counting clicks the way macOS does
+    for a mouse: a press soon after the last one, in the same place, is the
+    next click of it, and its release carries the same count. The count is
+    kept here rather than in click() alone because a deck sends a tap as a
+    press whose release follows later (a finger may come back to drag with
+    it), and a double tap as that release and then a click: the second press
+    must read as the double click whichever command made the first. */
+function leftPress(point) {
+  var now = Date.now()
+  var near = Math.abs(point.x - lastDownPoint.x) <= DOUBLE_CLICK_PX && Math.abs(point.y - lastDownPoint.y) <= DOUBLE_CLICK_PX
+  clickCount = now - lastDownAt < DOUBLE_CLICK_MS && near ? clickCount + 1 : 1
+  lastDownAt = now
+  lastDownPoint = point
+  leftDown = true
+  post(LEFT_DOWN, point, 0, clickCount)
+}
+
+function leftRelease(point) {
+  leftDown = false
+  post(LEFT_UP, point, 0, clickCount)
+}
+
+/** Where the cursor is, after a move to that very spot: the window under it
+    is the one macOS hands the press to, even if nothing has moved since it
+    started. */
+function pressPoint() {
   var point = here()
-  // A move to where the cursor already is: the window under it is the one
-  // macOS hands the press to, even if nothing has moved since it started.
   post(MOVED, point, 0, 0)
+  return point
+}
+
+function click(which) {
+  var point = pressPoint()
   if (which === "right") {
     post(RIGHT_DOWN, point, 1, 1)
     delay(CLICK_HOLD_S)
     post(RIGHT_UP, point, 1, 1)
     return
   }
-  var now = Date.now()
-  clickCount = now - lastClickAt < DOUBLE_CLICK_MS ? clickCount + 1 : 1
-  lastClickAt = now
-  post(LEFT_DOWN, point, 0, clickCount)
+  leftPress(point)
   delay(CLICK_HOLD_S)
-  post(LEFT_UP, point, 0, clickCount)
+  leftRelease(point)
 }
 
 // Modifier keys, pressed as keys rather than only named in a flag: macOS
@@ -201,8 +233,8 @@ function handle(line) {
   if (cmd === "c") return click(parts[1])
   if (cmd === "k") return key(Number(parts[1]) || 0, Number(parts[2]) || 0)
   if (cmd === "p") return pinch(Number(parts[1]) || 2, Number(parts[2]) || 0)
-  if (cmd === "d") { leftDown = true; return post(LEFT_DOWN, here(), 0, 1) }
-  if (cmd === "u") { leftDown = false; return post(LEFT_UP, here(), 0, 1) }
+  if (cmd === "d") return leftPress(pressPoint())
+  if (cmd === "u") return leftRelease(here())
   if (cmd === "q") $.exit(0)
 }
 
