@@ -67,8 +67,10 @@ export function createPairingView(elements: PairingElements, toast: Toast): Pair
   let expiresAt = 0
   let tick: number | undefined
   let poll: number | undefined
+  let shownCode = ""
 
   function showCode(data: { code: string; expiresAt: number }): void {
+    shownCode = data.code
     elements.code.textContent = formatCode(data.code)
     expiresAt = data.expiresAt
     elements.expiry.textContent = countdownText(expiresAt)
@@ -128,10 +130,14 @@ export function createPairingView(elements: PairingElements, toast: Toast): Pair
           void load()
         }
       }, 1000)
-      // Picks up a tablet that pairs while this is open.
+      // Picks up a tablet that pairs while this is open, and the code that
+      // replaces the one it used: a code pairs one device only.
       poll = window.setInterval(() => {
-        request<PairInfo>("/api/pair").then((data) => renderDevices(elements.devices, data.devices, removeDevice)).catch(() => {})
-      }, 5000)
+        request<PairInfo>("/api/pair").then((data) => {
+          if (data.code !== shownCode) showCode(data)
+          renderDevices(elements.devices, data.devices, removeDevice)
+        }).catch(() => {})
+      }, 2000)
     },
     stop(): void {
       window.clearInterval(tick)
