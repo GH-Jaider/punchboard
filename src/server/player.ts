@@ -60,7 +60,12 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
       "$end = [DateTime]::Now.AddMilliseconds($ms + 200)",
       "$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput())",
       "$read = $in.ReadLineAsync()",
-      "while ([DateTime]::Now -lt $end) { if ($read -and $read.IsCompleted) { $line = $read.Result; if ($null -eq $line) { $read = $null } else { $v = 0.0; if ([double]::TryParse($line, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $p.Volume = [Math]::Max(0, [Math]::Min(1, $v)); [Console]::Out.WriteLine('volume ' + $v.ToString([Globalization.CultureInfo]::InvariantCulture) + ' now ' + $p.Volume.ToString([Globalization.CultureInfo]::InvariantCulture)) }; $read = $in.ReadLineAsync() } }; Start-Sleep -Milliseconds 40 }",
+      // MediaPlayer applies changes made while it plays only through its
+      // dispatcher, which nothing runs in a script: each pass runs it once, so
+      // a new volume takes effect instead of waiting for the sound to end.
+      "Add-Type -AssemblyName WindowsBase",
+      "function Pump { $frame = New-Object System.Windows.Threading.DispatcherFrame; [void][System.Windows.Threading.Dispatcher]::CurrentDispatcher.BeginInvoke([System.Windows.Threading.DispatcherPriority]::Background, [Action]{ $frame.Continue = $false }); [System.Windows.Threading.Dispatcher]::PushFrame($frame) }",
+      "while ([DateTime]::Now -lt $end) { if ($read -and $read.IsCompleted) { $line = $read.Result; if ($null -eq $line) { $read = $null } else { $v = 0.0; if ([double]::TryParse($line, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $p.Volume = [Math]::Max(0, [Math]::Min(1, $v)); Pump; [Console]::Out.WriteLine('volume ' + $v.ToString([Globalization.CultureInfo]::InvariantCulture) + ' now ' + $p.Volume.ToString([Globalization.CultureInfo]::InvariantCulture)) }; $read = $in.ReadLineAsync() } }; Pump; Start-Sleep -Milliseconds 40 }",
       "$p.Close()"
     ].join("; ")
     return { file: "powershell", args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script] }
