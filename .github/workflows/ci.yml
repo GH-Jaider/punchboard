@@ -1,4 +1,5 @@
-# Type-checks, builds and runs the security test on both systems people use.
+# Type-checks, builds and runs the tests on both systems people use, then
+# checks what only the desktop app uses: the bundled companion and the shell.
 name: CI
 
 on:
@@ -22,3 +23,21 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npm test
+      # The app runs the bundle, not the sources: start it the way the app does.
+      - run: npm run build:server
+      - run: npm run test:bundle
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Check the desktop shell
+        shell: bash
+        run: |
+          # tauri-build wants the Node sidecar and its licence to exist; a
+          # check never runs them, so empty stand-ins do (this runner is thrown
+          # away, and fetch-node.mjs would otherwise skip a real download).
+          HOST=$(rustc -vV | sed -n 's/^host: //p')
+          EXT=""; case "$HOST" in *windows*) EXT=".exe";; esac
+          mkdir -p src-tauri/binaries
+          touch "src-tauri/binaries/node-$HOST$EXT" src-tauri/binaries/node-LICENSE.txt
+          cd src-tauri && cargo check --locked
