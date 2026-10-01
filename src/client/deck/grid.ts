@@ -13,7 +13,7 @@ import { tapSwitch, tapsThroughSwitch } from "./haptics.ts"
 import { press } from "./press.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
-import { hideTrackpad, showTrackpad } from "./trackpad.ts"
+import { hideTrackpad, showTrackpad, updateTrackpad } from "./trackpad.ts"
 import { toast } from "./ui.ts"
 
 export const gridEl = byId("grid")
@@ -98,6 +98,11 @@ const EMPTY_DECK =
 export function renderGrid(): void {
   if (!state.library) return
   const profile = activeProfile()
+  // Any edit in the Control Center re-renders the deck. The trackpad that is
+  // showing stays as it is, with the new settings, so fingers that are
+  // dragging or scrolling on it are not dropped halfway; only another deck
+  // takes it down.
+  if (profile && profile.trackpad && updateTrackpad(profile, gridEl)) return
   hideTrackpad()
   gridEl.innerHTML = ""
 

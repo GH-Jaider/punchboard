@@ -10,6 +10,7 @@ import path from "node:path"
 import { WebSocket } from "ws"
 import { signRequest } from "../src/shared/sign.ts"
 import { checker, JSON_TYPE, LAN, startCompanion } from "./companion.mjs"
+import { installPage } from "./fake-page.mjs"
 
 const { check, tally } = checker()
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -112,12 +113,132 @@ async function main() {
   r = await request({ host: LAN, method: "POST", path: tracePath, headers: { ...JSON_TYPE, ...signedHeaders(device, "POST", tracePath, junk) }, body: junk })
   check("A malformed trace is refused", r.status === 400, r.status)
 
+  await deckPage()
+
   const open = await connect(signedPath(device, "/api/pointer"))
   const cut = new Promise((resolve) => { open.ws.on("close", () => resolve(true)); setTimeout(() => resolve(false), 2000) })
   await request({ method: "DELETE", path: `/api/devices/${device.id}` })
   check("Removing a device closes its open trackpad", await cut, "still open")
   r = await connect(signedPath(device, "/api/pointer"))
   check("A removed device loses the trackpad", r.result === 401, r.result)
+}
+
+// --- the deck's own trackpad code, in a stand-in page, over a real socket
+
+/** A touch as the browser reports it. */
+const touch = (id, x, y) => ({ identifier: id, clientX: x, clientY: y })
+
+async function deckPage() {
+  const code = (await request({ path: "/api/pair" })).json.code
+  const device = (await request({ host: LAN, method: "POST", path: "/api/pair/claim", headers: JSON_TYPE, body: JSON.stringify({ code, name: "Deck page" }) })).json.device
+  const page = installPage({ host: `${LAN}:${port}`, origin: `http://${LAN}:${port}` })
+  // Imported only now: the deck's modules look for the page as they load.
+  const { normalizeLibrary } = await import("../src/shared/model.ts")
+  const { saveDevice } = await import("../src/client/deck/api.ts")
+  const { state } = await import("../src/client/deck/state.ts")
+  const { renderGrid, showDeck } = await import("../src/client/deck/grid.ts")
+  saveDevice(device)
+
+  const library = (speed) => normalizeLibrary({
+    activeProfileId: "pad",
+    profiles: [
+      { id: "pad", name: "Pad", columns: 3, rows: 2, buttons: [], trackpad: { speed, naturalScroll: true, pinchZoom: "gesture" } },
+      { id: "keys", name: "Keys", columns: 3, rows: 2, buttons: [] }
+    ]
+  })
+  const grid = page.byId("grid")
+  const surfaceOf = () => grid.children[0]?.children[0]
+  const ready = async () => {
+    for (let i = 0; i < 100 && page.sockets[page.sockets.length - 1]?.readyState !== 1; i += 1) await wait(20)
+  }
+  /** Fingers on a surface: `changed` are the ones this event is about, `all` the ones still down. */
+  const fingers = (surface, type, changed, all) => surface.dispatch(type, { changedTouches: changed, targetTouches: all })
+  async function slide(surface, id, x, y, dx) {
+    for (let i = 1; i <= 10; i += 1) {
+      await wait(16)
+      const moved = touch(id, x + (dx * i) / 10, y)
+      fingers(surface, "touchmove", [moved], [moved])
+    }
+    return x + dx
+  }
+  /** Tap, then land again and drag right: the tap's press carries the drag. */
+  async function tapAndDrag(surface, id, x, y) {
+    fingers(surface, "touchstart", [touch(id, x, y)], [touch(id, x, y)])
+    await wait(40)
+    fingers(surface, "touchend", [touch(id, x, y)], [])
+    await wait(120)
+    fingers(surface, "touchstart", [touch(id + 1, x, y)], [touch(id + 1, x, y)])
+    return slide(surface, id + 1, x, y, 60)
+  }
+  const moved = (list) => list.filter((line) => line.startsWith("m ")).reduce((sum, line) => sum + Number(line.split(" ")[1]), 0)
+
+  state.library = library(1)
+  state.activeId = "pad"
+  renderGrid()
+  await ready()
+  const surface = surfaceOf()
+  check("The deck page shows the trackpad and connects it", surface !== undefined && page.sockets.length === 1 && page.sockets[0].readyState === 1, page.sockets.length)
+
+  // A library update mid-drag (any edit in the Control Center) re-renders the
+  // deck: the drag must carry on, not drop and go on as plain movement.
+  let from = lines().length
+  let x = await tapAndDrag(surface, 1, 400, 300)
+  await wait(60)
+  const beforeUpdate = lines().slice(from)
+  state.library = library(2.5)
+  renderGrid()
+  check("A library update keeps the trackpad that is showing: same surface, same socket", surfaceOf() === surface && page.sockets.length === 1 && page.sockets[0].readyState === 1, `${page.sockets.length} sockets`)
+  x = await slide(surface, 2, x, 300, 60)
+  await wait(60)
+  const afterUpdate = lines().slice(from + beforeUpdate.length)
+  fingers(surface, "touchend", [touch(2, x, 300)], [])
+  await wait(150)
+  const dragLines = lines().slice(from)
+  check("The drag pressed once before the update", beforeUpdate[0] === "d" && !beforeUpdate.includes("u"), beforeUpdate.join("|"))
+  check("…and is still held after it, moving", !afterUpdate.includes("u") && !afterUpdate.includes("d") && moved(afterUpdate) > 0, afterUpdate.join("|"))
+  check("…and drops once, when the finger lifts", dragLines.filter((l) => l === "d").length === 1 && dragLines.filter((l) => l === "u").length === 1 && dragLines[dragLines.length - 1] === "u", dragLines.join("|"))
+  check("The new speed applies to the fingers already down", moved(afterUpdate) > moved(beforeUpdate) * 1.5, `${moved(beforeUpdate)} then ${moved(afterUpdate)}`)
+
+  // Another deck and back builds a new trackpad: the old surface, should a
+  // finger still be on it, must never feed the new one.
+  showDeck("keys")
+  check("Another deck takes the trackpad down", grid.children[0]?.className === "deck-empty", grid.children[0]?.className)
+  showDeck("pad")
+  await ready()
+  const second = surfaceOf()
+  check("Coming back builds a fresh trackpad", second !== undefined && second !== surface && page.sockets.length === 2, page.sockets.length)
+  from = lines().length
+  fingers(surface, "touchstart", [touch(9, 300, 300)], [touch(9, 300, 300)])
+  await wait(40)
+  fingers(surface, "touchend", [touch(9, 300, 300)], [])
+  await slide(surface, 9, 300, 300, 80)
+  await wait(500)
+  check("Touches on the old surface reach nothing", lines().length === from, lines().slice(from).join("|"))
+
+  // A close that arrives late from the previous socket must not clear the
+  // current drag, or its release is never sent and the button sticks down.
+  page.holdCloses(true)
+  showDeck("keys")
+  showDeck("pad")
+  await ready()
+  const third = surfaceOf()
+  from = lines().length
+  x = await tapAndDrag(third, 20, 400, 300)
+  await wait(60)
+  const previous = page.sockets[page.sockets.length - 2]
+  check("The previous socket was closed, its close event still on its way", previous !== undefined && previous.readyState === 3 && page.sockets.length === 3, previous?.readyState)
+  page.holdCloses(false)
+  page.releaseCloses()
+  x = await slide(third, 21, x, 300, 40)
+  fingers(third, "touchend", [touch(21, x, 300)], [])
+  await wait(150)
+  const late = lines().slice(from)
+  check("A late close from an old socket does not lose the drag's release", late[0] === "d" && late[late.length - 1] === "u" && late.filter((l) => l === "u").length === 1, late.join("|"))
+  const current = page.sockets[page.sockets.length - 1]
+  check("…and the current socket stays open", current.readyState === 1, current.readyState)
+
+  showDeck("keys")
+  await wait(100)
 }
 
 main()

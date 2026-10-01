@@ -22,7 +22,7 @@ import type { PointerMessage, PointerNotice, TraceSaved, TraceUpload } from "../
 import { createTouchpad, summarize } from "../../shared/touchpad/index.ts"
 import type { Touchpad, TouchFrame, TouchpadEvent, TouchpadState } from "../../shared/touchpad/index.ts"
 import { DEFAULT_TRACKPAD } from "../../shared/model.ts"
-import type { Profile, TrackpadSettings } from "../../shared/types.ts"
+import type { PinchZoom, Profile, TrackpadSettings } from "../../shared/types.ts"
 import { el, storage } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, streamUrl } from "./api.ts"
@@ -42,6 +42,15 @@ const HINT_KEY = "punchboard-trackpad-hint"
 
 let socket: WebSocket | null = null
 let shown = false
+/** Which trackpad is showing: counts up each time one is built or taken down.
+    A surface's listeners act only while theirs is current, since a finger
+    still on a surface that left the page keeps sending it touches, and those
+    must never reach the next trackpad's engine. */
+let session = 0
+/** The deck the trackpad belongs to, and its surface: a library update that
+    keeps this deck keeps the trackpad, mid-gesture, rather than rebuilding it. */
+let shownDeck: string | null = null
+let padEl: HTMLElement | null = null
 let settings: TrackpadSettings = DEFAULT_TRACKPAD
 let retryTimer: number | undefined
 let statusEl: HTMLElement | null = null
@@ -60,6 +69,9 @@ let scrollY = 0
 let flushQueued = false
 /** Pinch scale gathered in log space until it is worth a zoom step. */
 let zoomCarry = 0
+/** How the pinch under way goes out, chosen when it began, so a settings
+    change mid-pinch cannot leave a real pinch without its end. */
+let pinchMode: PinchZoom = DEFAULT_TRACKPAD.pinchZoom
 
 function assertNever(value: never): never {
   throw new Error(`Unhandled ${String(value)}`)
@@ -79,14 +91,22 @@ function open(): void {
   try { next = new WebSocket(url) } catch { return retry() }
   socket = next
   setStatus("Connecting…", false)
-  next.onopen = () => setStatus("Ready", true)
+  // A socket that is no longer the current one (the trackpad was taken down
+  // and built again) speaks for nothing: its late events are ignored.
+  next.onopen = () => {
+    if (socket === next) setStatus("Ready", true)
+  }
   next.onmessage = (event: MessageEvent<string>) => {
+    if (socket !== next) return
     let notice: PointerNotice
     try { notice = JSON.parse(event.data) as PointerNotice } catch { return }
     if (notice.error) toast(notice.error, true)
   }
   next.onclose = () => {
-    if (socket === next) socket = null
+    // A late close from an old socket must not clear the current one's drag,
+    // or the drag's release would never be sent and the button would stick.
+    if (socket !== next) return
+    socket = null
     // The companion lets go of the button when a socket closes.
     held = false
     retry()
@@ -183,7 +203,8 @@ function handle(events: TouchpadEvent[]): void {
         break
       }
       case "pinch":
-        if (settings.pinchZoom !== "keys") {
+        if (event.phase === "begin") pinchMode = settings.pinchZoom
+        if (pinchMode !== "keys") {
           // The real gesture: the computer zooms the way a trackpad pinch does.
           // A trackpad's pinch begins at rest and grows in changes, so the
           // ground covered while deciding it was a pinch follows as a change.
@@ -285,10 +306,10 @@ function suggestLock(): void {
   toast(tip, false, { label: "Got it", onClick: () => { /* dismissed */ } })
 }
 
-function bindSurface(surface: HTMLElement): void {
+function bindSurface(surface: HTMLElement, own: number): void {
   const onTouch = (event: TouchEvent): void => {
     event.preventDefault()
-    if (!engine) return
+    if (own !== session || !engine) return
     const changed = event.changedTouches
     for (let i = 0; i < changed.length; i += 1) {
       const touch = changed[i]!
@@ -306,6 +327,7 @@ function bindSurface(surface: HTMLElement): void {
   surface.addEventListener("touchend", onTouch)
   surface.addEventListener("touchcancel", (event: TouchEvent) => {
     event.preventDefault()
+    if (own !== session) return
     edgeTouches = {}
     if (!engine) return
     // The system took the touches (a notification pulled down, say): nothing is clicked or dropped.
@@ -417,6 +439,8 @@ function createDebug(surface: HTMLElement): Debug {
 
 /** Replaces the grid's contents with the trackpad. */
 export function showTrackpad(profile: Profile, host: HTMLElement): void {
+  hideTrackpad()
+  session += 1
   settings = profile.trackpad ?? settings
   engine = createTouchpad(settings)
   held = false
@@ -431,7 +455,7 @@ export function showTrackpad(profile: Profile, host: HTMLElement): void {
   statusEl = el("span", "trackpad-status", "Connecting…")
   surface.appendChild(statusEl)
   surface.appendChild(el("span", "trackpad-hint", "Works like a laptop trackpad: tap, two fingers to scroll, pinch to zoom, three fingers to swipe between windows and desktops"))
-  bindSurface(surface)
+  bindSurface(surface, session)
   pad.appendChild(surface)
   if (/trackpad-debug/.test(location.hash)) {
     debug = createDebug(surface)
@@ -440,9 +464,24 @@ export function showTrackpad(profile: Profile, host: HTMLElement): void {
   host.appendChild(pad)
 
   shown = true
+  shownDeck = profile.id
+  padEl = pad
   edgeTouches = {}
   open()
   suggestLock()
+}
+
+/** The library changed (any edit in the Control Center) and this deck is
+    still the trackpad that is showing: its new settings apply to the fingers
+    already down, and the surface, the engine and the socket stay, so a drag
+    or a scroll under way carries on. False when there is nothing to keep
+    (another deck, or the surface is no longer on the page), and the caller
+    builds the deck afresh. */
+export function updateTrackpad(profile: Profile, host: HTMLElement): boolean {
+  if (!shown || !engine || !profile.trackpad || profile.id !== shownDeck || !padEl || padEl.parentNode !== host) return false
+  settings = profile.trackpad
+  engine.setSettings(settings)
+  return true
 }
 
 /** Leaving the trackpad (another deck, or the page going away) closes its socket. */
@@ -450,10 +489,15 @@ export function hideTrackpad(): void {
   if (!shown) return
   letGo()
   shown = false
+  // The old surface's listeners go quiet now, whatever its fingers do next.
+  session += 1
+  shownDeck = null
+  padEl = null
   stopTicking()
   engine = null
   debug = null
   statusEl = null
+  moveX = moveY = scrollX = scrollY = 0
   window.clearTimeout(retryTimer)
   const closing = socket
   socket = null
