@@ -2888,7 +2888,7 @@ dependencies = [
 
 [[package]]
 name = "punchboard"
-version = "1.4.2"
+version = "1.4.3"
 dependencies = [
  "dunce",
  "serde_json",
