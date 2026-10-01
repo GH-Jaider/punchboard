@@ -110,22 +110,24 @@ export function saveNow(): void {
   void save()
 }
 
+// `open` tracks which step card is expanded: inspector state, not deck data.
+const libraryBody = (loaded: Library): string => JSON.stringify(loaded, (key, value: unknown) => (key === "open" ? undefined : value))
+const fitsKeepalive = (body: string): boolean => new Blob([body]).size <= KEEPALIVE_LIMIT
+
 async function save(): Promise<void> {
   if (!store.library || !dirty) return
   // The edit stays dirty and goes out when the save in flight is done.
   if (store.saving) return
   store.library.activeProfileId = store.activeId
-  // `open` tracks which step card is expanded: inspector state, not deck data.
-  const body = JSON.stringify(store.library, (key, value: unknown) => (key === "open" ? undefined : value))
+  const body = libraryBody(store.library)
   dirty = false
   store.saving = true
   try {
     // A keepalive request outlives the page, so an edit made just before the
     // window closes still lands. Browsers refuse keepalive bodies over 64 KiB;
-    // a bigger library (custom images) goes as a normal request instead. That
-    // one starts the moment the page is hidden, which on a close comes before
-    // the page is torn down, so it usually still gets through.
-    const keepalive = leaving && new Blob([body]).size <= KEEPALIVE_LIMIT
+    // a bigger library (custom images) goes as a normal request instead, and
+    // closing the page then asks first (see bindSaving), so it has time to land.
+    const keepalive = leaving && fitsKeepalive(body)
     const response = await fetch(`/api/library?rev=${store.libraryRev}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -191,6 +193,17 @@ export function bindSaving(): void {
   })
   window.addEventListener("pagehide", flushOnLeave)
   window.addEventListener("pageshow", () => { leaving = false })
+  // Normally the keepalive save on pagehide covers a close. When it cannot
+  // (saves are failing, an edit is queued behind a save in flight, or the
+  // library is too big for keepalive), the save starts now and the browser
+  // asks before leaving, which gives it time to land.
+  window.addEventListener("beforeunload", (event) => {
+    if (!store.library || !dirty) return
+    if (failures === 0 && !store.saving && fitsKeepalive(libraryBody(store.library))) return
+    if (dirty && !store.saving) saveNow()
+    event.preventDefault()
+    event.returnValue = ""
+  })
 }
 
 /** Marks the active profile as edited and queues a save. */
