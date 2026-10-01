@@ -4,9 +4,9 @@
 // iPads only offer the webkit-prefixed API; iPhones offer none for pages, so
 // there the deck hides its own bar and points at Add to Home Screen, which
 // opens it with no browser chrome at all.
-import { byId, storage } from "../common/dom.ts"
+import { byId } from "../common/dom.ts"
 import { scaleTiles } from "./grid.ts"
-import { toast } from "./ui.ts"
+import { hint } from "./ui.ts"
 
 type FullscreenRoot = HTMLElement & { webkitRequestFullscreen?: () => unknown }
 type FullscreenDocument = Document & { webkitFullscreenElement?: Element | null; webkitExitFullscreen?: () => unknown }
@@ -45,9 +45,7 @@ function exitFullscreen(): void {
 }
 
 function hintHomeScreen(): void {
-  if (storage.get(HINT_KEY)) return
-  storage.set(HINT_KEY, "1")
-  toast("This browser cannot go full screen. Use Share › Add to Home Screen, then open Punchboard from there and pair once.", false, { label: "Got it", onClick: () => { /* dismissed */ } })
+  hint(HINT_KEY, "This browser cannot go full screen. Use Share › Add to Home Screen, then open Punchboard from there and pair once.")
 }
 
 function setImmersive(on: boolean): void {

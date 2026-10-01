@@ -1,8 +1,7 @@
 // Keeps the screen on while the deck is open, where the browser allows it.
 // The wake lock lapses whenever the page is hidden and, on iOS, is only
 // granted after a touch, so it is asked for again on both.
-import { storage } from "../common/dom.ts"
-import { toast } from "./ui.ts"
+import { hint } from "./ui.ts"
 
 interface WakeLockSentinel {
   release(): Promise<void>
@@ -27,10 +26,7 @@ export function initWakeLock(): void {
   if (!nav.wakeLock) {
     // Browsers only offer a wake lock to https pages, and the deck is served
     // over plain http on the local network: the device's setting is the answer.
-    if (!storage.get(HINT_KEY)) {
-      storage.set(HINT_KEY, "1")
-      toast("Keep the screen on: set Auto-Lock (iPad, iPhone) or Screen timeout (Android) to the longest while you use the deck.", false, { label: "Got it", onClick: () => { /* dismissed */ } })
-    }
+    hint(HINT_KEY, "Keep the screen on: set Auto-Lock (iPad, iPhone) or Screen timeout (Android) to the longest while you use the deck.")
     return
   }
   acquire()
