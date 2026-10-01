@@ -42,6 +42,11 @@ child.stderr.on("data", (chunk) => { errors += chunk })
 child.stdout.on("data", (chunk) => { out += chunk })
 setTimeout(() => child.stdin.write("0.2\n"), 600)
 setTimeout(() => child.stdin.write("1\n"), 900)
+// Each volume line must reach the script while it plays, and be applied.
+const heard = new Promise((resolve) => {
+  const timer = setTimeout(() => resolve(""), 12000)
+  child.stdout.on("data", () => { if (/volume 1 /.test(out)) { clearTimeout(timer); resolve(out) } })
+})
 const code = await new Promise((resolve) => {
   const timer = setTimeout(() => { child.kill(); resolve("timeout") }, 15000)
   child.on("exit", (exitCode) => { clearTimeout(timer); resolve(exitCode) })
@@ -49,6 +54,10 @@ const code = await new Promise((resolve) => {
 const took = Date.now() - started
 const length = Number((out.match(/length (\d+)/) || [])[1])
 check("The player script runs without errors", errors.trim() === "", errors.trim())
+const volumes = await heard
+check("A new volume reaches a playing sound", /volume 0\.2 now/.test(volumes) && /volume 1 now/.test(volumes), out.trim())
+const applied = (out.match(/volume 0\.2 now ([\d.]+)/) || [])[1]
+console.log(`(the player took 0.2 as ${applied ?? "nothing"})`)
 if (length === 60000 || !length) {
   // No sound device (CI machines have none): MediaPlayer never learns the length.
   console.log(`(no sound device here: length ${length || "unknown"}, so the timing checks are skipped)`)

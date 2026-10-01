@@ -59,7 +59,7 @@ export function playCommand(file: string, level: number, platform: NodeJS.Platfo
       "$end = [DateTime]::Now.AddMilliseconds($ms + 200)",
       "$in = New-Object System.IO.StreamReader([Console]::OpenStandardInput())",
       "$read = $in.ReadLineAsync()",
-      "while ([DateTime]::Now -lt $end) { if ($read -and $read.IsCompleted) { $line = $read.Result; if ($null -eq $line) { $read = $null } else { $v = 0.0; if ([double]::TryParse($line, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $p.Volume = [Math]::Max(0, [Math]::Min(1, $v)) }; $read = $in.ReadLineAsync() } }; Start-Sleep -Milliseconds 40 }",
+      "while ([DateTime]::Now -lt $end) { if ($read -and $read.IsCompleted) { $line = $read.Result; if ($null -eq $line) { $read = $null } else { $v = 0.0; if ([double]::TryParse($line, [Globalization.NumberStyles]::Float, [Globalization.CultureInfo]::InvariantCulture, [ref]$v)) { $p.Volume = [Math]::Max(0, [Math]::Min(1, $v)); [Console]::Out.WriteLine('volume ' + $v.ToString([Globalization.CultureInfo]::InvariantCulture) + ' now ' + $p.Volume.ToString([Globalization.CultureInfo]::InvariantCulture)) }; $read = $in.ReadLineAsync() } }; Start-Sleep -Milliseconds 40 }",
       "$p.Close()"
     ].join("; ")
     return { file: "powershell", args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script] }
