@@ -1,6 +1,6 @@
 // Browser helpers every page shares: colour tokens, themes, small DOM
 // builders and the toast.
-import { colorValue, mixHex, parseHex, readableInk, withAlpha } from "../../shared/colors.ts"
+import { colorValue, isVeryDark, LIGHT_INK, mixHex, parseHex, readableInk, withAlpha } from "../../shared/colors.ts"
 import { isDarkVariant, themeById, themeFamily } from "../../shared/themes.ts"
 import type { ButtonColor, ThemeId } from "../../shared/types.ts"
 
@@ -34,9 +34,18 @@ export function applyAccent(hex: string | undefined, root: HTMLElement = documen
 /** Paints one tile's colour-derived custom properties. */
 export function applyTileColor(element: HTMLElement, color: ButtonColor): void {
   const hex = colorValue(color)
+  const ink = readableInk(hex)
   const style = element.style
   style.setProperty("--tile-color", hex)
-  style.setProperty("--tile-ink", readableInk(hex))
+  style.setProperty("--tile-ink", ink)
+  // Lines and marks drawn in the ink, softer than the text itself.
+  style.setProperty("--tile-ink-line", withAlpha(ink, 0.38))
+  // A label strip on a lit key: moved away from the ink, so its text reads
+  // even better than on the key itself.
+  style.setProperty("--tile-strip", mixHex(hex, ink === LIGHT_INK ? "#000000" : "#ffffff", 0.35))
+  // The ring of a lit key. A near-black colour gets a light one, or the lit
+  // key vanishes into a dark theme.
+  style.setProperty("--tile-edge", isVeryDark(hex) ? "rgba(255,255,255,0.55)" : hex)
   style.setProperty("--tile-soft", withAlpha(hex, 0.16))
   style.setProperty("--tile-line", withAlpha(hex, 0.45))
   style.setProperty("--tile-glow", withAlpha(hex, 0.3))

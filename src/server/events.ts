@@ -78,8 +78,11 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     // A tablet arriving changes the count the Control Center shows.
     if (deviceId) broadcast()
     else res.write(`data: ${JSON.stringify(snapshot())}\n\n`)
-    // A comment frame keeps intermediaries and sleeping wifi from dropping it.
-    const beat = setInterval(() => { try { res.write(": beat\n\n") } catch { /* closing */ } }, 20000)
+    // A ping keeps intermediaries and sleeping wifi from dropping the stream,
+    // and lets a deck notice a line that died silently: a comment frame would
+    // do the first, but a page never sees comments. Pages without a "ping"
+    // listener ignore it.
+    const beat = setInterval(() => { try { res.write("event: ping\ndata: 1\n\n") } catch { /* closing */ } }, 15000)
     const close = (): void => {
       clearInterval(beat)
       listeners.delete(res)

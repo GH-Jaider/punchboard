@@ -44,7 +44,23 @@ function relativeLuminance(hex: string): number {
   return 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b)
 }
 
-export const readableInk = (hex: string): string => (relativeLuminance(hex) > 0.42 ? "#08100f" : "#ffffff")
+export const DARK_INK = "#08100f"
+export const LIGHT_INK = "#ffffff"
+
+/** WCAG contrast ratio between two colours, 1 to 21. */
+export function contrastRatio(a: string, b: string): number {
+  const la = relativeLuminance(a)
+  const lb = relativeLuminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+
+/** The ink, dark or white, with the higher contrast on this colour. A fixed
+    luminance cut-off gave white ink on mid-tones (blue, red, orange) at under
+    3:1, where dark ink reads at 6:1 and more. */
+export const readableInk = (hex: string): string => (contrastRatio(hex, DARK_INK) >= contrastRatio(hex, LIGHT_INK) ? DARK_INK : LIGHT_INK)
+
+/** So dark it all but vanishes on a dark theme. */
+export const isVeryDark = (hex: string): boolean => relativeLuminance(hex) < 0.03
 
 export interface ColorPreset { id: ButtonColorId; label: string; value: string }
 

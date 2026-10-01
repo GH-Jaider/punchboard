@@ -27,7 +27,7 @@ import { el, storage } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
 import { api, streamUrl } from "./api.ts"
 import { haptic } from "./haptics.ts"
-import { toast } from "./ui.ts"
+import { hint, toast } from "./ui.ts"
 
 /** One zoom step (an app's Cmd/Ctrl +) per this much change in finger spread:
     log scale, about 35%, so doubling the gap is two steps. */
@@ -295,7 +295,6 @@ function readFrame(touches: TouchList): TouchFrame {
     only the device can stop that. */
 function suggestLock(): void {
   if (storage.get(HINT_KEY)) return
-  storage.set(HINT_KEY, "1")
   const agent = navigator.userAgent
   const apple = /iPad|iPhone|Macintosh.*Mobile/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)
   const tip = apple
@@ -303,7 +302,7 @@ function suggestLock(): void {
     : /Android/.test(agent)
       ? "Tip: use Full screen, and pin the browser (Settings › Security › App pinning) so a swipe from the edge cannot leave the trackpad."
       : "Tip: use Full screen, so a swipe from the edge does not leave the trackpad."
-  toast(tip, false, { label: "Got it", onClick: () => { /* dismissed */ } })
+  hint(HINT_KEY, tip)
 }
 
 function bindSurface(surface: HTMLElement, own: number): void {

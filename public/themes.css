@@ -206,7 +206,9 @@ html[data-theme="hardware"][data-mode="dark"] {
   background: linear-gradient(var(--tile-color, var(--accent)), var(--tile-color, var(--accent))) 12px 12px / 22px 4px no-repeat, var(--hw-key-face);
   color: var(--text);
 }
-[data-theme="hardware"] .tile:hover { border-color: var(--hw-key-edge-hover); }
+@media (hover: hover) {
+  [data-theme="hardware"] .tile:hover { border-color: var(--hw-key-edge-hover); }
+}
 [data-theme="hardware"] .tile .tile-icon { background: transparent; color: var(--text); }
 [data-theme="hardware"] .tile .tile-label {
   font-family: var(--font-mono);
@@ -243,7 +245,13 @@ html[data-theme="hardware"][data-mode="dark"] {
   box-shadow: none;
 }
 [data-theme="hardware"] .deck-grid .tile.is-on .tile-icon { background: transparent; color: var(--tile-ink, #161616); }
-[data-theme="hardware"] .deck-grid .tile.is-on::before { background: var(--tile-ink, #fff); }
+/* Lit, plainly, even when the key's colour is as pale as the keycaps: the
+   LED lights in the ink with a halo, and a line in the ink rims the face. */
+[data-theme="hardware"] .deck-grid .tile.is-on::before { background: var(--tile-ink, #fff); box-shadow: 0 0 0 3px var(--tile-ink-line, transparent); }
+[data-theme="hardware"] .deck-grid .tile.is-on { box-shadow: inset 0 0 0 3px var(--tile-ink-line, transparent); }
+/* Small keys: the colour strip shrinks into the corner, clear of the level. */
+[data-theme="hardware"] .deck-grid.is-compact .tile { background-position: 8px 8px, 0 0; background-size: 14px 3px, auto; }
+[data-theme="hardware"] .deck-grid.is-compact .tile::before { top: 7px; right: 7px; width: 7px; height: 7px; }
 [data-theme="hardware"] .deck-grid .tile.is-busy { opacity: 1; }
 [data-theme="hardware"] .deck-grid .tile.is-busy::before { background: #f0c419; }
 [data-theme="hardware"] .deck-grid .tile.is-error { border-color: var(--danger); box-shadow: none; }
@@ -378,7 +386,9 @@ html[data-theme="broadcast"] {
   border: 1px solid #2e2e2e;
   background: #161616;
 }
-[data-theme="broadcast"] .tile:hover { border-color: #4a4a4a; }
+@media (hover: hover) {
+  [data-theme="broadcast"] .tile:hover { border-color: #4a4a4a; }
+}
 [data-theme="broadcast"] .tile .tile-icon {
   width: 100%;
   height: auto;
@@ -393,7 +403,12 @@ html[data-theme="broadcast"] {
   width: 100%;
   max-width: none;
   flex: none;
-  padding: 0.45em 0.4em;
+  /* The strip's height is the line's own height, not padding: overflow is
+     clipped at the padding edge, so with padding the clamp left the top of
+     a second line showing in it. One line box, clipped to exactly itself. */
+  height: 2.1em;
+  padding: 0 0.4em;
+  line-height: 2.1;
   background: var(--tile-dim, #2a2a2a);
   color: #ffffff;
   font-family: var(--font-display);
@@ -402,6 +417,7 @@ html[data-theme="broadcast"] {
   text-transform: uppercase;
   -webkit-line-clamp: 1;
 }
+[data-theme="broadcast"] .deck-grid .tile .tile-label { margin-top: 0; }
 [data-theme="broadcast"] .tile .tile-label.is-empty { background: #202020; color: var(--text-subtle); }
 [data-theme="broadcast"] .tile .step-count { top: 0; right: 0; border-radius: 0; background: #2a2a2a; color: #bdbdbd; }
 [data-theme="broadcast"] .tablet-frame,
@@ -421,8 +437,12 @@ html[data-theme="broadcast"] {
   box-shadow: none;
 }
 [data-theme="broadcast"] .deck-grid .tile.is-on .tile-icon { background: transparent; color: var(--tile-ink, #0b0b0b); }
-[data-theme="broadcast"] .deck-grid .tile.is-on .tile-label { background: rgba(0, 0, 0, 0.32); color: #ffffff; }
-[data-theme="broadcast"] .deck-grid .tile.is-on::before { top: 0; right: auto; left: 0; width: 12px; height: 12px; border-radius: 0; background: #ffffff; }
+/* The strip moves away from the ink (lighter under dark ink, darker under
+   white), so its label reads better than the key, never worse. */
+[data-theme="broadcast"] .deck-grid .tile.is-on .tile-label { background: var(--tile-strip, rgba(0, 0, 0, 0.32)); color: var(--tile-ink, #ffffff); }
+[data-theme="broadcast"] .deck-grid .tile.is-on::before { top: 0; right: auto; left: 0; width: 12px; height: 12px; border-radius: 0; background: var(--tile-ink, #ffffff); opacity: 1; }
+/* A near-black key still has to read as lit. */
+[data-theme="broadcast"] .deck-grid .tile.is-on { box-shadow: inset 0 0 0 2px var(--tile-edge, transparent); }
 [data-theme="broadcast"] .deck-grid .tile.is-error { border: 3px solid var(--danger); box-shadow: none; }
 
 [data-theme="broadcast"] .tile.fader .tile-label { z-index: 1; }

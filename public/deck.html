@@ -30,6 +30,8 @@
     <span class="link-status" id="link-status" role="status" aria-live="polite">
       <span class="dot" aria-hidden="true"></span><span id="link-text">Connecting</span>
     </span>
+    <!-- Shown only on a device that can give haptic feedback (haptics.ts). -->
+    <button class="icon-btn haptics-btn" id="haptics-btn" type="button" aria-label="Haptic feedback" aria-pressed="true" hidden></button>
     <button class="btn" id="immersive-btn" type="button" aria-pressed="false">Full screen</button>
   </header>
 
@@ -38,7 +40,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
       <span>The companion on your computer is not responding. Buttons will not fire until it is back.</span>
     </div>
-    <nav class="deck-profiles" id="profiles" aria-label="Choose a profile"></nav>
+    <nav class="deck-profiles" id="profiles" aria-label="Choose a deck"></nav>
     <div class="deck-grid" id="grid" role="group" aria-label="Deck buttons"></div>
   </main>
 
@@ -54,7 +56,7 @@
       <h1 id="pair-title">Pair this device</h1>
       <p>On the computer, open <strong>Pair a device</strong> in the Control Center and scan the code, or type the 6 digits shown there.</p>
       <label for="pair-code" class="visually-hidden">Pairing code</label>
-      <input id="pair-code" class="pair-code" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="7" placeholder="000000">
+      <input id="pair-code" class="pair-code" type="text" inputmode="numeric" maxlength="7" placeholder="000000">
       <p class="pair-error" id="pair-error" role="alert"></p>
       <button class="btn primary wide" id="pair-submit" type="submit">Pair</button>
     </form>

@@ -5,13 +5,13 @@ import { nameDecksWith } from "../../shared/actions.ts"
 import { isStateful, normalizeLibrary, shownProfiles } from "../../shared/model.ts"
 import type { Button } from "../../shared/types.ts"
 import { applyAccent, applyTheme } from "../common/dom.ts"
-import { api, eventsUrl, UnpairedError } from "./api.ts"
+import { api, eventsUrl, UnpairedError, whenUnreachable, withTimeout } from "./api.ts"
 import { levelFor, showLevel, syncFaders } from "./faders.ts"
 import { gridEl, openedByButton, renderGrid, renderProfiles } from "./grid.ts"
 import { applyMeters, updatePlayback } from "./indicators.ts"
 import { activeProfile, state } from "./state.ts"
 import { paintState } from "./tile-state.ts"
-import { needsPairing, setOnline } from "./ui.ts"
+import { isOffline, needsPairing, setOnline } from "./ui.ts"
 
 export async function loadLibrary(): Promise<void> {
   const next = await api<LibraryResponse>("/api/library")
@@ -93,6 +93,16 @@ function refreshLiveState(): void {
   }
 }
 
+/* Offline, the deck cannot know what is still playing: a sound's countdown
+   would sit at 0:00 and its key stay lit. Playback is cleared, and lit keys
+   fade (style.css) until the next snapshot says what is true. */
+function goOffline(): void {
+  setOnline(false)
+  state.playing = []
+  updatePlayback({})
+  refreshLiveState()
+}
+
 // EventSource cannot send headers, so the stream is signed in its address, and
 // each reconnect needs a fresh signature: reconnecting is done here rather than
 // left to the browser.
@@ -104,6 +114,62 @@ function scheduleReconnect(delay: number): void {
   reconnectTimer = window.setTimeout(connect, delay)
 }
 
+/* A watchdog for a connection that dies without a word, as wifi does: the
+   stream stays "open" and "Connected" would stay up for good. The companion
+   sends a ping event every 15 s; silence for longer than this means the line
+   is gone. The first word has to come quickly: a snapshot is sent on open. */
+const SILENCE_MS = 40000
+const FIRST_WORD_MS = 10000
+/** How long the reason-finding status check may take before giving up. */
+const STATUS_TIMEOUT_MS = 8000
+let watchdog: number | undefined
+let lastHeard = 0
+
+function heard(stream: EventSource): void {
+  if (source !== stream) return
+  lastHeard = Date.now()
+  setOnline(true)
+  armWatchdog(stream, SILENCE_MS)
+}
+
+function armWatchdog(stream: EventSource, ms: number): void {
+  window.clearTimeout(watchdog)
+  watchdog = window.setTimeout(() => {
+    if (source !== stream) return
+    // A sleeping tablet runs late timers on waking: count from the last word.
+    const quiet = Date.now() - lastHeard
+    if (lastHeard && quiet < SILENCE_MS) armWatchdog(stream, SILENCE_MS - quiet)
+    else dropped(stream)
+  }, ms)
+}
+
+/** The stream failed or fell silent: say so, then find out why. An unpaired
+    deck shows the pairing screen instead of retrying forever, and the status
+    check also resyncs the clock. */
+function dropped(stream: EventSource): void {
+  stream.close()
+  if (source === stream) source = null
+  window.clearTimeout(watchdog)
+  goOffline()
+  withTimeout(api<StatusResponse>("/api/status"), STATUS_TIMEOUT_MS)
+    .then(() => scheduleReconnect(0))
+    .catch((error: unknown) => {
+      if (!(error instanceof UnpairedError)) scheduleReconnect(2000)
+    })
+}
+
+/* A request that could not reach the companion means the stream is likely
+   dead too: go offline at once and reconnect, rather than wait for the watchdog. */
+whenUnreachable(() => {
+  if (isOffline() || needsPairing()) return
+  if (source) {
+    dropped(source)
+    return
+  }
+  goOffline()
+  scheduleReconnect(2000)
+})
+
 export function connect(): void {
   if (source) {
     source.close()
@@ -111,13 +177,13 @@ export function connect(): void {
   }
 
   if (typeof EventSource === "undefined") {
-    api<StatusResponse>("/api/status")
+    withTimeout(api<StatusResponse>("/api/status"), STATUS_TIMEOUT_MS)
       .then((status) => {
         setOnline(true)
         applyState(status)
       })
       .catch((error: unknown) => {
-        if (!(error instanceof UnpairedError)) setOnline(false)
+        if (!(error instanceof UnpairedError)) goOffline()
       })
       .then(() => {
         if (!needsPairing()) scheduleReconnect(1500)
@@ -127,9 +193,11 @@ export function connect(): void {
 
   const stream = new EventSource(eventsUrl())
   source = stream
-  stream.onopen = () => setOnline(true)
+  lastHeard = 0
+  armWatchdog(stream, FIRST_WORD_MS)
+  stream.onopen = () => heard(stream)
   stream.onmessage = (event: MessageEvent<string>) => {
-    setOnline(true)
+    heard(stream)
     let snapshot: Snapshot
     try {
       snapshot = JSON.parse(event.data) as Snapshot
@@ -138,8 +206,10 @@ export function connect(): void {
     }
     applyState(snapshot)
   }
+  stream.addEventListener("ping", () => heard(stream))
   // Meter levels arrive as their own event, so they never re-send the snapshot.
   stream.addEventListener("meters", (event: Event) => {
+    heard(stream)
     const data = (event as MessageEvent<string>).data
     let meters: MetersEvent
     try {
@@ -149,18 +219,7 @@ export function connect(): void {
     }
     if (meters && meters.levels) applyMeters(meters)
   })
-  stream.onerror = () => {
-    stream.close()
-    if (source === stream) source = null
-    setOnline(false)
-    // Find out why: an unpaired deck shows the pairing screen instead of
-    // retrying forever. The status check also resyncs the clock.
-    api<StatusResponse>("/api/status")
-      .then(() => scheduleReconnect(0))
-      .catch((error: unknown) => {
-        if (!(error instanceof UnpairedError)) scheduleReconnect(2000)
-      })
-  }
+  stream.onerror = () => dropped(stream)
 }
 
 // Closing on unload stops the browser logging the aborted stream as an error.

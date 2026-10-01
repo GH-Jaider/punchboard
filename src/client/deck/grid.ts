@@ -34,6 +34,19 @@ export function renderProfiles(): void {
     tab.onclick = () => { showDeck(profile.id) }
     profilesEl.appendChild(tab)
   }
+  revealActiveTab()
+}
+
+/* A deck opened by a button may have its tab scrolled out of sight. Done by
+   hand: scrollIntoView with options is Safari 14+, and without them it would
+   scroll the page too. */
+function revealActiveTab(): void {
+  const tab = profilesEl.querySelector<HTMLElement>("button.active")
+  if (!tab || profilesEl.scrollWidth <= profilesEl.clientWidth) return
+  const left = tab.offsetLeft - profilesEl.offsetLeft
+  const right = left + tab.offsetWidth
+  if (left < profilesEl.scrollLeft) profilesEl.scrollLeft = Math.max(0, left - 12)
+  else if (right > profilesEl.scrollLeft + profilesEl.clientWidth) profilesEl.scrollLeft = right - profilesEl.clientWidth + 12
 }
 
 /** The hidden deck a "Go to another deck" button opened, kept through reloads. */
@@ -66,7 +79,17 @@ function pressTile(button: PressButton): HTMLElement {
   const tile = el(throughSwitch ? "label" : "button", "tile")
   if (tile instanceof HTMLButtonElement) tile.type = "button"
   else tile.setAttribute("role", "button")
-  if (throughSwitch) tile.appendChild(tapSwitch())
+  if (throughSwitch) {
+    tile.appendChild(tapSwitch())
+    // A label is not focusable or keyboard-operable the way a button is.
+    tile.tabIndex = 0
+    tile.addEventListener("keydown", (keyEvent: Event) => {
+      const event = keyEvent as KeyboardEvent
+      if (event.key !== "Enter" && event.key !== " " && event.key !== "Spacebar") return
+      event.preventDefault()
+      if (!event.repeat) press(button, tile)
+    })
+  }
   tile.setAttribute("data-button-id", button.id)
   applyTileColor(tile, button.color)
 
@@ -87,7 +110,12 @@ function pressTile(button: PressButton): HTMLElement {
   if (isStateful(button)) paintState(tile, button)
   // Screen readers get the action, not just the label.
   tile.setAttribute("aria-label", button.label || describe(button))
-  tile.addEventListener("click", () => press(button, tile))
+  tile.addEventListener("click", (event: Event) => {
+    // A click on the label itself (label.click(), assistive tech) is passed
+    // on to its switch and comes back up from there: press once, not twice.
+    if (throughSwitch && event.target === tile) return
+    press(button, tile)
+  })
   return tile
 }
 
@@ -155,9 +183,14 @@ export function scaleTiles(): void {
   gridEl.style.gridTemplateRows = ""
   gridEl.style.alignContent = ""
 
-  const width = gridEl.clientWidth
-  const height = gridEl.clientHeight
-  if (!width || !height) return
+  // The grid's padding is only room for rings at the edges (style.css).
+  const box = window.getComputedStyle(gridEl)
+  const padX = (parseFloat(box.paddingLeft) || 0) + (parseFloat(box.paddingRight) || 0)
+  const padY = (parseFloat(box.paddingTop) || 0) + (parseFloat(box.paddingBottom) || 0)
+  const width = gridEl.clientWidth - padX
+  const height = gridEl.clientHeight - padY
+  if (width <= 0 || height <= 0) return
+  lastSize = `${gridEl.clientWidth}x${gridEl.clientHeight}`
 
   const layout = layoutGrid({ width, height, columns: profile.columns, rows: profile.rows })
   gridEl.style.setProperty("--deck-gap", `${layout.gap}px`)
@@ -166,14 +199,65 @@ export function scaleTiles(): void {
   gridEl.style.overflowY = layout.scrolls ? "auto" : "hidden"
   gridEl.style.setProperty("--tile-ico", `${layout.iconSize}px`)
   gridEl.style.setProperty("--tile-fs", `${layout.fontSize}px`)
+  // Small tiles: corner readouts shrink so they keep clear of the icon.
+  gridEl.classList.toggle("is-compact", layout.colWidth < 96 || layout.rowHeight < 76)
 
+  fitLabels(layout.showLabel)
+  suggestLandscape(layout.colWidth)
+}
+
+/* Shows only whole lines of a label. A label squeezed by its tile used to
+   show the top of a second line cut through the middle; this measures the
+   room each label actually got and clamps it to the lines that fit, or
+   hides it when not even one does. Reads all, then writes all. */
+function fitLabels(show: boolean): void {
   const labels = gridEl.querySelectorAll<HTMLElement>(".tile-label")
   for (let i = 0; i < labels.length; i += 1) {
     const label = labels[i]
-    if (label) label.style.display = layout.showLabel ? "" : "none"
+    if (!label) continue
+    label.style.display = show ? "" : "none"
+    label.style.removeProperty("-webkit-line-clamp")
   }
+  if (!show) return
+  const fits: number[] = []
+  for (let i = 0; i < labels.length; i += 1) {
+    const label = labels[i]
+    if (!label) { fits.push(-1); continue }
+    const style = window.getComputedStyle(label)
+    const fontSize = parseFloat(style.fontSize) || 13
+    const lineHeight = parseFloat(style.lineHeight) || fontSize * 1.2
+    const clamp = parseInt(style.getPropertyValue("-webkit-line-clamp"), 10) || 2
+    const room = label.clientHeight - (parseFloat(style.paddingTop) || 0) - (parseFloat(style.paddingBottom) || 0)
+    const lines = Math.floor((room + 1) / lineHeight)
+    fits.push(lines >= clamp ? -1 : lines)
+  }
+  for (let i = 0; i < labels.length; i += 1) {
+    const label = labels[i]
+    const lines = fits[i]
+    if (!label || lines === undefined || lines < 0) continue
+    if (lines < 1) label.style.display = "none"
+    else label.style.setProperty("-webkit-line-clamp", String(lines))
+  }
+}
 
-  suggestLandscape(layout.colWidth)
+/* Re-lays the tiles out when the grid's box changes for any reason: the
+   offline banner, the tab row, the bar, the window. ResizeObserver where
+   there is one (Safari 13.1+, Chrome 64+); elsewhere the callers ask. */
+let lastSize = ""
+export function relayoutIfResized(): void {
+  if (`${gridEl.clientWidth}x${gridEl.clientHeight}` !== lastSize) scaleTiles()
+}
+
+type ResizeObserverLike = new (callback: () => void) => { observe(target: Element): void }
+
+export function watchGridSize(): void {
+  const Observer = (window as Window & { ResizeObserver?: ResizeObserverLike }).ResizeObserver
+  if (typeof Observer !== "function") return
+  let frame = 0
+  new Observer(() => {
+    window.cancelAnimationFrame(frame)
+    frame = window.requestAnimationFrame(relayoutIfResized)
+  }).observe(gridEl)
 }
 
 // A wide deck on a portrait phone is always cramped; say so once.

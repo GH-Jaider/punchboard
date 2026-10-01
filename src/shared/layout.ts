@@ -36,8 +36,20 @@ export interface GridLayout {
     does not turn every label into "Brows / er". */
 export function layoutGrid(box: GridBox): GridLayout {
   const columns = Math.max(1, box.columns)
+  const preferred = box.width / columns < 92 ? 6 : 10
+  // A deck that would scroll by a few pixels fits with a tighter gap
+  // instead: scrolling is the last resort, a narrower gap barely shows.
+  let layout = layoutWithGap(box, preferred)
+  for (const gap of [6, 4]) {
+    if (!layout.scrolls || gap >= preferred) continue
+    layout = layoutWithGap(box, gap)
+  }
+  return layout
+}
+
+function layoutWithGap(box: GridBox, gap: number): GridLayout {
+  const columns = Math.max(1, box.columns)
   const rows = Math.max(1, box.rows)
-  const gap = box.width / columns < 92 ? 6 : 10
   const colWidth = (box.width - gap * (columns - 1)) / columns
   const roomPerRow = (box.height - gap * (rows - 1)) / rows
 
