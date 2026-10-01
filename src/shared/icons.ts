@@ -9,8 +9,12 @@ const SAFE_IMAGE = /^data:image\/(png|jpeg|webp|svg\+xml);base64,[a-z0-9+/=]+$/i
 
 export const isSafeIconData = (value: unknown): value is string => typeof value === "string" && SAFE_IMAGE.test(value)
 
+/** Whether a value names one of the built-in icons. Own properties only, so
+    "constructor" or "__proto__" never reach the markup. */
+export const isIconId = (value: unknown): value is string => typeof value === "string" && Object.prototype.hasOwnProperty.call(ICONS, value)
+
 export function iconSvg(id: string): string {
-  const glyph = ICONS[id] ?? ICONS[DEFAULT_ICON]
+  const glyph = isIconId(id) ? ICONS[id] : ICONS[DEFAULT_ICON]
   return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${glyph}</svg>`
 }
 
@@ -29,7 +33,7 @@ export function safeGlyph(value: unknown): Glyph | null {
   if (!paths.every((path): path is string => typeof path === "string" && GLYPH_PATH.test(path))) return null
   return {
     source: "google",
-    name: String(glyph.name ?? "").replace(/[^a-z0-9_]/g, "").slice(0, 64),
+    name: String(glyph.name ?? "").toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 64),
     style: GLYPH_STYLES.find((style) => style === glyph.style) ?? "outlined",
     fill: Boolean(glyph.fill),
     viewBox: glyph.viewBox,

@@ -4,8 +4,8 @@
 import { isActionType, isFaderTarget, isMediaKey, isSetMode, LIMITS } from "./actions.ts"
 import { isButtonColor } from "./colors.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
-import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
-import { parseCombo } from "./keys.ts"
+import { DEFAULT_ICON, isIconId, isSafeIconData, safeGlyph } from "./icons.ts"
+import { comboToString, parseCombo } from "./keys.ts"
 import type { ActionType, Button, Fader, FaderButton, Library, PressButton, Profile, Step, TrackpadSettings } from "./types.ts"
 
 type UnknownRecord = Record<string, unknown>
@@ -45,10 +45,14 @@ export function makeStep(type: ActionType, fields: UnknownRecord = {}): Step {
     case "browser_tile": return { id, delayMs, type, url: text(fields.url) }
     case "launch_app": return { id, delayMs, type, appPath: text(fields.appPath), appName: text(fields.appName) }
     case "play_sound": {
-      const soundId = Number(fields.soundId)
-      return { id, delayMs, type, soundId: soundId >= 1 && soundId <= LIMITS.soundSlots ? Math.floor(soundId) : undefined }
+      const soundId = Math.floor(Number(fields.soundId))
+      return { id, delayMs, type, soundId: soundId >= 1 && soundId <= LIMITS.soundSlots ? soundId : undefined }
     }
-    case "hotkey": return { id, delayMs, type, keys: parseCombo(fields.keys) ? String(fields.keys).toLowerCase() : undefined }
+    case "hotkey": {
+      // Stored in the one canonical spelling ("ctrl+shift+k"), whatever order it came in.
+      const combo = parseCombo(fields.keys)
+      return { id, delayMs, type, keys: combo ? comboToString(combo) : undefined }
+    }
     case "media_key": return { id, delayMs, type, mediaKey: isMediaKey(fields.mediaKey) ? fields.mediaKey : "play_pause" }
     case "stop_sounds": return { id, delayMs, type }
     case "go_to_deck": return { id, delayMs, type, profileId: text(fields.profileId) }
@@ -73,6 +77,9 @@ function normalizeFader(raw: unknown): Fader {
   return { target: isFaderTarget(fields.target) ? fields.target : "sounds", inputName: text(fields.inputName) ?? "" }
 }
 
+/** The longest image data URI kept: LIMITS.maxIconBytes of image, base64-encoded, plus its prefix. */
+const MAX_ICON_DATA_LENGTH = Math.ceil(LIMITS.maxIconBytes / 3) * 4 + 64
+
 export function normalizeButton(raw: unknown): Button {
   const fields = isRecord(raw) ? raw : {}
   // Older decks stored a single `action` per button; macros need a list.
@@ -81,13 +88,13 @@ export function normalizeButton(raw: unknown): Button {
     id: text(fields.id) || nextId("btn"),
     slot: Math.max(0, Math.floor(Number(fields.slot) || 0)),
     label: text(fields.label) ?? "",
-    icon: text(fields.icon) || DEFAULT_ICON,
+    icon: isIconId(fields.icon) ? fields.icon : DEFAULT_ICON,
     color: isButtonColor(fields.color) ? fields.color : "accent" as const,
     steps: rawSteps.slice(0, LIMITS.maxSteps).map(normalizeStep)
   }
   const extras: Pick<Button, "iconData" | "glyph" | "onGlyph" | "offSteps"> = {}
   if (Array.isArray(fields.offSteps)) extras.offSteps = fields.offSteps.slice(0, LIMITS.maxSteps).map(normalizeStep)
-  if (isSafeIconData(fields.iconData)) extras.iconData = fields.iconData
+  if (isSafeIconData(fields.iconData) && fields.iconData.length <= MAX_ICON_DATA_LENGTH) extras.iconData = fields.iconData
   const glyph = safeGlyph(fields.glyph)
   if (glyph) extras.glyph = glyph
   const onGlyph = safeGlyph(fields.onGlyph)
@@ -151,7 +158,9 @@ export const DEFAULT_TRACKPAD: TrackpadSettings = { speed: 1.5, naturalScroll: t
 
 export function normalizeTrackpad(raw: unknown): TrackpadSettings {
   const fields = isRecord(raw) ? raw : {}
-  const speed = Number(fields.speed)
+  // Only a number counts: Number(null) and Number("") are 0, which is not a speed anyone chose.
+  const given = fields.speed
+  const speed = typeof given === "number" || (typeof given === "string" && given.trim() !== "") ? Number(given) : NaN
   return {
     speed: Number.isFinite(speed) ? clamp(speed, TRACKPAD_SPEED.min, TRACKPAD_SPEED.max) : DEFAULT_TRACKPAD.speed,
     naturalScroll: typeof fields.naturalScroll === "boolean" ? fields.naturalScroll : DEFAULT_TRACKPAD.naturalScroll,
@@ -166,10 +175,43 @@ export function isLibraryShape(value: unknown): value is { version: 1; activePro
   return isRecord(value) && value.version === 1 && typeof value.activeProfileId === "string" && Array.isArray(value.profiles)
 }
 
+const hasOwn = (object: object, key: string | number): boolean => Object.prototype.hasOwnProperty.call(object, key)
+
+/** Makes every deck id and every button id unique, and gives every button a
+    slot of its own. A hand-edited file, an old bug or a merged backup can
+    repeat them, and a repeated one can never be pressed or edited: the first
+    one found always wins. The later one gets a new id, and the first free
+    slot, which is past the grid when the grid is full (the Control Center
+    offers those back). */
+function repairIds(profiles: Profile[]): void {
+  const profileIds: Record<string, true> = {}
+  // Across decks too: a two-state macro keeps its on/off by button id.
+  const buttonIds: Record<string, true> = {}
+  for (const profile of profiles) {
+    if (hasOwn(profileIds, profile.id)) profile.id = nextId("profile")
+    profileIds[profile.id] = true
+    const slots: Record<number, true> = {}
+    const moved: Button[] = []
+    for (const button of profile.buttons) {
+      if (hasOwn(buttonIds, button.id)) button.id = nextId("btn")
+      buttonIds[button.id] = true
+      if (hasOwn(slots, button.slot)) moved.push(button)
+      else slots[button.slot] = true
+    }
+    let free = 0
+    for (const button of moved) {
+      while (hasOwn(slots, free)) free += 1
+      button.slot = free
+      slots[free] = true
+    }
+  }
+}
+
 export function normalizeLibrary(raw: unknown): Library {
   const fields = isRecord(raw) ? raw : {}
   const profiles = (Array.isArray(fields.profiles) ? fields.profiles : []).map(normalizeProfile)
   if (!profiles.length) profiles.push(createEmptyProfile("My deck"))
+  repairIds(profiles)
   const requested = text(fields.activeProfileId)
   const activeProfileId = profiles.some((profile) => profile.id === requested) ? requested! : profiles[0]!.id
   return { version: 1, activeProfileId, profiles }

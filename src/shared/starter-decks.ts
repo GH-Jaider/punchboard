@@ -31,7 +31,7 @@ function press(slot: number, label: string, icon: string, color: ButtonColorId, 
     id: nextId("btn"),
     slot,
     label,
-    icon: "bolt",
+    icon: "zap",
     color,
     control: "press",
     steps: steps.map((spec): Step => makeStep(spec[0], spec[1] ?? {}))
@@ -44,7 +44,7 @@ function press(slot: number, label: string, icon: string, color: ButtonColorId, 
 }
 
 function fader(slot: number, label: string, icon: string, color: ButtonColorId, target: Fader): Button {
-  const button: Button = { id: nextId("btn"), slot, label, icon: "bolt", color, control: "fader", fader: target, steps: [makeStep("none")] }
+  const button: Button = { id: nextId("btn"), slot, label, icon: "zap", color, control: "fader", fader: target, steps: [makeStep("none")] }
   const glyph = STARTER_GLYPHS[icon]
   if (glyph) button.glyph = glyph
   return button
