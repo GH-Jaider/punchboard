@@ -2,7 +2,7 @@
 // file or the network goes through normalizeLibrary(), which turns unknown
 // input into a valid Library or fills in safe defaults.
 import { isActionType, isFaderTarget, isMediaKey, isSetMode, LIMITS } from "./actions.ts"
-import { isButtonColorId } from "./colors.ts"
+import { isButtonColor } from "./colors.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isSafeIconData, safeGlyph } from "./icons.ts"
 import { parseCombo } from "./keys.ts"
@@ -82,14 +82,16 @@ export function normalizeButton(raw: unknown): Button {
     slot: Math.max(0, Math.floor(Number(fields.slot) || 0)),
     label: text(fields.label) ?? "",
     icon: text(fields.icon) || DEFAULT_ICON,
-    color: isButtonColorId(fields.color) ? fields.color : "accent" as const,
+    color: isButtonColor(fields.color) ? fields.color : "accent" as const,
     steps: rawSteps.slice(0, LIMITS.maxSteps).map(normalizeStep)
   }
-  const extras: Pick<Button, "iconData" | "glyph" | "offSteps"> = {}
+  const extras: Pick<Button, "iconData" | "glyph" | "onGlyph" | "offSteps"> = {}
   if (Array.isArray(fields.offSteps)) extras.offSteps = fields.offSteps.slice(0, LIMITS.maxSteps).map(normalizeStep)
   if (isSafeIconData(fields.iconData)) extras.iconData = fields.iconData
   const glyph = safeGlyph(fields.glyph)
   if (glyph) extras.glyph = glyph
+  const onGlyph = safeGlyph(fields.onGlyph)
+  if (onGlyph) extras.onGlyph = onGlyph
 
   if (fields.control === "fader") return { ...base, ...extras, control: "fader", fader: normalizeFader(fields.fader) }
   return { ...base, ...extras, control: "press" }
@@ -113,6 +115,7 @@ export function withControl(button: Button, control: Button["control"]): Button 
   // Built field by field so the fader settings cannot ride along.
   const press: PressButton = { id: button.id, slot: button.slot, label: button.label, icon: button.icon, color: button.color, steps: button.steps, control: "press" }
   if (button.offSteps) press.offSteps = button.offSteps
+  if (button.onGlyph) press.onGlyph = button.onGlyph
   if (button.iconData !== undefined) press.iconData = button.iconData
   if (button.glyph) press.glyph = hasDefaultIcon(button) ? DEFAULT_PRESS_GLYPH : button.glyph
   return press

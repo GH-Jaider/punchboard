@@ -139,6 +139,10 @@ fn open_window(app: &AppHandle, page: &str) {
         .title("Punchboard")
         .inner_size(1440.0, 900.0)
         .min_inner_size(960.0, 640.0)
+        // Tauri's own file-drop handling swallows the page's drag and drop on
+        // Windows (WebView2), so buttons could not be moved there. The Control
+        // Center takes files through its own pickers, never by dropping.
+        .disable_drag_drop_handler()
         // "Open deck" and other new-window links belong in the real browser.
         .on_new_window(move |url, _features| {
             #[allow(deprecated)]

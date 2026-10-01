@@ -68,6 +68,8 @@ async function main() {
   const buttons = first.profiles.flatMap((p) => p.buttons)
   const broken = buttons.filter((b) => !b.glyph || (b.control === "press" && b.steps.some((st) => st.type === "none" || (st.type === "hotkey" && !st.keys))))
   check("Every starter button has an icon and a working action", buttons.length === 30 && broken.length === 0, JSON.stringify(broken.map((b) => b.label)))
+  const muteMic = buttons.find((b) => b.label === "Mute mic")
+  check("Toggle starters show a different icon while on", muteMic?.glyph?.name === "mic" && muteMic?.onGlyph?.name === "mic_off", JSON.stringify({ off: muteMic?.glyph?.name, on: muteMic?.onGlyph?.name }))
   check("The trackpad starter is a trackpad deck", Boolean(first.profiles[3]?.trackpad), JSON.stringify(first.profiles[3]))
   const saved = await request({ method: "PUT", path: "/api/library", headers: JSON_TYPE, body: JSON.stringify(library) })
   check("Deck with every new action saves", saved.status === 200, saved.text)

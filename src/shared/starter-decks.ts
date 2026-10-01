@@ -26,7 +26,7 @@ const DESKTOP = "Desktop Audio"
 
 type StepSpec = [ActionType, Record<string, unknown>?]
 
-function press(slot: number, label: string, icon: string, color: ButtonColorId, steps: StepSpec[]): Button {
+function press(slot: number, label: string, icon: string, color: ButtonColorId, steps: StepSpec[], onIcon?: string): Button {
   const button: Button = {
     id: nextId("btn"),
     slot,
@@ -38,6 +38,8 @@ function press(slot: number, label: string, icon: string, color: ButtonColorId, 
   }
   const glyph = STARTER_GLYPHS[icon]
   if (glyph) button.glyph = glyph
+  const onGlyph = onIcon ? STARTER_GLYPHS[onIcon] : undefined
+  if (onGlyph) button.onGlyph = onGlyph
   return button
 }
 
@@ -58,11 +60,12 @@ export function starterDeck(id: StarterId, mac: boolean): Profile {
     case "streaming":
       return deck("Streaming", 4, 3, [
         press(0, "Go live", "sensors", "red", [["obs_start_stop_stream"]]),
-        press(1, "Record", "fiber_manual_record", "rose", [["obs_toggle_record"]]),
+        press(1, "Record", "fiber_manual_record", "rose", [["obs_toggle_record"]], "stop_circle"),
         press(2, "Clip it", "replay", "pink", [["obs_save_replay"]]),
         press(3, "Camera out", "video_camera_front", "violet", [["obs_toggle_virtualcam"]]),
-        press(4, "Mute mic", "mic_off", "orange", [["obs_toggle_mute", { sourceName: MIC }]]),
-        press(5, "Mute desktop", "volume_off", "amber", [["obs_toggle_mute", { sourceName: DESKTOP }]]),
+        // Lit while muted: the crossed-out icon says so too.
+        press(4, "Mute mic", "mic", "orange", [["obs_toggle_mute", { sourceName: MIC }]], "mic_off"),
+        press(5, "Mute desktop", "volume_up", "amber", [["obs_toggle_mute", { sourceName: DESKTOP }]], "volume_off"),
         fader(6, "Mic", "mic", "green", { target: "obs_input", inputName: MIC }),
         fader(7, "Desktop", "speaker", "cyan", { target: "obs_input", inputName: DESKTOP }),
         press(8, "Airhorn", "campaign", "yellow", [["play_sound", { soundId: 1 }]]),

@@ -1,6 +1,6 @@
 // Colour maths in plain hex, so old tablets need no oklch() or color-mix():
 // anything derived from a colour is computed here and handed to CSS.
-import type { ButtonColorId } from "./types.ts"
+import type { ButtonColor, ButtonColorId, HexColor } from "./types.ts"
 
 export interface Rgb { r: number; g: number; b: number }
 
@@ -17,7 +17,7 @@ export function parseHex(hex: string | null | undefined): Rgb | null {
   }
 }
 
-export const isHexColor = (value: unknown): value is string => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
+export const isHexColor = (value: unknown): value is HexColor => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value)
 
 const FALLBACK: Rgb = { r: 95, g: 208, b: 214 }
 
@@ -46,9 +46,9 @@ function relativeLuminance(hex: string): number {
 
 export const readableInk = (hex: string): string => (relativeLuminance(hex) > 0.42 ? "#08100f" : "#ffffff")
 
-export interface ButtonColor { id: ButtonColorId; label: string; value: string }
+export interface ColorPreset { id: ButtonColorId; label: string; value: string }
 
-export const BUTTON_COLORS: readonly ButtonColor[] = [
+export const BUTTON_COLORS: readonly ColorPreset[] = [
   { id: "accent", label: "Aqua", value: "#5fd0d6" },
   { id: "blue", label: "Blue", value: "#69a9ff" },
   { id: "indigo", label: "Indigo", value: "#8095ff" },
@@ -69,6 +69,10 @@ export const BUTTON_COLORS: readonly ButtonColor[] = [
 
 export const isButtonColorId = (value: unknown): value is ButtonColorId => BUTTON_COLORS.some((color) => color.id === value)
 
-export function colorValue(id: ButtonColorId): string {
-  return (BUTTON_COLORS.find((color) => color.id === id) ?? BUTTON_COLORS[0]!).value
+/** A preset's id or a custom #rrggbb. */
+export const isButtonColor = (value: unknown): value is ButtonColor => isButtonColorId(value) || isHexColor(value)
+
+export function colorValue(color: ButtonColor): string {
+  if (isHexColor(color)) return color.toLowerCase()
+  return (BUTTON_COLORS.find((preset) => preset.id === color) ?? BUTTON_COLORS[0]!).value
 }

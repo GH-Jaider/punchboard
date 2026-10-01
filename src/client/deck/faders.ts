@@ -9,6 +9,7 @@ import { applyTileColor, el } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
 import { api } from "./api.ts"
 import { activeProfile, state } from "./state.ts"
+import { haptic } from "./haptics.ts"
 import { isOffline, toast } from "./ui.ts"
 
 const clamp01 = (value: number): number => Math.max(0, Math.min(1, value))
@@ -65,6 +66,7 @@ function bindFader(tile: HTMLElement, button: FaderButton): void {
   let startY = 0
   let startLevel = 0
   let active = false
+  let lastStep = 0
 
   const begin = (y: number): boolean => {
     if (isOffline()) {
@@ -75,12 +77,19 @@ function bindFader(tile: HTMLElement, button: FaderButton): void {
     state.dragging[button.id] = true
     startY = y
     startLevel = levelFor(button) ?? 0.5
+    lastStep = Math.round(startLevel * 10)
     tile.classList.add("is-dragging")
     return true
   }
   const move = (y: number): void => {
     if (!active) return
     const level = clamp01(startLevel + (startY - y) / (tile.clientHeight || 1))
+    // A tick each tenth of the way, and at either end, like detents on a knob.
+    const step = Math.round(level * 10)
+    if (step !== lastStep) {
+      lastStep = step
+      haptic("tick")
+    }
     setLevel(button, level)
     showLevel(tile, level)
     sendLevel(button, level)

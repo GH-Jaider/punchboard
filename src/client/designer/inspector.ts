@@ -2,10 +2,10 @@
 // nothing is selected. It is built once per selection and edits then update
 // it in place, so focus and scroll position survive typing.
 import { LIMITS } from "../../shared/actions.ts"
-import { BUTTON_COLORS } from "../../shared/colors.ts"
+import { BUTTON_COLORS, colorValue, isHexColor } from "../../shared/colors.ts"
 import { iconMarkup } from "../../shared/icons.ts"
-import { DEFAULT_TRACKPAD, nextId, TRACKPAD_SPEED, withControl } from "../../shared/model.ts"
-import type { Button, Profile } from "../../shared/types.ts"
+import { DEFAULT_TRACKPAD, isStateful, nextId, soundSlotOf, TRACKPAD_SPEED, withControl } from "../../shared/model.ts"
+import type { Button, ButtonColor, HexColor, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
 import { faderField } from "./fader-editor.ts"
 import { deleteButton, duplicateButton, freeSlotCount, setGridSize } from "./grid.ts"
@@ -367,25 +367,91 @@ function colorField(button: Button, iconTrigger: HTMLElement): HTMLElement {
   const field = el("div", "field")
   field.appendChild(el("span", "field-label", "Colour"))
   const swatches = el("div", "swatch-grid")
-  for (const color of BUTTON_COLORS) {
+  const choose = (color: ButtonColor, swatch: HTMLElement): void => {
+    button.color = color
+    swatches.querySelectorAll(".swatch").forEach((other) => other.setAttribute("aria-pressed", "false"))
+    swatch.setAttribute("aria-pressed", "true")
+    applyTileColor(iconTrigger, button.color)
+    view.refreshTile(button)
+    touch()
+  }
+  const addSwatch = (color: ButtonColor, label: string): HTMLElement => {
     const swatch = el("button", "swatch")
     swatch.type = "button"
-    swatch.style.background = color.value
-    swatch.title = color.label
-    swatch.setAttribute("aria-label", color.label)
-    swatch.setAttribute("aria-pressed", String(color.id === button.color))
-    swatch.onclick = () => {
-      button.color = color.id
-      swatches.querySelectorAll(".swatch").forEach((other) => other.setAttribute("aria-pressed", "false"))
-      swatch.setAttribute("aria-pressed", "true")
-      applyTileColor(iconTrigger, button.color)
-      view.refreshTile(button)
-      touch()
-    }
+    swatch.style.background = colorValue(color)
+    swatch.title = label
+    swatch.setAttribute("aria-label", label)
+    swatch.setAttribute("aria-pressed", String(color === button.color))
+    swatch.onclick = () => choose(color, swatch)
     swatches.appendChild(swatch)
+    return swatch
   }
+  for (const color of BUTTON_COLORS) addSwatch(color.id, color.label)
+  // Your own palette: every custom colour used anywhere in these decks.
+  for (const hex of customColors()) addSwatch(hex, hex.toUpperCase())
+
+  // Any colour at all, through the system's colour picker.
+  const custom = el("label", "swatch swatch-custom")
+  custom.title = "Custom colour"
+  const picker = document.createElement("input")
+  picker.type = "color"
+  picker.className = "visually-hidden"
+  picker.setAttribute("aria-label", "Custom colour")
+  picker.value = isHexColor(button.color) ? button.color : colorValue(button.color)
+  picker.addEventListener("input", () => {
+    if (!isHexColor(picker.value)) return
+    button.color = picker.value
+    applyTileColor(iconTrigger, button.color)
+    view.refreshTile(button)
+    touch()
+  })
+  // Redraw once the choice settles, so the new colour joins the palette.
+  picker.addEventListener("change", () => renderInspector())
+  custom.appendChild(picker)
+  swatches.appendChild(custom)
   field.appendChild(swatches)
   return field
+}
+
+/** The custom colours in use across every deck, newest last, at most eight. */
+function customColors(): HexColor[] {
+  const found: HexColor[] = []
+  for (const profile of library().profiles) {
+    for (const button of profile.buttons) {
+      if (!isHexColor(button.color)) continue
+      const hex = button.color.toLowerCase() as HexColor
+      if (found.indexOf(hex) === -1) found.push(hex)
+    }
+  }
+  return found.slice(-8)
+}
+
+/** For a button that lights up: an optional second icon while it is on. */
+function onIconField(button: Button): HTMLElement {
+  const box = el("div", "on-icon")
+  const trigger = el("button", "icon-trigger")
+  trigger.type = "button"
+  applyTileColor(trigger, button.color)
+  const preview = el("span", "preview")
+  preview.innerHTML = button.onGlyph ? iconMarkup({ icon: button.icon, iconData: null, glyph: button.onGlyph }) : iconMarkup(button)
+  const names = el("div", "names")
+  names.appendChild(el("strong", null, "While on"))
+  names.appendChild(el("small", null, button.onGlyph ? `${button.onGlyph.name.replace(/_/g, " ")} · tap to change` : "Same icon · tap to choose another, like a crossed-out mic"))
+  trigger.appendChild(preview)
+  trigger.appendChild(names)
+  trigger.onclick = () => openIconPicker(button, "onGlyph")
+  box.appendChild(trigger)
+  if (button.onGlyph) {
+    const clear = el("button", "btn ghost", "Same icon")
+    clear.type = "button"
+    clear.onclick = () => {
+      delete button.onGlyph
+      touch()
+      renderInspector()
+    }
+    box.appendChild(clear)
+  }
+  return box
 }
 
 function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
@@ -404,6 +470,7 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   trigger.appendChild(names)
   trigger.onclick = () => openIconPicker(button)
   field.appendChild(trigger)
+  if (isStateful(button) && !soundSlotOf(button)) field.appendChild(onIconField(button))
 
   // The custom upload sits under the icon it replaces.
   const upload = el("div", "upload-row")

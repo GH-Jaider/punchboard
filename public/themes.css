@@ -88,6 +88,59 @@ html[data-theme="hardware"] {
   --font: "Archivo", var(--system-font);
   --font-display: "Archivo", var(--system-font);
   --font-mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+  /* The keycaps and chassis details, so the dark mode can recolour them. */
+  --hw-key-face: #f8f7f3;
+  --hw-key-edge: #b0ada5;
+  --hw-key-edge-hover: #8f8c84;
+  --hw-led-off: #cfccc4;
+  --hw-frame-edge: #a9a69e;
+  --hw-primary-hover: #000;
+}
+
+/* Hardware, dark: a charcoal chassis with dark keycaps, like a black
+   keyboard. Same shapes and silkscreen; only the materials change. */
+html[data-theme="hardware"][data-mode="dark"] {
+  color-scheme: dark;
+  --bg: #1c1c1a;
+  --surface-1: #232321;
+  --surface-2: #2b2b28;
+  --surface-3: #34342f;
+  --surface-input: #151514;
+
+  --text: #ecebe6;
+  --text-muted: #b4b1a8;
+  --text-subtle: #8f8c82;
+
+  --border: rgba(236, 235, 230, 0.14);
+  --border-strong: rgba(236, 235, 230, 0.42);
+
+  --appbar-bg: #1c1c1a;
+  --frame-bg: #121211;
+  --slot-empty: #141413;
+  --hairline: rgba(255, 255, 255, 0.14);
+  --backdrop: rgba(0, 0, 0, 0.6);
+  --toast-error-bg: #3a1512;
+  --toast-error-text: #ffd5cf;
+
+  --accent-text: #ecebe6;
+
+  --danger: #ff6b5e;
+  --danger-soft: rgba(255, 107, 94, 0.14);
+  --danger-line: rgba(255, 107, 94, 0.5);
+  --warn: #f0b43c;
+  --warn-soft: rgba(240, 180, 60, 0.16);
+  --ok: #3fcf7c;
+  --ok-soft: rgba(63, 207, 124, 0.14);
+
+  --shadow-pop: 0 18px 40px rgba(0, 0, 0, 0.6);
+
+  --hw-key-face: #2c2c29;
+  --hw-key-edge: #0e0e0d;
+  --hw-key-edge-hover: #55554f;
+  --hw-led-off: #45453f;
+  --hw-frame-edge: #3a3a36;
+  --hw-primary-hover: #ffffff;
 }
 
 /* Silkscreen labels */
@@ -122,7 +175,7 @@ html[data-theme="hardware"] {
 [data-theme="hardware"] .btn { border-color: var(--text); background: transparent; }
 [data-theme="hardware"] .btn:hover { background: var(--surface-2); }
 [data-theme="hardware"] .btn.primary { border-color: var(--text); background: var(--text); color: var(--surface-input); }
-[data-theme="hardware"] .btn.primary:hover { filter: none; background: #000; }
+[data-theme="hardware"] .btn.primary:hover { filter: none; background: var(--hw-primary-hover); }
 [data-theme="hardware"] .btn.ghost { border-color: transparent; }
 [data-theme="hardware"] .btn.danger { border-color: var(--danger); background: transparent; color: var(--danger); }
 [data-theme="hardware"] .icon-btn { background: transparent; border-color: var(--border-strong); color: var(--text); }
@@ -139,7 +192,7 @@ html[data-theme="hardware"] {
 [data-theme="hardware"] .step.is-open .step-index { background: var(--text); color: var(--surface-input); }
 [data-theme="hardware"] .theme-card[aria-checked="true"] { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
 
-[data-theme="hardware"] .tablet-frame { border-color: #a9a69e; }
+[data-theme="hardware"] .tablet-frame { border-color: var(--hw-frame-edge); }
 [data-theme="hardware"] .qr-frame { background: var(--surface-input); }
 [data-theme="hardware"] .toast { border: 0; background: var(--text); color: var(--surface-input); }
 [data-theme="hardware"] .toast.is-error { background: var(--toast-error-bg); color: var(--toast-error-text); }
@@ -147,13 +200,13 @@ html[data-theme="hardware"] {
 /* Keycaps: a thick bottom edge for depth and a colour strip for identity. The
    strip is a background image so it needs no pseudo-element. */
 [data-theme="hardware"] .tile {
-  border: 1px solid #b0ada5;
+  border: 1px solid var(--hw-key-edge);
   border-bottom-width: 5px;
   border-radius: 8px;
-  background: linear-gradient(var(--tile-color, var(--accent)), var(--tile-color, var(--accent))) 12px 12px / 22px 4px no-repeat, #f8f7f3;
+  background: linear-gradient(var(--tile-color, var(--accent)), var(--tile-color, var(--accent))) 12px 12px / 22px 4px no-repeat, var(--hw-key-face);
   color: var(--text);
 }
-[data-theme="hardware"] .tile:hover { border-color: #8f8c84; }
+[data-theme="hardware"] .tile:hover { border-color: var(--hw-key-edge-hover); }
 [data-theme="hardware"] .tile .tile-icon { background: transparent; color: var(--text); }
 [data-theme="hardware"] .tile .tile-label {
   font-family: var(--font-mono);
@@ -163,11 +216,11 @@ html[data-theme="hardware"] {
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
-[data-theme="hardware"] .tile .step-count { border-radius: 2px; background: #e4e2dc; color: #4a4843; }
+[data-theme="hardware"] .tile .step-count { border-radius: 2px; background: var(--surface-3); color: var(--text-muted); }
 [data-theme="hardware"] .tile.selected { outline-color: var(--text); }
 [data-theme="hardware"] .tile.unconfigured .tile-icon { background: transparent; color: var(--text-subtle); }
 [data-theme="hardware"] .tile.pressed { transform: translateY(3px); }
-[data-theme="hardware"] .add-slot { border-color: #8f8c84; }
+[data-theme="hardware"] .add-slot { border-color: var(--hw-key-edge-hover); }
 [data-theme="hardware"] .slot-wrap.drop-target::after { border-color: var(--text); border-radius: 8px; }
 
 /* On the deck: the LED, and a key that actually travels when pressed. */
@@ -179,7 +232,7 @@ html[data-theme="hardware"] {
   width: 9px;
   height: 9px;
   border-radius: 50%;
-  background: #cfccc4;
+  background: var(--hw-led-off);
   content: "";
 }
 [data-theme="hardware"] .deck-grid .tile:active { transform: translateY(4px); border-bottom-width: 3px; }
@@ -201,6 +254,7 @@ html[data-theme="hardware"] {
 [data-theme="hardware"] .deck-grid .tile.is-tracking .sound-time { top: 20px; left: 12px; }
 /* On paper-white keys the drain fades back towards the paper. */
 [data-theme="hardware"] .deck-grid .tile.is-tracking .sound-progress-fill { --drain: rgba(248, 247, 243, 0.62); }
+[data-theme="hardware"][data-mode="dark"] .deck-grid .tile.is-tracking .sound-progress-fill { --drain: rgba(44, 44, 41, 0.62); }
 [data-theme="hardware"] .deck-grid .tile.fader:active { border-bottom-width: 7px; }
 
 [data-theme="hardware"] .deck-profiles button { border-color: var(--text); background: transparent; color: var(--text); }
@@ -357,7 +411,9 @@ html[data-theme="broadcast"] {
 
 /* Deck live state: the whole key lights in its colour, with a white tally
    square in the corner. A press flashes rather than shrinking. */
-[data-theme="broadcast"] .deck-grid .tile:active { transform: none; -webkit-filter: brightness(1.35); filter: brightness(1.35); }
+/* A press dims the key, as a lit switcher button does under a finger. It used
+   to brighten it, which flashed a tile that had just lit up (a new scene). */
+[data-theme="broadcast"] .deck-grid .tile:active { transform: none; -webkit-filter: brightness(0.82); filter: brightness(0.82); }
 [data-theme="broadcast"] .deck-grid .tile.is-on {
   border-color: var(--tile-color, var(--accent));
   background: var(--tile-color, var(--accent));

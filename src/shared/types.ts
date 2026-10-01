@@ -86,6 +86,10 @@ export type StepTextField = "sceneName" | "sourceName" | "filterName" | "url" | 
 
 // ---------------------------------------------------------------- buttons
 
+/** A preset colour, or any colour as #rrggbb. */
+export type ButtonColor = ButtonColorId | HexColor
+export type HexColor = `#${string}`
+
 export type ButtonColorId =
   | "accent" | "blue" | "indigo" | "violet" | "pink" | "rose" | "red" | "orange"
   | "amber" | "yellow" | "lime" | "green" | "mint" | "cyan" | "slate" | "white"
@@ -117,10 +121,13 @@ interface ButtonBase {
   label: string
   /** A built-in icon id (see ICONS). Used when there is no glyph or image. */
   icon: string
-  color: ButtonColorId
+  color: ButtonColor
   /** A custom uploaded image as a data: URI. */
   iconData?: string | null
   glyph?: Glyph
+  /** For a button that lights up (mute, record, a two-state macro…): the icon
+      it shows while on, such as a crossed-out microphone while muted. */
+  onGlyph?: Glyph
   /** Kept on faders too, so switching back to a button restores its macro. */
   steps: Step[]
   /** Present on a two-state macro (Stream Deck's "multi action switch"): the
@@ -171,4 +178,4 @@ export interface Library {
 
 // ------------------------------------------------------------------ themes
 
-export type ThemeId = "studio" | "hardware" | "broadcast"
+export type ThemeId = "studio" | "hardware" | "hardware-dark" | "broadcast"

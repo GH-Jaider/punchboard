@@ -3,11 +3,6 @@ import { byId, createToast } from "../common/dom.ts"
 
 export const toast = createToast(byId("toast"), 2400)
 
-export function buzz(pattern: number | number[]): void {
-  if (typeof navigator.vibrate !== "function") return
-  try { navigator.vibrate(pattern) } catch { /* not allowed here */ }
-}
-
 export const isOffline = (): boolean => document.body.classList.contains("is-offline")
 export const needsPairing = (): boolean => document.body.classList.contains("needs-pairing")
 

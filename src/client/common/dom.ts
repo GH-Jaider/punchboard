@@ -1,8 +1,8 @@
 // Browser helpers every page shares: colour tokens, themes, small DOM
 // builders and the toast.
 import { colorValue, mixHex, parseHex, readableInk, withAlpha } from "../../shared/colors.ts"
-import { themeById } from "../../shared/themes.ts"
-import type { ButtonColorId, ThemeId } from "../../shared/types.ts"
+import { isDarkVariant, themeById, themeFamily } from "../../shared/themes.ts"
+import type { ButtonColor, ThemeId } from "../../shared/types.ts"
 
 export const byId = <T extends HTMLElement = HTMLElement>(id: string): T => {
   const element = document.getElementById(id)
@@ -32,8 +32,8 @@ export function applyAccent(hex: string | undefined, root: HTMLElement = documen
 }
 
 /** Paints one tile's colour-derived custom properties. */
-export function applyTileColor(element: HTMLElement, colorId: ButtonColorId): void {
-  const hex = colorValue(colorId)
+export function applyTileColor(element: HTMLElement, color: ButtonColor): void {
+  const hex = colorValue(color)
   const style = element.style
   style.setProperty("--tile-color", hex)
   style.setProperty("--tile-ink", readableInk(hex))
@@ -50,9 +50,13 @@ export const THEME_STORAGE_KEY = "punchboard-theme"
 export function applyTheme(id: string | undefined): ThemeId {
   const theme = themeById(id)
   const root = document.documentElement
-  if (root.getAttribute("data-theme") === theme.id) return theme.id
+  const family = themeFamily(theme.id)
+  const mode = isDarkVariant(theme.id) ? "dark" : null
+  if (root.getAttribute("data-theme") === family && root.getAttribute("data-mode") === mode) return theme.id
   root.setAttribute("data-theme-switching", "")
-  root.setAttribute("data-theme", theme.id)
+  root.setAttribute("data-theme", family)
+  if (mode) root.setAttribute("data-mode", mode)
+  else root.removeAttribute("data-mode")
   setTimeout(() => root.removeAttribute("data-theme-switching"), 60)
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", theme.bg)
   storage.set(THEME_STORAGE_KEY, theme.id)

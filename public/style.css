@@ -393,6 +393,24 @@ select {
 .profile-row.active { border-color: var(--accent-line); background: var(--accent-soft); }
 .profile-row.active strong { color: var(--accent-text); font-weight: var(--w-bold); }
 
+/* The custom colour swatch: a colour wheel, opening the system picker. */
+.swatch-custom {
+  position: relative;
+  cursor: pointer;
+  background: conic-gradient(#f06d6d, #f2d85b, #56c596, #38c7e8, #8095ff, #e982bd, #f06d6d);
+}
+.swatch-custom::after {
+  position: absolute;
+  inset: 30%;
+  border-radius: 50%;
+  background: var(--surface-1);
+  content: "";
+}
+
+/* The icon a lit button shows, under its own icon. */
+.on-icon { display: flex; align-items: center; gap: var(--s-2); margin-top: var(--s-2); }
+.on-icon .icon-trigger { flex: 1 1 auto; min-width: 0; }
+
 /* The + menu: an empty deck or a ready-made one. */
 .add-menu {
   position: fixed;
@@ -540,6 +558,12 @@ select {
   background: linear-gradient(#ff4f00, #ff4f00) 4px 4px / 8px 2px no-repeat, #f8f7f3;
 }
 .theme-preview.hardware .k.on { border-color: #a8211d; background: #e0302a; }
+.theme-preview.hardware.dark { background: #121211; }
+.theme-preview.hardware.dark .k { border-color: #0e0e0d; background: #2c2c29; }
+.theme-preview.hardware.dark .k.on { border-color: #a8211d; background: #e0302a; }
+.theme-mode { display: flex; grid-column: 1 / -1; align-items: center; gap: var(--s-3); }
+.theme-mode .segmented { flex: 0 0 auto; }
+.theme-mode .segmented button { min-width: 72px; padding: 6px 14px; }
 
 .theme-preview.broadcast { gap: 4px; background: #0b0b0b; border-radius: 0; }
 .theme-preview.broadcast .k { border: 1px solid #2e2e2e; background: linear-gradient(#2e5c5e, #2e5c5e) 0 100% / 100% 28% no-repeat, #161616; }
@@ -667,6 +691,9 @@ select {
   background: var(--frame-bg);
   box-shadow: 0 1px 0 var(--hairline) inset;
 }
+/* An upright phone: rounder, with a thinner bezel. */
+.tablet-frame.is-portrait { padding: 10px; border-radius: 34px; }
+.tablet-frame.is-portrait .tablet-screen { border-radius: 24px; }
 .tablet-screen { box-sizing: border-box; width: 100%; height: 100%; min-height: 0; padding: 12px; border-radius: 10px; background: var(--bg); }
 .design-grid { display: grid; width: 100%; height: 100%; min-height: 0; }
 

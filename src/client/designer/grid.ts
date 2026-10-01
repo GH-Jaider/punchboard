@@ -220,6 +220,9 @@ export function renderGrid(): void {
     uses on its screen, so the preview shows the deck the way it will look. */
 /** An iPad's grid area in landscape (its screen minus the deck bar). */
 const FRAME_ASPECT = 1154 / 750
+/** A phone held upright, its screen minus the deck bar: where a deck with more
+    rows than columns is meant to be used. */
+const PORTRAIT_ASPECT = 390 / 700
 const FRAME_MAX_WIDTH = 920
 const FRAME_MIN_HEIGHT = 240
 
@@ -230,11 +233,15 @@ export function layoutStage(): void {
   const roomWidth = Math.min(stageEl.clientWidth, FRAME_MAX_WIDTH)
   const roomHeight = Math.max(FRAME_MIN_HEIGHT, stageEl.clientHeight)
   if (!roomWidth || !roomHeight) return
+  // A tall deck is previewed on an upright phone, a wide one on a tablet on its side.
+  const portrait = !profile.trackpad && profile.rows > profile.columns
+  const aspect = portrait ? PORTRAIT_ASPECT : FRAME_ASPECT
+  frameEl.classList.toggle("is-portrait", portrait)
   let frameWidth = roomWidth
-  let frameHeight = Math.round(frameWidth / FRAME_ASPECT)
+  let frameHeight = Math.round(frameWidth / aspect)
   if (frameHeight > roomHeight) {
     frameHeight = roomHeight
-    frameWidth = Math.round(frameHeight * FRAME_ASPECT)
+    frameWidth = Math.round(frameHeight * aspect)
   }
   frameEl.style.width = `${frameWidth}px`
   frameEl.style.height = `${frameHeight}px`

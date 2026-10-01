@@ -9,14 +9,15 @@ import { api, UnpairedError } from "./api.ts"
 import { showDeck } from "./grid.ts"
 import { setToggle, state, toggleKey } from "./state.ts"
 import { paintState } from "./tile-state.ts"
-import { buzz, isOffline, toast } from "./ui.ts"
+import { haptic } from "./haptics.ts"
+import { isOffline, toast } from "./ui.ts"
 
 export function press(button: PressButton, tile: HTMLElement): void {
   if (isOffline()) {
     toast("Companion offline — nothing was sent.", true)
     return
   }
-  buzz(12)
+  haptic("tap")
   tile.classList.add("pressed")
   setTimeout(() => tile.classList.remove("pressed"), 160)
 
@@ -69,7 +70,7 @@ export function press(button: PressButton, tile: HTMLElement): void {
       if (error instanceof UnpairedError) return
       tile.classList.add("is-error")
       setTimeout(() => tile.classList.remove("is-error"), 1600)
-      buzz([8, 60, 8])
+      haptic("error")
       toast(errorMessage(error), true)
     })
     .then(() => { delete state.inflight[key] })

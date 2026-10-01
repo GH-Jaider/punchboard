@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="/themes.css">
   <!-- Paints the last-used theme before first render; the server's setting
        takes over once it loads. -->
-  <script>try{var t=localStorage.getItem("punchboard-theme");if(t)document.documentElement.setAttribute("data-theme",t)}catch(e){}</script>
+  <script>try{var t=localStorage.getItem("punchboard-theme"),r=document.documentElement;if(t){r.setAttribute("data-theme",t.split("-")[0]);if(t.split("-")[1])r.setAttribute("data-mode",t.split("-")[1])}}catch(e){}</script>
 </head>
 <body class="deck-page">
   <header class="deck-bar">

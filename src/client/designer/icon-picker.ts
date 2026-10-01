@@ -14,6 +14,8 @@ const GLYPH_STYLES: readonly GlyphStyle[] = ["outlined", "rounded", "sharp"]
 let googleStyle: GlyphStyle = "outlined"
 let googleCatalog: GoogleIconEntry[] | null = null
 let targetId: string | null = null
+/** Which of the button's icons the picker is choosing: its own, or the one it shows while on. */
+let targetIcon: "glyph" | "onGlyph" = "glyph"
 
 const dialog = (): HTMLDialogElement => byId<HTMLDialogElement>("dlg-icons")
 const search = (): HTMLInputElement => byId<HTMLInputElement>("icon-search")
@@ -27,8 +29,9 @@ function picked(button: Button): void {
   view.renderInspector()
 }
 
-export function openIconPicker(button: Button): void {
+export function openIconPicker(button: Button, which: "glyph" | "onGlyph" = "glyph"): void {
   targetId = button.id
+  targetIcon = which
   search().value = ""
   drawGoogleIcons(button)
   dialog().showModal()
@@ -92,7 +95,7 @@ function drawGoogleIcons(button: Button): void {
     choice.type = "button"
     choice.title = icon.n.replace(/_/g, " ")
     choice.setAttribute("aria-label", choice.title)
-    choice.setAttribute("aria-pressed", String(button.glyph?.name === icon.n))
+    choice.setAttribute("aria-pressed", String((targetIcon === "onGlyph" ? button.onGlyph : button.glyph)?.name === icon.n))
     const preview = el("span", "g-preview")
     preview.style.setProperty("--glyph", `url("${googlePreviewUrl(icon.n)}")`)
     choice.appendChild(preview)
@@ -107,8 +110,13 @@ async function pickGoogleIcon(button: Button, name: string, choice: HTMLElement)
   choice.classList.add("is-loading")
   const params = `name=${encodeURIComponent(name)}&style=${googleStyle}&fill=${filled() ? "1" : "0"}`
   try {
-    button.glyph = await request<GlyphResponse>(`/api/icons/google/glyph?${params}`)
-    button.iconData = null
+    const glyph = await request<GlyphResponse>(`/api/icons/google/glyph?${params}`)
+    if (targetIcon === "onGlyph") {
+      button.onGlyph = glyph
+    } else {
+      button.glyph = glyph
+      button.iconData = null
+    }
     picked(button)
   } catch (error) {
     choice.classList.remove("is-loading")
