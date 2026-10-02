@@ -3,13 +3,17 @@
 // names and gives up on one it cannot open; the key script compiles and builds
 // the right scan codes (dry: nothing is pressed); the app launcher decides
 // right for real shortcuts (dry: nothing is started) and reports a missing one
-// in plain words; the trackpad helper compiles. Elsewhere it reports itself
+// in plain words; the trackpad helper compiles; the volume bridge compiles,
+// lists the apps playing sound and refuses an app that is not there in words
+// (no volume is changed: that app cannot exist). Elsewhere it reports itself
 // skipped. Nothing is heard on CI.
 //   node tests/windows.test.mjs
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
+import { AppNotPlayingError, appVolumeFor } from "../src/server/app-volume.ts"
+import { listWindowsAudioApps, readWindowsAppVolume, stopWindowsVolume } from "../src/server/win-volume.ts"
 import { SCAN_KEYS_TYPE, WIN_MODIFIER_SCAN_CODES, WIN_SCAN_CODES, stopWindowsKeys, windowsInputs, windowsKeyLine, windowsKeyRequest } from "../src/server/keys.ts"
 import { launchApp, windowsLaunchScript } from "../src/server/launch.ts"
 import { playCommand } from "../src/server/player.ts"
@@ -226,6 +230,21 @@ const pointerHelper = await new Promise((resolve) => {
 })
 const pointerErrors = pointerHelper.out.split(/\r?\n/).filter(Boolean).map((line) => { try { return JSON.parse(line).error } catch { return null } })
 check("The trackpad helper compiles and reports errors as JSON", pointerErrors.length === 2 && pointerErrors.every((error) => typeof error === "string" && error.length > 0), `${pointerHelper.out} ${pointerHelper.err}`.trim().slice(0, 400))
+
+// ------------------------------------------------------- app volumes
+// The real Core Audio bridge. CI machines have no sound device, so the list
+// may well be empty, but it must come back without an error. The app asked
+// for below cannot exist, so no session's volume is ever set.
+const audioApps = await listWindowsAudioApps().then((apps) => ({ apps, error: "" }), (error) => ({ apps: null, error: error.message }))
+check("The volume bridge compiles and lists the apps playing sound", Array.isArray(audioApps.apps) && audioApps.apps.every((app) => typeof app.key === "string" && app.key === app.key.toLowerCase() && !/\.exe$/.test(app.key) && typeof app.name === "string" && app.level >= 0 && app.level <= 1), audioApps.error || JSON.stringify(audioApps.apps))
+if (audioApps.apps?.length) console.log(`(apps with sound here: ${audioApps.apps.map((app) => app.key).join(", ")})`)
+check("Punchboard's own processes are not offered", !(audioApps.apps ?? []).some((app) => app.key === "node" || app.key === "punchboard"), JSON.stringify(audioApps.apps))
+const NO_SUCH_APP = "punchboard-test-no-such-app"
+const unread = await readWindowsAppVolume(NO_SUCH_APP).then((level) => level, (error) => error.message)
+check("An app that is not there reads as unknown", unread === null, String(unread))
+const refusedWrite = await appVolumeFor("win32").write(NO_SUCH_APP, "Test App", 0.5).then(() => null, (error) => error)
+check("A write to an app that is not there fails with the friendly message", refusedWrite instanceof AppNotPlayingError && refusedWrite.message === "Test App is not making any sound on this computer right now. Open it and play something first.", String(refusedWrite))
+stopWindowsVolume()
 
 fs.rmSync(dir, { recursive: true, force: true })
 console.log(`\n${tally.pass} passed, ${tally.fail} failed`)

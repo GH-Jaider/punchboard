@@ -35,7 +35,7 @@ On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add t
 - **This computer**: press key combinations (any app's shortcuts), launch apps, open links, control music (play / pause, next, previous) and play sounds.
 - **OBS**: switch scenes, show or hide sources, mute inputs, turn filters on or off, start or stop the stream, recording and virtual camera, save a replay, and send the preview live in Studio Mode. Buttons light up with what OBS is doing, even when you change it in OBS itself.
 - **The deck**: go to another deck, or open a link on the device.
-- **Faders**: the computer's volume, Punchboard's sounds, or an OBS input.
+- **Faders**: the computer's volume, one app's volume, Punchboard's sounds, or an OBS input. On Windows any app that plays sound (Chrome, Spotify, Discord, a game); on a Mac, which has no per-app volume, Music and Spotify.
 - **Trackpad decks**: set a deck's type to *Trackpad* and the whole screen works like a laptop trackpad: tap, drag, two-finger scroll with momentum, pinch to zoom, and three- and four-finger swipes for Mission Control, desktops and the desktop.
 - **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
 
