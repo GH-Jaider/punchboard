@@ -21,6 +21,7 @@ import type {
   ObsNames,
   PointerNotice,
   AppsResponse,
+  AudioAppsResponse,
   ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
   SoundsChanged, SoundsResponse, StatusResponse, TraceSaved
@@ -34,6 +35,8 @@ import { isThemeId } from "../shared/themes.ts"
 import { LIMITS } from "../shared/actions.ts"
 import { prepareSteps, runSteps } from "./actions.ts"
 import { listApps } from "./apps.ts"
+import { createAppLevels } from "./app-levels.ts"
+import { AppNotPlayingError, appVolume } from "./app-volume.ts"
 import { createObsLink } from "./obs.ts"
 import { createObsState, readObsNames } from "./obs-state.ts"
 import { stopWindowsVolume } from "./win-volume.ts"
@@ -141,8 +144,18 @@ const live = createLive({
   obs: () => obs.status(),
   obsIssue: () => obsIssue(),
   soundDuration: (slot) => sounds.durationMs(slot),
-  soundFile: (slot) => sounds.file(slot).file
+  soundFile: (slot) => sounds.file(slot).file,
+  devicesChanged: () => appLevels.update()
 }, player, config.soundVolume)
+// App volumes (Spotify's own slider, the Windows mixer) change without telling
+// anyone, so they are read every few seconds while a device is connected.
+const appLevels = createAppLevels({
+  library: library.get,
+  watched: () => appVolume.live && live.hasDevices(),
+  read: appVolume.read,
+  setLevels: live.setLevels,
+  dropLevels: live.dropLevels
+})
 // What OBS is doing (live scene, mutes, stream…), followed from its events.
 const obsState = createObsState({ library: library.get, setToggles: live.setToggles, setLevels: live.setLevels, dropLevels: live.dropLevels })
 // Meters are only read for OBS inputs that a fader on a connected page shows.
@@ -386,6 +399,7 @@ const routes: Route[] = [
     live.broadcast()
     // New buttons may point at OBS states nobody was reading yet.
     obsState.refresh()
+    appLevels.update()
     return { ok: true, libraryRev }
   }),
 
@@ -471,20 +485,28 @@ const routes: Route[] = [
     if (!isLevel(data.level)) throw new HttpError(400, "The level must be a number from 0 to 1.")
     const button = library.findButton(data.profileId, data.buttonId)
     if (!button || button.control !== "fader") throw new HttpError(404, "That fader no longer exists.")
+    const key = faderLevelKey(button.fader)
+    if (button.fader.target === "app") appLevels.noteWrite(key)
     try {
-      live.levels[faderLevelKey(button.fader)] = await writeLevel(button.fader, data.level, volumeContext)
+      live.levels[key] = await writeLevel(button.fader, data.level, volumeContext)
     } catch (error) {
+      // A closed (or, on Windows, silent) app has no level any deck can show.
+      if (error instanceof AppNotPlayingError) live.dropLevels([key])
       throw new HttpError(400, errorText(error))
     }
     live.broadcast()
     return { ok: true, levels: live.levels }
   }),
-  // Reads the real levels (OBS, the computer) for every fader in a profile.
+  // Reads the real levels (OBS, the computer, apps) for every fader in a profile.
   route<LevelsResponse>("POST", "/api/volume/sync", "deck", async ({ req }) => {
     const data = await jsonBody(req)
     await Promise.all(library.faders(data.profileId).map(async (button) => {
+      const key = faderLevelKey(button.fader)
       try {
-        live.levels[faderLevelKey(button.fader)] = await readLevel(button.fader, volumeContext)
+        const level = await readLevel(button.fader, volumeContext)
+        // Unknown (a closed app): the decks show "–" rather than its last level.
+        if (level === null) delete live.levels[key]
+        else live.levels[key] = level
       } catch { /* an unreachable source keeps its last known level */ }
     }))
     live.broadcast()
@@ -528,6 +550,14 @@ const routes: Route[] = [
   }),
 
   route<AppsResponse>("GET", "/api/apps", "local", () => ({ apps: listApps() })),
+  // The apps an App volume fader can control, for the Control Center's picker.
+  route<AudioAppsResponse>("GET", "/api/apps/audio", "local", async () => {
+    try {
+      return await appVolume.list()
+    } catch (error) {
+      throw new HttpError(502, `Could not list the apps playing sound. (${errorText(error)})`)
+    }
+  }),
 
   // The desktop app's window opens no new tabs: Open deck asks for the deck in
   // this computer's own browser instead.
@@ -761,6 +791,7 @@ if (DESKTOP) {
 /** Stops sounds and OBS, saves what is pending, closes streams, exits. */
 function shutdown(): void {
   player.dispose()
+  appLevels.stop()
   stopWindowsVolume()
   stopWindowsKeys()
   pointer.dispose()

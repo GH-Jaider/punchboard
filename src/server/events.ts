@@ -17,6 +17,8 @@ export interface LiveSettings {
   soundDuration: (slot: number) => number | null
   /** The file behind a slot, for the player. */
   soundFile: (slot: number) => string
+  /** A device's stream opened or closed (see hasDevices). */
+  devicesChanged?: () => void
 }
 
 export type Live = ReturnType<typeof createLive>
@@ -65,6 +67,8 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
   }
 
   const hasListeners = (): boolean => listeners.size > 0
+  /** Whether a paired device has a stream open (the Control Center does not count). */
+  const hasDevices = (): boolean => [...listeners.values()].some(Boolean)
 
   function openStream(req: Request, res: ServerResponse, deviceId: string): void {
     res.writeHead(200, {
@@ -78,6 +82,7 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     // A tablet arriving changes the count the Control Center shows.
     if (deviceId) broadcast()
     else res.write(`data: ${JSON.stringify(snapshot())}\n\n`)
+    if (deviceId) settings.devicesChanged?.()
     // A ping keeps intermediaries and sleeping wifi from dropping the stream,
     // and lets a deck notice a line that died silently: a comment frame would
     // do the first, but a page never sees comments. Pages without a "ping"
@@ -86,7 +91,10 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     const close = (): void => {
       clearInterval(beat)
       listeners.delete(res)
-      if (deviceId) broadcast()
+      if (deviceId) {
+        broadcast()
+        settings.devicesChanged?.()
+      }
     }
     req.on("close", close)
     req.on("error", close)
@@ -197,5 +205,5 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
     broadcast()
   }
 
-  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, toggleValue, setLevels, dropLevels, clearObsLevels, soundsChanged }
+  return { levels, snapshot, broadcast, broadcastMeters, hasListeners, hasDevices, openStream, disconnectDevice, closeAll, toggleSound, soundEnded, stopAllSounds, setToggles, clearToggles, toggleValue, setLevels, dropLevels, clearObsLevels, soundsChanged }
 }
