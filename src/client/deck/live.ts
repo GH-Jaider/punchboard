@@ -58,9 +58,10 @@ export function applyState(snapshot: Snapshot): void {
   if (snapshot.playback) updatePlayback(snapshot.playback)
   if (snapshot.levels) {
     // An OBS fader the companion no longer reports (OBS closed, input
-    // renamed) is unknown, like an OBS toggle: it shows "–", not its last level.
+    // renamed) is unknown, like an OBS toggle: it shows "–", not its last
+    // level. So is an app fader whose app closed or went quiet.
     for (const key of Object.keys(state.levels)) {
-      if (key.indexOf("obs:") === 0 && snapshot.levels[key] === undefined) delete state.levels[key]
+      if ((key.indexOf("obs:") === 0 || key.indexOf("app:") === 0) && snapshot.levels[key] === undefined) delete state.levels[key]
     }
     for (const key of Object.keys(snapshot.levels)) {
       const value = snapshot.levels[key]

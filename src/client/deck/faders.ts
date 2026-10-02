@@ -3,7 +3,7 @@
 import { FADER_TARGETS } from "../../shared/actions.ts"
 import type { LevelsResponse, VolumeRequest, VolumeSyncRequest } from "../../shared/api.ts"
 import { iconMarkup } from "../../shared/icons.ts"
-import { faderLevelKey } from "../../shared/model.ts"
+import { appDisplayName, faderLevelKey } from "../../shared/model.ts"
 import type { FaderButton } from "../../shared/types.ts"
 import { applyTileColor, el } from "../common/dom.ts"
 import { errorMessage } from "../common/http.ts"
@@ -46,7 +46,7 @@ export function faderMarkup(button: FaderButton): HTMLElement {
   tile.setAttribute("role", "slider")
   tile.setAttribute("aria-valuemin", "0")
   tile.setAttribute("aria-valuemax", "100")
-  tile.setAttribute("aria-label", button.label || FADER_TARGETS[button.fader.target].label)
+  tile.setAttribute("aria-label", button.label || (button.fader.target === "app" ? `${appDisplayName(button.fader)} volume` : FADER_TARGETS[button.fader.target].label))
   tile.tabIndex = 0
   applyTileColor(tile, button.color)
 
@@ -182,7 +182,21 @@ function flushLevel(button: FaderButton): void {
 
 function postLevel(button: FaderButton, level: number): void {
   const body: VolumeRequest = { profileId: state.activeId ?? "", buttonId: button.id, level }
-  api<LevelsResponse>("/api/volume", { method: "POST", json: body }).catch((error: unknown) => toast(errorMessage(error), true))
+  api<LevelsResponse>("/api/volume", { method: "POST", json: body }).catch((error: unknown) => {
+    toast(errorMessage(error), true)
+    // An app that refused (closed, or silent on Windows) has no level: the
+    // tile goes back to "–" instead of claiming the one just dragged to.
+    if (button.fader.target !== "app") return
+    const key = faderLevelKey(button.fader)
+    delete state.levels[key]
+    const redraw = (): void => {
+      const tile = document.querySelector<HTMLElement>(`.tile.fader[data-button-id="${button.id}"]`)
+      if (tile && state.levels[key] === undefined) showLevel(tile, null)
+    }
+    // Mid-drag the finger owns the tile; it is put right once it lets go.
+    if (state.dragging[button.id]) window.setTimeout(redraw, 450)
+    else redraw()
+  })
 }
 
 /** Asks the companion to read the real levels (OBS, the computer), so a fader starts where the sound actually is. */

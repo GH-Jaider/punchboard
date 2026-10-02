@@ -1223,6 +1223,12 @@ select {
 .upload-row { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
 .upload-row .name { min-width: 0; overflow: hidden; color: var(--text-subtle); font-size: var(--fs-xs); text-overflow: ellipsis; white-space: nowrap; }
 
+/* An app fader's picker: the list (or a typed name) with its button beside it. */
+.app-volume-row { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.app-volume-row > select, .app-volume-row > input { flex: 1 1 auto; min-width: 0; }
+.app-volume-row > .btn { flex: none; }
+.app-volume-row[hidden] { display: none; }
+
 
 /* --------------------------------------------------------------- dialogs */
 

@@ -5,7 +5,7 @@
 import { FADER_TARGETS, LIMITS, stepSummary } from "../../shared/actions.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
-import { createEmptyButton, isConfigured, isSwitch, nextId, parkedButtons } from "../../shared/model.ts"
+import { appDisplayName, createEmptyButton, isConfigured, isSwitch, nextId, parkedButtons } from "../../shared/model.ts"
 import type { Button, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
@@ -26,7 +26,10 @@ function tileBadge(button: Button): string {
 
 function describeButton(button: Button): string {
   if (!isConfigured(button)) return "no action yet"
-  if (button.control === "fader") return FADER_TARGETS[button.fader.target].label
+  if (button.control === "fader") {
+    if (button.fader.target === "app") return `${FADER_TARGETS.app.label} · ${appDisplayName(button.fader)}`
+    return FADER_TARGETS[button.fader.target].label
+  }
   if (isSwitch(button)) return "two-state macro"
   return stepSummary(button.steps[0])
 }
