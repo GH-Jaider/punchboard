@@ -1,6 +1,7 @@
-// The profile rail: listing decks, switching between them, showing or hiding
-// them on devices (the eye) and adding one, empty or ready-made. Renaming,
-// duplicating and deleting live in the inspector's deck panel.
+// The profile rail: listing decks, switching between them, putting them in
+// order (drag, or Alt+arrows), showing or hiding them on devices (the eye) and
+// adding one, empty or ready-made. Devices show the tabs in this order.
+// Renaming, duplicating and deleting live in the inspector's deck panel.
 import { isMacLike } from "../../shared/keys.ts"
 import { createEmptyProfile } from "../../shared/model.ts"
 import { STARTER_IDS, STARTERS, starterDeck } from "../../shared/starter-decks.ts"
@@ -42,10 +43,40 @@ function eyeButton(profile: Profile): HTMLButtonElement {
   return eye
 }
 
+/** The deck being dragged, by its place in the list. */
+let dragFrom: number | null = null
+
+function clearDropMarks(): void {
+  const marked = byId("profile-list").querySelectorAll(".drop-before, .drop-after")
+  for (let i = 0; i < marked.length; i++) {
+    const item = marked[i]
+    if (item) item.classList.remove("drop-before", "drop-after")
+  }
+}
+
+/** Moves the deck at `from` so it ends up at `to`, and keeps focus on it. */
+function moveDeck(from: number, to: number): void {
+  const profiles = library().profiles
+  if (from === to || to < 0 || to >= profiles.length) return
+  const moved = profiles.splice(from, 1)[0]
+  if (!moved) return
+  profiles.splice(to, 0, moved)
+  touch()
+  renderProfiles()
+  const row = byId("profile-list").querySelectorAll<HTMLElement>(".profile-row")[to]
+  if (row) row.focus()
+}
+
+/** Dropped on the top half of a row, the deck goes before it; bottom half, after. */
+function dropsAfter(item: HTMLElement, event: DragEvent): boolean {
+  const box = item.getBoundingClientRect()
+  return event.clientY > box.top + box.height / 2
+}
+
 export function renderProfiles(): void {
   const list = byId("profile-list")
   list.innerHTML = ""
-  for (const profile of library().profiles) {
+  library().profiles.forEach((profile, index) => {
     const active = profile.id === store.activeId
     const item = el("div", `profile-item${profile.hidden ? " is-hidden" : ""}`)
     item.setAttribute("data-id", profile.id)
@@ -62,10 +93,52 @@ export function renderProfiles(): void {
       queueSave()
       view.renderAll()
     }
+    // Alt+arrows: the keyboard way to reorder, as Alt+arrows moves buttons.
+    row.addEventListener("keydown", (event) => {
+      if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
+      event.preventDefault()
+      event.stopPropagation()
+      moveDeck(index, index + (event.key === "ArrowUp" ? -1 : 1))
+    })
+
+    item.draggable = true
+    item.addEventListener("dragstart", (event) => {
+      dragFrom = index
+      item.classList.add("dragging")
+      if (!event.dataTransfer) return
+      event.dataTransfer.effectAllowed = "move"
+      // Firefox refuses to start a drag without a payload.
+      try { event.dataTransfer.setData("text/plain", profile.name) } catch { /* ignored */ }
+    })
+    item.addEventListener("dragend", () => {
+      dragFrom = null
+      item.classList.remove("dragging")
+      clearDropMarks()
+    })
+    item.addEventListener("dragover", (event) => {
+      if (dragFrom === null) return
+      event.preventDefault()
+      if (event.dataTransfer) event.dataTransfer.dropEffect = "move"
+      const after = dropsAfter(item, event)
+      clearDropMarks()
+      if (index !== dragFrom) item.classList.add(after ? "drop-after" : "drop-before")
+    })
+    item.addEventListener("drop", (event) => {
+      event.preventDefault()
+      clearDropMarks()
+      if (dragFrom === null) return
+      const from = dragFrom
+      dragFrom = null
+      let to = dropsAfter(item, event) ? index + 1 : index
+      // Taking the deck out first shifts everything after it up by one.
+      if (from < to) to -= 1
+      moveDeck(from, to)
+    })
+
     item.appendChild(row)
     item.appendChild(eyeButton(profile))
     list.appendChild(item)
-  }
+  })
 }
 
 /** Adds a deck and shows it, with its name ready to be typed over. */

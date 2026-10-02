@@ -409,6 +409,21 @@ select {
 .profile-row.is-hidden strong, .profile-row.is-hidden small { opacity: 0.55; }
 /* The eye that shows or hides a deck on devices, at the row's right end. */
 .profile-item { position: relative; }
+/* Reordering by drag: the deck in hand fades, a line shows where it lands. */
+.profile-item.dragging { opacity: 0.4; }
+.profile-item.drop-before::before,
+.profile-item.drop-after::after {
+  position: absolute;
+  left: var(--s-2);
+  right: var(--s-2);
+  height: 2px;
+  border-radius: 1px;
+  background: var(--accent);
+  content: "";
+  pointer-events: none;
+}
+.profile-item.drop-before::before { top: -2px; }
+.profile-item.drop-after::after { bottom: -2px; }
 .profile-item .profile-row { padding-right: 40px; }
 .profile-eye {
   position: absolute;
