@@ -54,6 +54,25 @@ function clearDropMarks(): void {
   }
 }
 
+/** Focus on a deck's row once the list is redrawn. A redraw replaces the
+    rows, and a click on macOS never focuses a button, so without this the
+    arrow keys would have nothing to act on. */
+function focusRow(index: number): void {
+  const row = byId("profile-list").querySelectorAll<HTMLElement>(".profile-row")[index]
+  if (row) row.focus()
+}
+
+/** Shows a deck in the editor. */
+function openDeck(index: number): void {
+  const profile = library().profiles[index]
+  if (!profile) return
+  store.activeId = profile.id
+  store.selectedSlot = null
+  queueSave()
+  view.renderAll()
+  focusRow(index)
+}
+
 /** Moves the deck at `from` so it ends up at `to`, and keeps focus on it. */
 function moveDeck(from: number, to: number): void {
   const profiles = library().profiles
@@ -63,8 +82,7 @@ function moveDeck(from: number, to: number): void {
   profiles.splice(to, 0, moved)
   touch()
   renderProfiles()
-  const row = byId("profile-list").querySelectorAll<HTMLElement>(".profile-row")[to]
-  if (row) row.focus()
+  focusRow(to)
 }
 
 /** Dropped on the top half of a row, the deck goes before it; bottom half, after. */
@@ -87,18 +105,17 @@ export function renderProfiles(): void {
     const count = profile.buttons.length
     const detail = profile.trackpad ? "Trackpad" : `${count}${count === 1 ? " button · " : " buttons · "}${profile.columns}×${profile.rows}`
     row.appendChild(el("small", null, profile.hidden ? `Hidden · ${detail}` : detail))
-    row.onclick = () => {
-      store.activeId = profile.id
-      store.selectedSlot = null
-      queueSave()
-      view.renderAll()
-    }
-    // Alt+arrows: the keyboard way to reorder, as Alt+arrows moves buttons.
+    row.onclick = () => openDeck(index)
+    // Up and down open the deck above or below; with Alt they move this deck
+    // instead, as Alt+arrows moves buttons.
     row.addEventListener("keydown", (event) => {
-      if (!event.altKey || (event.key !== "ArrowUp" && event.key !== "ArrowDown")) return
+      if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return
+      if (event.metaKey || event.ctrlKey || event.shiftKey) return
       event.preventDefault()
       event.stopPropagation()
-      moveDeck(index, index + (event.key === "ArrowUp" ? -1 : 1))
+      const next = index + (event.key === "ArrowUp" ? -1 : 1)
+      if (event.altKey) moveDeck(index, next)
+      else openDeck(next)
     })
 
     item.draggable = true
