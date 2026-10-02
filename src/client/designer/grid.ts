@@ -447,7 +447,8 @@ function onKeyDown(event: KeyboardEvent): void {
   if (event.key === "Escape") return deselect()
 
   // Alt+Arrow moves the selected button, because drag and drop is mouse-only.
-  if (!event.altKey || store.selectedSlot === null) return
+  // Only on the canvas: on a deck in the rail, Alt+arrows reorders decks.
+  if (!event.altKey || store.selectedSlot === null || !focusOnCanvas(event)) return
   const profile = activeProfile()
   const deltas: Record<string, number> = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -profile.columns, ArrowDown: profile.columns }
   const delta = deltas[event.key]
