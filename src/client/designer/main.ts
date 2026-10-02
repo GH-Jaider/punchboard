@@ -14,6 +14,7 @@ import { bindObs, showObsSettings } from "./obs.ts"
 import { bindPairing } from "./pairing.ts"
 import { bindProfiles, renderProfiles } from "./profiles.ts"
 import { bindSession, showIntroIfNew } from "./session.ts"
+import { bindSupport, showSupportNote } from "./support.ts"
 import { bindSoundOutput } from "./sound-output.ts"
 import { bindSounds, loadSounds } from "./sounds.ts"
 import { activeProfile, bindSaving, fetchLibrary, setSaveState, store } from "./state.ts"
@@ -48,6 +49,7 @@ function openPairingFromHash(): void {
 window.addEventListener("hashchange", openPairingFromHash)
 openPairingFromHash()
 bindSession()
+bindSupport()
 bindSaving()
 bindDialogChrome()
 
@@ -71,6 +73,7 @@ async function start(): Promise<void> {
     setTheme(settings.theme)
     showObsSettings(settings)
     showIntroIfNew()
+    showSupportNote(settings)
 
     setSaveState("", "Saved · decks in sync")
     renderAll()

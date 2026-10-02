@@ -10,13 +10,16 @@ export interface Config {
   soundVolume: number
   /** source "auto" follows OBS's own settings on this computer; "manual" was typed in. */
   obs: { address: string; password: string; source: "auto" | "manual" }
+  /** The one-time Ko-fi note has been shown in the Control Center. */
+  supportShown: boolean
 }
 
 const DEFAULTS: Config = {
   port: 8787,
   theme: { name: DEFAULT_THEME, accent: "#5fd0d6", accentPreset: "custom" },
   soundVolume: 1,
-  obs: { address: "ws://127.0.0.1:4455", password: "", source: "auto" }
+  obs: { address: "ws://127.0.0.1:4455", password: "", source: "auto" },
+  supportShown: false
 }
 
 const str = (value: unknown, fallback: string): string => (typeof value === "string" ? value : fallback)
@@ -45,7 +48,8 @@ export function loadConfig(file: string, log: (message: string) => void): Config
       password: str(obs.password, DEFAULTS.obs.password),
       // A password typed before this setting existed counts as manual.
       source: obs.source === "manual" || (obs.source !== "auto" && str(obs.password, "") !== "") ? "manual" : "auto"
-    }
+    },
+    supportShown: raw.supportShown === true
   }
 }
 

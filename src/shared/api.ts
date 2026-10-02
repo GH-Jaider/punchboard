@@ -219,6 +219,8 @@ export interface SettingsResponse {
   version: string
   /** Running inside the desktop app, whose window cannot open new tabs. */
   desktop: boolean
+  /** The one-time Ko-fi note is still to be shown in the Control Center. */
+  supportNote: boolean
 }
 
 export interface SettingsUpdate {
@@ -226,6 +228,8 @@ export interface SettingsUpdate {
   theme?: ThemeId
   obsAddress?: string
   obsPassword?: string
+  /** The Ko-fi note was shown: it never comes back. */
+  supportShown?: true
 }
 
 export interface SettingsSaved extends Ok {

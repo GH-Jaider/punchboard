@@ -453,6 +453,32 @@ select {
 .on-icon .icon-trigger { flex: 1 1 auto; min-width: 0; }
 
 /* The version, small, beside the name in the bar. */
+/* Ko-fi: the cup next to the version, and the note shown once. */
+.kofi-link { display: inline-flex; align-self: center; margin-left: var(--s-2); padding: 3px; border-radius: var(--r-sm); color: var(--text-subtle); }
+.kofi-link svg { width: 16px; height: 16px; }
+.kofi-link:hover { background: var(--surface-2); color: var(--accent-text); }
+.support-note {
+  position: fixed;
+  right: var(--s-4);
+  bottom: var(--s-4);
+  z-index: 80;
+  display: flex;
+  width: 380px;
+  max-width: calc(100vw - 2 * var(--s-4));
+  padding: var(--s-4);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  background: var(--surface-1);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+.support-note[hidden] { display: none; }
+.support-cup { flex: none; display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; margin-right: var(--s-3); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-text); }
+.support-cup svg { width: 20px; height: 20px; }
+.support-text strong { display: block; margin-bottom: var(--s-1); }
+.support-text p { margin: 0 0 var(--s-2); font-size: var(--fs-sm); }
+.support-text p.subtle { color: var(--text-subtle); font-size: var(--fs-xs); }
+.support-actions { display: flex; flex-wrap: wrap; margin-top: var(--s-3); }
+.support-actions .btn { margin: 0 var(--s-2) var(--s-1) 0; }
 .app-version { align-self: center; margin-left: var(--s-2); color: var(--text-subtle); font-family: var(--font-mono, ui-monospace, Menlo, Consolas, monospace); font-size: 11px; }
 
 /* The + menu: an empty deck or a ready-made one. */

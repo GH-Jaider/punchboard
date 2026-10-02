@@ -141,6 +141,16 @@ async function main() {
     check("The newer file is left exactly as it was", fs.readFileSync(file, "utf8") === newer && !fs.readdirSync(decksDir(companion)).some((name) => /corrupt|tmp/.test(name)), fs.readdirSync(decksDir(companion)).join(","))
   })
 
+  // --- the Ko-fi note: once, remembered in config.json
+  await withCompanion({}, async (companion) => {
+    const first = (await companion.request({ path: "/api/settings" })).json
+    check("A new install still has the Ko-fi note to show", first.supportNote === true, JSON.stringify(first))
+    await companion.request({ method: "PUT", path: "/api/settings", headers: JSON_TYPE, body: JSON.stringify({ supportShown: true }) })
+    const after = (await companion.request({ path: "/api/settings" })).json
+    const stored = JSON.parse(fs.readFileSync(path.join(companion.dataDir, "config.json"), "utf8"))
+    check("Once shown, the Ko-fi note is not offered again, and that is saved", after.supportNote === false && stored.supportShown === true, JSON.stringify({ after: after.supportNote, stored: stored.supportShown }))
+  })
+
   // --- revisions, and a write that fails
   await withCompanion({}, async (companion) => {
     const r = await companion.request({ path: "/api/library" })

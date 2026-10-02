@@ -397,7 +397,8 @@ const routes: Route[] = [
     obsSource: config.obs.source,
     platform: process.platform,
     version: VERSION,
-    desktop: DESKTOP
+    desktop: DESKTOP,
+    supportNote: !config.supportShown
   })),
   route<SettingsSaved>("PUT", "/api/settings", "local", async ({ req }) => {
     const data = await jsonBody(req)
@@ -416,6 +417,7 @@ const routes: Route[] = [
     if (obsAddress !== null) config.obs.address = obsAddress
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
     if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
+    if (data.supportShown === true) config.supportShown = true
     writeConfig()
     live.broadcast()
     return { ok: true, accent: config.theme.accent, theme: config.theme.name }
