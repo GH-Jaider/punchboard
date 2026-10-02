@@ -26,6 +26,7 @@ import type {
   SoundsChanged, SoundsResponse, StatusResponse, TraceSaved
 } from "../shared/api.ts"
 import { isHexColor } from "../shared/colors.ts"
+import { SUPPORT_URL } from "../shared/links.ts"
 import { buttonStateKey, faderLevelKey, isLibraryShape, isSwitch, normalizeLibrary, normalizeTrackpad } from "../shared/model.ts"
 import { isTouchFrame, isTouchpadEvent, summarize, TRACE_LIMITS } from "../shared/touchpad/index.ts"
 import type { TouchpadTrace } from "../shared/touchpad/index.ts"
@@ -533,6 +534,17 @@ const routes: Route[] = [
   route<Ok>("POST", "/api/open-deck", "local", async () => {
     try {
       await open(`http://localhost:${PORT}/deck`)
+    } catch (error) {
+      throw new HttpError(500, `Could not open the browser. (${errorText(error)})`)
+    }
+    return { ok: true }
+  }),
+
+  // Ko-fi, in the computer's browser: the desktop app's window opens no tabs.
+  // Only this one address, so the route cannot be used to open anything else.
+  route<Ok>("POST", "/api/open-support", "local", async () => {
+    try {
+      await open(SUPPORT_URL)
     } catch (error) {
       throw new HttpError(500, `Could not open the browser. (${errorText(error)})`)
     }

@@ -459,8 +459,8 @@ select {
 .kofi-link:hover { background: var(--surface-2); color: var(--accent-text); }
 .support-note {
   position: fixed;
-  right: var(--s-4);
-  bottom: var(--s-4);
+  top: 64px;
+  left: var(--s-4);
   z-index: 80;
   display: flex;
   width: 380px;
@@ -472,6 +472,20 @@ select {
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
 }
 .support-note[hidden] { display: none; }
+/* The arrow pointing up at the cup (support.ts sets --arrow-left). */
+.support-note::before {
+  position: absolute;
+  top: -8px;
+  left: var(--arrow-left, 24px);
+  width: 14px;
+  height: 14px;
+  border-top: 1px solid var(--border);
+  border-left: 1px solid var(--border);
+  background: var(--surface-1);
+  content: "";
+  -webkit-transform: rotate(45deg);
+  transform: rotate(45deg);
+}
 .support-cup { flex: none; display: flex; width: 36px; height: 36px; align-items: center; justify-content: center; margin-right: var(--s-3); border-radius: var(--r-md); background: var(--accent-soft); color: var(--accent-text); }
 .support-cup svg { width: 20px; height: 20px; }
 .support-text strong { display: block; margin-bottom: var(--s-1); }

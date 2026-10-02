@@ -38,3 +38,6 @@ export function webAddress(value: string | undefined | null): string | null {
 /** localhost, a name ending in .local, a single-label name ("nas"), or an IP address. */
 const isLocalHost = (hostname: string): boolean =>
   hostname.indexOf(".") === -1 || /\.local$/i.test(hostname) || /^\d{1,3}(\.\d{1,3}){3}$/.test(hostname) || /^\[/.test(hostname)
+
+/** Where the Ko-fi cup and the one-time note lead. */
+export const SUPPORT_URL = "https://ko-fi.com/hit_here"
