@@ -459,9 +459,16 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     app.manage(Updates { item: update, ready: Mutex::new(None), checking: Mutex::new(false) });
 
     let login_item = login.clone();
+    // macOS draws menu-bar icons from their shape alone (a template), tinted
+    // for a light or dark bar. Windows shows the image as it is, so it gets
+    // the colour logo, which reads on a light or dark taskbar.
+    #[cfg(target_os = "macos")]
+    let tray_icon = Image::from_bytes(include_bytes!("../icons/tray.png"))?;
+    #[cfg(not(target_os = "macos"))]
+    let tray_icon = Image::from_bytes(include_bytes!("../icons/32x32.png"))?;
     TrayIconBuilder::with_id("punchboard")
-        .icon(Image::from_bytes(include_bytes!("../icons/tray.png"))?)
-        .icon_as_template(true)
+        .icon(tray_icon)
+        .icon_as_template(cfg!(target_os = "macos"))
         .tooltip("Punchboard")
         .menu(&menu)
         .on_menu_event(move |app, event| match event.id().as_ref() {
