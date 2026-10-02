@@ -1,6 +1,6 @@
 [package]
 name = "punchboard"
-version = "1.5.1"
+version = "1.5.2"
 license = "Apache-2.0"
 description = "Punchboard: turn any tablet or phone into a control deck for your stream"
 edition = "2021"
