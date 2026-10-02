@@ -21,8 +21,19 @@ export function findChrome() {
 
 const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
-/** Starts Chrome and opens one page; resolves to a small driver for it. */
-export async function launchChrome({ width = 1440, height = 900 } = {}) {
+/** Starts Chrome and opens one page; resolves to a small driver for it. A
+    cold CI machine can take a while to start Chrome the first time, so it
+    waits up to 45 s and tries once more with a fresh Chrome. */
+export async function launchChrome(options = {}) {
+  try {
+    return await launchOnce(options)
+  } catch (error) {
+    if (!/DevTools port/.test(String(error))) throw error
+    return launchOnce(options)
+  }
+}
+
+async function launchOnce({ width = 1440, height = 900 } = {}) {
   const binary = findChrome()
   if (!binary) throw new Error("Chrome was not found (set CHROME_PATH).")
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-chrome-"))
@@ -34,7 +45,8 @@ export async function launchChrome({ width = 1440, height = 900 } = {}) {
   ], { stdio: "ignore" })
 
   let target = null
-  for (let attempt = 0; attempt < 100 && !target; attempt += 1) {
+  const giveUp = Date.now() + 45000
+  while (!target && Date.now() < giveUp) {
     await delay(100)
     try {
       const port = Number(fs.readFileSync(path.join(profile, "DevToolsActivePort"), "utf8").split("\n")[0])
