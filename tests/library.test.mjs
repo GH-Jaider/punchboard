@@ -27,8 +27,6 @@ async function withCompanion(options, run) {
     await run(companion)
   } finally {
     await companion.stop()
-    // A folder made read-only by a test still has to go.
-    if (fs.existsSync(decksDir(companion))) fs.chmodSync(decksDir(companion), 0o755)
     companion.cleanup()
   }
 }
@@ -161,11 +159,16 @@ async function main() {
     const buttons = stored.profiles[0].buttons
     check("A saved deck with repeated ids and slots is repaired", saved.status === 200 && stored.profiles[0].id !== stored.profiles[1].id && buttons[0].id !== buttons[1].id && buttons[0].slot !== buttons[1].slot, JSON.stringify(stored.profiles.map((p) => [p.id, p.buttons.map((b) => [b.id, b.slot])])))
 
+    // A folder where library.json goes makes the write fail on every system
+    // (Windows ignores a read-only folder).
     const before = await companion.request({ path: "/api/library" })
-    fs.chmodSync(decksDir(companion), 0o555)
+    const file = path.join(decksDir(companion), "library.json")
+    fs.renameSync(file, `${file}.keep`)
+    fs.mkdirSync(file)
     saved = await companion.request({ method: "PUT", path: `/api/library?rev=${before.headers["x-library-rev"]}`, headers: JSON_TYPE, body: JSON.stringify(mine) })
     const afterFail = await companion.request({ path: "/api/library" })
-    fs.chmodSync(decksDir(companion), 0o755)
+    fs.rmdirSync(file)
+    fs.renameSync(`${file}.keep`, file)
     check("A save that cannot be written says so", saved.status === 500 && /could not be saved/.test(saved.json?.error ?? ""), saved.text)
     check("A failed write keeps the decks devices see", afterFail.text === before.text, names(afterFail.json))
     check("A failed write keeps the revision", afterFail.headers["x-library-rev"] === before.headers["x-library-rev"], `${before.headers["x-library-rev"]} -> ${afterFail.headers["x-library-rev"]}`)
