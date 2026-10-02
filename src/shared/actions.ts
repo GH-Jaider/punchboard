@@ -120,7 +120,8 @@ export interface FaderTargetMeta { label: string; hint: string }
 export const FADER_TARGETS: Readonly<Record<FaderTarget, FaderTargetMeta>> = {
   obs_input: { label: "OBS input volume", hint: "The volume of one OBS audio source, on the same curve as OBS's own mixer." },
   sounds: { label: "Punchboard sounds volume", hint: "How loud Play a sound buttons are on this computer." },
-  system: { label: "This computer's volume", hint: "The main output volume of the computer running Punchboard." }
+  system: { label: "This computer's volume", hint: "The main output volume of the computer running Punchboard." },
+  app: { label: "App volume", hint: "The volume of one application on the computer running Punchboard." }
 }
 
 export const isFaderTarget = (value: unknown): value is FaderTarget => typeof value === "string" && Object.prototype.hasOwnProperty.call(FADER_TARGETS, value)

@@ -302,6 +302,27 @@ export interface AppsResponse {
   apps: AppEntry[]
 }
 
+/** An application whose volume an "App volume" fader can set. */
+export interface AudioApp {
+  /** What the fader stores: the process name without .exe, lower-cased, on
+      Windows ("chrome"); "music" or "spotify" on a Mac. */
+  key: string
+  /** The name people know it by ("Google Chrome"). */
+  name: string
+  /** Whether it is running (a Mac) or has an audio session (Windows) now. */
+  running: boolean
+  /** Its volume now, 0..1, or null while that cannot be read. */
+  level: number | null
+}
+
+export interface AudioAppsResponse {
+  /** The companion's system: what can be offered differs by it. */
+  platform: string
+  apps: AudioApp[]
+  /** Why the list is short or empty, in a sentence, when there is a reason. */
+  note?: string
+}
+
 // ------------------------------------------------------------ Google icons
 
 /** A catalog entry, kept short because the catalog has thousands. */

@@ -94,12 +94,19 @@ export type ButtonColorId =
   | "accent" | "blue" | "indigo" | "violet" | "pink" | "rose" | "red" | "orange"
   | "amber" | "yellow" | "lime" | "green" | "mint" | "cyan" | "slate" | "white"
 
-export type FaderTarget = "obs_input" | "sounds" | "system"
+export type FaderTarget = "obs_input" | "sounds" | "system" | "app"
 
 export interface Fader {
   target: FaderTarget
   /** OBS input name; only used when target is "obs_input". */
   inputName: string
+  /** The application whose volume it sets, when target is "app": on Windows
+      the process name without .exe, lower-cased ("chrome", "spotify"); on a
+      Mac "music" or "spotify". Kept when the target changes, like inputName. */
+  app?: string
+  /** The app's name as the picker showed it ("Google Chrome"), so the
+      Control Center and error messages can name an app that is not running. */
+  appName?: string
 }
 
 export type GlyphStyle = "outlined" | "rounded" | "sharp"

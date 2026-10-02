@@ -72,9 +72,39 @@ export const retypeStep = (step: Step, type: ActionType): Step => makeStep(type,
 
 // ------------------------------------------------------------------ buttons
 
+/** The longest app key kept. Process names are short; a longer one is not a
+    process anyone picked. */
+export const APP_KEY_MAX = 64
+const APP_NAME_MAX = 80
+
+/** An app's key as stored: trimmed, lower-cased, without ".exe", and only
+    letters, digits, spaces and . _ + - (every Windows process name people
+    play sound from fits; quotes, slashes and control characters never reach
+    the volume helpers). Undefined when nothing safe is left. */
+export function normalizeAppKey(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const key = value.trim().toLowerCase().replace(/\.exe$/, "").trim()
+  return key.length <= APP_KEY_MAX && /^[a-z0-9][a-z0-9 ._+-]*$/.test(key) ? key : undefined
+}
+
+/** An app's display name: one line, no control characters, not too long. */
+function normalizeAppName(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined
+  const name = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, APP_NAME_MAX)
+  return name || undefined
+}
+
 function normalizeFader(raw: unknown): Fader {
   const fields = isRecord(raw) ? raw : {}
-  return { target: isFaderTarget(fields.target) ? fields.target : "sounds", inputName: text(fields.inputName) ?? "" }
+  const fader: Fader = { target: isFaderTarget(fields.target) ? fields.target : "sounds", inputName: text(fields.inputName) ?? "" }
+  // The name only means something next to the app it names.
+  const app = normalizeAppKey(fields.app)
+  if (app) {
+    fader.app = app
+    const appName = normalizeAppName(fields.appName)
+    if (appName) fader.appName = appName
+  }
+  return fader
 }
 
 /** The longest image data URI kept: LIMITS.maxIconBytes of image, base64-encoded, plus its prefix. */
@@ -223,7 +253,11 @@ export function normalizeLibrary(raw: unknown): Library {
 export const parkedButtons = (profile: Profile): Button[] => profile.buttons.filter((button) => button.slot >= profile.rows * profile.columns)
 
 export function isConfigured(button: Button): boolean {
-  if (button.control === "fader") return button.fader.target !== "obs_input" || Boolean(button.fader.inputName)
+  if (button.control === "fader") {
+    if (button.fader.target === "obs_input") return Boolean(button.fader.inputName)
+    if (button.fader.target === "app") return Boolean(button.fader.app)
+    return true
+  }
   return button.steps.some((step) => step.type !== "none") || Boolean(button.offSteps?.some((step) => step.type !== "none"))
 }
 
@@ -270,4 +304,16 @@ export function isStateful(button: Button): boolean {
 }
 
 /** Two faders on the same target share one level; this is its key everywhere. */
-export const faderLevelKey = (fader: Fader): string => (fader.target === "obs_input" ? `obs:${fader.inputName}` : fader.target)
+export function faderLevelKey(fader: Fader): string {
+  if (fader.target === "obs_input") return `obs:${fader.inputName}`
+  if (fader.target === "app") return `app:${fader.app ?? ""}`
+  return fader.target
+}
+
+/** A friendly name for an app fader's app: the saved name, or its key with a
+    capital ("spotify" reads "Spotify"). */
+export function appDisplayName(fader: Fader): string {
+  if (fader.appName) return fader.appName
+  const key = fader.app ?? ""
+  return key ? key.charAt(0).toUpperCase() + key.slice(1) : "The app"
+}
