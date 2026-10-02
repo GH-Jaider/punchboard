@@ -84,7 +84,6 @@ function renderDeckPanel(): void {
 
   body.appendChild(byId("intro-card"))
   body.appendChild(nameField(profile))
-  body.appendChild(shownField(profile))
   body.appendChild(deckTypeField(profile))
   if (profile.trackpad) {
     body.appendChild(trackpadFields(profile))
@@ -107,28 +106,6 @@ function renderDeckPanel(): void {
   body.appendChild(size)
 
   body.appendChild(deckActions(profile))
-}
-
-/** Switches a deck off on devices without deleting it. */
-function shownField(profile: Profile): HTMLElement {
-  const field = el("div", "field")
-  const row = el("label", "steps-switch")
-  const box = document.createElement("input")
-  box.type = "checkbox"
-  box.checked = !profile.hidden
-  box.addEventListener("change", () => {
-    if (box.checked) delete profile.hidden
-    else profile.hidden = true
-    touch()
-    view.renderProfiles()
-  })
-  row.appendChild(box)
-  const words = el("span")
-  words.appendChild(el("strong", null, "Show on devices"))
-  words.appendChild(el("span", "field-help", "Off: the deck is kept here but gets no tab on devices. A Go to another deck button can still open it, like a folder."))
-  row.appendChild(words)
-  field.appendChild(row)
-  return field
 }
 
 /** Buttons, or one big trackpad. A deck's buttons are kept while it is a trackpad. */

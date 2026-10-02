@@ -407,6 +407,32 @@ select {
 .profile-row.active strong { color: var(--accent-text); font-weight: var(--w-bold); }
 /* A deck switched off on devices: still here, plainly set aside. */
 .profile-row.is-hidden strong, .profile-row.is-hidden small { opacity: 0.55; }
+/* The eye that shows or hides a deck on devices, at the row's right end. */
+.profile-item { position: relative; }
+.profile-item .profile-row { padding-right: 40px; }
+.profile-eye {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  margin-top: -14px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-subtle);
+  opacity: 0;
+  transition: opacity var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.profile-eye svg { width: 16px; height: 16px; }
+.profile-item:hover .profile-eye,
+.profile-eye:focus-visible,
+.profile-item.is-hidden .profile-eye { opacity: 1; }
+.profile-eye:hover { background: var(--surface-3); color: var(--text); }
 
 /* The custom colour swatch: a colour wheel, opening the system picker. */
 .swatch-custom {

@@ -1,6 +1,6 @@
-// The profile rail: listing decks, switching between them and adding one,
-// empty or ready-made. Renaming, duplicating and deleting live in the
-// inspector's deck panel.
+// The profile rail: listing decks, switching between them, showing or hiding
+// them on devices (the eye) and adding one, empty or ready-made. Renaming,
+// duplicating and deleting live in the inspector's deck panel.
 import { isMacLike } from "../../shared/keys.ts"
 import { createEmptyProfile } from "../../shared/model.ts"
 import { STARTER_IDS, STARTERS, starterDeck } from "../../shared/starter-decks.ts"
@@ -9,11 +9,46 @@ import { byId, el } from "../common/dom.ts"
 import { view } from "./hub.ts"
 import { library, queueSave, store, touch } from "./state.ts"
 
+const EYE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>'
+const EYE_OFF = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.6 5.1A10 10 0 0 1 12 5c6.4 0 10 7 10 7a17 17 0 0 1-2.2 3.1M6.6 6.6C3.9 8.3 2 12 2 12s3.6 7 10 7a10 10 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/><path d="m2 2 20 20"/></svg>'
+
+/** The eye on a deck's row: a hidden deck is kept here but gets no tab on
+    devices; a Go to another deck button can still open it, like a folder. */
+function eyeButton(profile: Profile): HTMLButtonElement {
+  const eye = el("button", "profile-eye")
+  eye.type = "button"
+  eye.innerHTML = profile.hidden ? EYE_OFF : EYE
+  const tip = profile.hidden
+    ? `${profile.name} is hidden on devices. A Go to another deck button can still open it. Click to show it.`
+    : `${profile.name} is shown on devices. Click to hide it there (it is kept here).`
+  eye.title = tip
+  eye.setAttribute("aria-label", profile.hidden ? `Show ${profile.name} on devices` : `Hide ${profile.name} on devices`)
+  eye.setAttribute("aria-pressed", String(!profile.hidden))
+  eye.onclick = () => {
+    if (profile.hidden) delete profile.hidden
+    else profile.hidden = true
+    touch()
+    renderProfiles()
+    // Keep focus on this deck's eye, now redrawn.
+    const items = byId("profile-list").querySelectorAll<HTMLElement>(".profile-item")
+    for (let i = 0; i < items.length; i++) {
+      const again = items[i]
+      if (again && again.getAttribute("data-id") === profile.id) {
+        const button = again.querySelector<HTMLElement>(".profile-eye")
+        if (button) button.focus()
+      }
+    }
+  }
+  return eye
+}
+
 export function renderProfiles(): void {
   const list = byId("profile-list")
   list.innerHTML = ""
   for (const profile of library().profiles) {
     const active = profile.id === store.activeId
+    const item = el("div", `profile-item${profile.hidden ? " is-hidden" : ""}`)
+    item.setAttribute("data-id", profile.id)
     const row = el("button", `profile-row${active ? " active" : ""}${profile.hidden ? " is-hidden" : ""}`)
     row.type = "button"
     row.setAttribute("aria-pressed", String(active))
@@ -27,7 +62,9 @@ export function renderProfiles(): void {
       queueSave()
       view.renderAll()
     }
-    list.appendChild(row)
+    item.appendChild(row)
+    item.appendChild(eyeButton(profile))
+    list.appendChild(item)
   }
 }
 
