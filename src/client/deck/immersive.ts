@@ -1,5 +1,5 @@
-// Full-screen mode, and a way back out that works on a touchscreen: the grip
-// at the top, Escape, or leaving browser full screen.
+// Full-screen mode, and a way back out that works on a touchscreen: the exit
+// button in the top corner, Escape, or leaving browser full screen.
 //
 // iPads only offer the webkit-prefixed API; iPhones offer none for pages, so
 // there the deck hides its own bar and points at Add to Home Screen, which
@@ -65,7 +65,12 @@ export function initImmersive(): void {
     setImmersive(!leaving)
   })
 
-  byId("reveal-grip").addEventListener("click", () => setImmersive(false))
+  // Leaves browser full screen too: only bringing the bar back would leave the
+  // page full screen with a "Full screen" button that cannot get out of it.
+  byId("exit-immersive").addEventListener("click", () => {
+    exitFullscreen()
+    setImmersive(false)
+  })
 
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape" && isImmersive()) setImmersive(false)

@@ -1647,32 +1647,32 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
 /* Immersive mode. The reveal used to be :hover, which a tablet cannot do —
    entering it on an iPad left no way back. Now there is a real control. */
 .deck-page.immersive .deck-bar { display: none; }
-/* The grip has a strip of its own above the deck, so it never covers a tab
-   or the top row of tiles. */
-.deck-page.immersive .deck-main { padding-top: 22px; }
-
-.reveal-grip {
+/* The exit button sits at the right end of the tab row: the tabs stop short
+   of it, and with no tab row the grid starts below it, so it never covers a
+   tab or a tile. */
+.exit-immersive {
   position: fixed;
-  top: 0;
-  top: env(safe-area-inset-top);
-  left: 50%;
+  top: var(--s-2);
+  top: calc(var(--s-2) + env(safe-area-inset-top));
+  right: var(--s-3);
+  right: calc(var(--s-3) + env(safe-area-inset-right));
   z-index: 50;
   display: none;
-  height: 20px;
+  width: 36px;
+  height: 36px;
   align-items: center;
-  padding: 0 var(--s-3);
-  -webkit-transform: translateX(-50%);
-  transform: translateX(-50%);
+  justify-content: center;
+  padding: 0;
   border: 1px solid var(--border);
-  border-top: 0;
-  border-radius: 0 0 var(--r-md) var(--r-md);
+  border-radius: var(--r-md);
   background: var(--surface-2);
   color: var(--text-subtle);
-  font-size: 11px;
-  font-weight: var(--w-medium);
 }
-.deck-page.immersive .reveal-grip { display: flex; }
-.reveal-grip svg { width: 12px; height: 12px; margin-right: 6px; }
+.exit-immersive svg { width: 18px; height: 18px; }
+.deck-page.immersive .exit-immersive { display: flex; }
+.deck-page.immersive .offline-banner,
+.deck-page.immersive .deck-profiles { margin-right: 44px; }
+.deck-page.immersive .deck-profiles:empty ~ .deck-grid { margin-top: 44px; }
 
 .deck-empty {
   display: grid;
@@ -1970,6 +1970,9 @@ dialog.wide { width: min(760px, calc(100vw - 32px)); }
   .deck-main > .deck-profiles { margin-bottom: var(--s-1); }
   .offline-banner { padding: 2px var(--s-3); }
   .deck-profiles button { min-height: 30px; padding: 0 var(--s-3); }
+  .exit-immersive { top: var(--s-1); top: calc(var(--s-1) + env(safe-area-inset-top)); right: var(--s-2); right: calc(var(--s-2) + env(safe-area-inset-right)); width: 30px; height: 30px; }
+  .deck-page.immersive .deck-profiles { margin-right: 38px; }
+  .deck-page.immersive .deck-profiles:empty ~ .deck-grid { margin-top: 38px; }
   /* The pairing card, compact: no logo, tighter spacing. */
   .deck-page.needs-pairing .pair-screen { padding: var(--s-2) var(--s-4); }
   .pair-card { padding: var(--s-4) var(--s-5); }
