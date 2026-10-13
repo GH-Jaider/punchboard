@@ -19,6 +19,7 @@
 // Opening the deck with #trackpad-debug in the address shows the engine at
 // work and can keep the last 30 s as a trace for tests/touchpad-traces.
 import type { PointerMessage, PointerNotice, TraceSaved, TraceUpload } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { createTouchpad, summarize } from "../../shared/touchpad/index.ts"
 import type { Touchpad, TouchFrame, TouchpadEvent, TouchpadState } from "../../shared/touchpad/index.ts"
 import { DEFAULT_TRACKPAD } from "../../shared/model.ts"
@@ -90,11 +91,11 @@ function open(): void {
   let next: WebSocket
   try { next = new WebSocket(url) } catch { return retry() }
   socket = next
-  setStatus("Connecting…", false)
+  setStatus(t("deck.trackpad.connecting"), false)
   // A socket that is no longer the current one (the trackpad was taken down
   // and built again) speaks for nothing: its late events are ignored.
   next.onopen = () => {
-    if (socket === next) setStatus("Ready", true)
+    if (socket === next) setStatus(t("deck.trackpad.ready"), true)
   }
   next.onmessage = (event: MessageEvent<string>) => {
     if (socket !== next) return
@@ -115,7 +116,7 @@ function open(): void {
 
 function retry(): void {
   if (!shown) return
-  setStatus("Reconnecting…", false)
+  setStatus(t("deck.trackpad.reconnecting"), false)
   // Every attempt is signed afresh, so it is made here rather than by the browser.
   retryTimer = window.setTimeout(open, 1500)
 }
@@ -298,10 +299,10 @@ function suggestLock(): void {
   const agent = navigator.userAgent
   const apple = /iPad|iPhone|Macintosh.*Mobile/.test(agent) || (/Macintosh/.test(agent) && navigator.maxTouchPoints > 1)
   const tip = apple
-    ? "Tip: turn on Guided Access (Settings › Accessibility) and triple-click to lock the device to the trackpad, so a swipe from the edge cannot leave it."
+    ? t("deck.trackpad.tipApple")
     : /Android/.test(agent)
-      ? "Tip: use Full screen, and pin the browser (Settings › Security › App pinning) so a swipe from the edge cannot leave the trackpad."
-      : "Tip: use Full screen, so a swipe from the edge does not leave the trackpad."
+      ? t("deck.trackpad.tipAndroid")
+      : t("deck.trackpad.tipOther")
   hint(HINT_KEY, tip)
 }
 
@@ -362,7 +363,7 @@ function createDebug(surface: HTMLElement): Debug {
   const log = el("pre", "trackpad-log")
   const side = el("div", "trackpad-debug-side")
   const stateLine = el("span", "trackpad-state", "idle · none")
-  const save = el("button", "btn", "Save trace")
+  const save = el("button", "btn", t("deck.trackpad.saveTrace"))
   save.type = "button"
   side.appendChild(stateLine)
   side.appendChild(save)
@@ -393,7 +394,7 @@ function createDebug(surface: HTMLElement): Debug {
     save.disabled = true
     const upload: TraceUpload = { settings, frames: frames.slice(), events: events.map((entry) => entry.event), userAgent: navigator.userAgent }
     api<TraceSaved>("/api/trackpad/traces", { method: "POST", json: upload })
-      .then((saved) => toast(`Saved ${saved.file} on the computer`))
+      .then((saved) => toast(t("deck.trackpad.traceSaved", { file: saved.file })))
       .catch((error: unknown) => toast(errorMessage(error), true))
       .then(() => { save.disabled = false })
   }
@@ -450,10 +451,10 @@ export function showTrackpad(profile: Profile, host: HTMLElement): void {
 
   const pad = el("div", "trackpad")
   const surface = el("div", "trackpad-surface")
-  surface.setAttribute("aria-label", "Trackpad: moves this computer's mouse")
-  statusEl = el("span", "trackpad-status", "Connecting…")
+  surface.setAttribute("aria-label", t("deck.trackpad.label"))
+  statusEl = el("span", "trackpad-status", t("deck.trackpad.connecting"))
   surface.appendChild(statusEl)
-  surface.appendChild(el("span", "trackpad-hint", "Works like a laptop trackpad: tap, two fingers to scroll, pinch to zoom, three fingers to swipe between windows and desktops"))
+  surface.appendChild(el("span", "trackpad-hint", t("deck.trackpad.hint")))
   bindSurface(surface, session)
   pad.appendChild(surface)
   if (/trackpad-debug/.test(location.hash)) {

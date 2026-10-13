@@ -1,5 +1,6 @@
 // The pairing screen. Until this deck has its secret, it is all the deck shows.
 import type { ClaimRequest, ClaimResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { saveDevice, setServerTime } from "./api.ts"
@@ -26,7 +27,7 @@ export async function claim(code: string): Promise<void> {
     setServerTime(result.serverTime)
     saveDevice(result.device)
     document.body.classList.remove("needs-pairing")
-    toast("Paired. This deck is ready.")
+    toast(t("deck.pair.paired"))
     onPaired()
   } catch (error) {
     showPairing(errorMessage(error))
@@ -50,7 +51,7 @@ export function initPairing(paired: () => void): void {
     event.preventDefault()
     const code = codeInput.value.replace(/\D/g, "")
     if (code.length !== 6) {
-      showPairing("Enter the 6-digit code shown on the computer.")
+      showPairing(t("deck.pair.enterCode"))
       return
     }
     void claim(code)

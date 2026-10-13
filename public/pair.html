@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a0c0f">
-  <title>Pair a device | Punchboard</title>
+  <title data-i18n="pair.page.title">Pair a device | Punchboard</title>
   <link rel="icon" href="/punchboard.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
@@ -17,43 +17,43 @@
   <header class="appbar">
     <a class="brand" href="/designer">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g><rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor"/></svg></span>
-      <span>Punchboard <span class="muted hide-sm">Control Center</span></span>
+      <span>Punchboard <span class="muted hide-sm" data-i18n="pair.page.controlCenter">Control Center</span></span>
     </a>
     <span class="appbar-spacer"></span>
     <!-- The old pairing screen dropped the app shell entirely, so the only
          way back was a text button at the bottom of a centred card. -->
-    <a class="btn" href="/designer">Back to the Control Center</a>
+    <a class="btn" href="/designer" data-i18n="pair.page.back">Back to the Control Center</a>
   </header>
 
   <main class="pair-main">
     <section class="pair-shell">
       <div>
-        <h1>Pair a tablet or phone.</h1>
-        <p>Scan the code with the device's camera. It opens your deck over the same wifi and pairs it in one step &mdash; no account, no app store.</p>
+        <h1 data-i18n="pair.page.heading">Pair a tablet or phone.</h1>
+        <p data-i18n="pair.page.intro">Scan the code with the device's camera. It opens your deck over the same wifi and pairs it in one step &mdash; no account, no app store.</p>
         <ol class="pair-steps">
-          <li><span class="step-number">1</span><span>Keep this computer and the tablet or phone on the same wifi network.</span></li>
-          <li><span class="step-number">2</span><span>Scan the code, then tap the link the camera offers.</span></li>
-          <li><span class="step-number">3</span><span>No camera? Open the address below on the device and type the 6-digit code.</span></li>
+          <li><span class="step-number">1</span><span data-i18n="pair.page.step1">Keep this computer and the tablet or phone on the same wifi network.</span></li>
+          <li><span class="step-number">2</span><span data-i18n="pair.page.step2">Scan the code, then tap the link the camera offers.</span></li>
+          <li><span class="step-number">3</span><span data-i18n="pair.page.step3">No camera? Open the address below on the device and type the 6-digit code.</span></li>
         </ol>
-        <p class="field-help">Only paired devices can press buttons. Each one gets its own key, and you can remove it below at any time.</p>
+        <p class="field-help" data-i18n="pair.page.help">Only paired devices can press buttons. Each one gets its own key, and you can remove it below at any time.</p>
       </div>
 
       <div class="pair-qr">
         <div class="qr-frame" id="qr-frame">
-          <img id="qr-image" src="/api/pair-qr.svg" alt="QR code that opens and pairs this deck on your local network">
+          <img id="qr-image" src="/api/pair-qr.svg" alt="QR code that opens and pairs this deck on your local network" data-i18n-alt="pair.page.qrAlt">
         </div>
         <div class="pair-code-box">
-          <span class="pair-code-label">Pairing code</span>
+          <span class="pair-code-label" data-i18n="pair.page.codeLabel">Pairing code</span>
           <strong class="pair-code-value" id="pair-code">&middot;&middot;&middot;&middot;&middot;&middot;</strong>
           <span class="pair-hint" id="pair-expiry"></span>
         </div>
-        <a class="pair-url" id="deck-url" href="/deck">Finding this computer&hellip;</a>
-        <button class="btn ghost" id="new-code" type="button">Make a new code</button>
+        <a class="pair-url" id="deck-url" href="/deck" data-i18n="pair.page.finding">Finding this computer&hellip;</a>
+        <button class="btn ghost" id="new-code" type="button" data-i18n="pair.page.newCode">Make a new code</button>
       </div>
     </section>
 
     <section class="devices-shell" aria-labelledby="devices-title">
-      <h2 id="devices-title">Paired devices</h2>
+      <h2 id="devices-title" data-i18n="pair.page.devices">Paired devices</h2>
       <div class="device-list" id="device-list"></div>
     </section>
   </main>

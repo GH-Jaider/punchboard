@@ -28,24 +28,24 @@
     </span>
     <span class="spacer"></span>
     <span class="link-status" id="link-status" role="status" aria-live="polite">
-      <span class="dot" aria-hidden="true"></span><span id="link-text">Connecting</span>
+      <span class="dot" aria-hidden="true"></span><span id="link-text" data-i18n="deck.status.connecting">Connecting</span>
     </span>
     <!-- Shown only on a device that can give haptic feedback (haptics.ts). -->
-    <button class="icon-btn haptics-btn" id="haptics-btn" type="button" aria-label="Haptic feedback" aria-pressed="true" hidden></button>
-    <button class="btn" id="immersive-btn" type="button" aria-pressed="false">Full screen</button>
+    <button class="icon-btn haptics-btn" id="haptics-btn" type="button" aria-label="Haptic feedback" data-i18n-aria-label="deck.haptics.label" aria-pressed="true" hidden></button>
+    <button class="btn" id="immersive-btn" type="button" aria-pressed="false" data-i18n="deck.immersive.enter">Full screen</button>
   </header>
 
   <main class="deck-main">
     <div class="offline-banner" role="alert">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
-      <span>The companion on your computer is not responding. Buttons will not fire until it is back.</span>
+      <span data-i18n="deck.offline.banner">The companion on your computer is not responding. Buttons will not fire until it is back.</span>
     </div>
-    <nav class="deck-profiles" id="profiles" aria-label="Choose a deck"></nav>
-    <div class="deck-grid" id="grid" role="group" aria-label="Deck buttons"></div>
+    <nav class="deck-profiles" id="profiles" aria-label="Choose a deck" data-i18n-aria-label="deck.profiles.label"></nav>
+    <div class="deck-grid" id="grid" role="group" aria-label="Deck buttons" data-i18n-aria-label="deck.grid.label"></div>
   </main>
 
   <!-- In full screen: the one way out on a touchscreen (immersive.ts). -->
-  <button class="exit-immersive" id="exit-immersive" type="button" aria-label="Exit full screen" title="Exit full screen">
+  <button class="exit-immersive" id="exit-immersive" type="button" aria-label="Exit full screen" title="Exit full screen" data-i18n-aria-label="deck.immersive.exit" data-i18n-title="deck.immersive.exit">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5"/></svg>
   </button>
 
@@ -53,12 +53,12 @@
   <section class="pair-screen" aria-labelledby="pair-title">
     <form class="pair-card" id="pair-form" autocomplete="off">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g><rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor"/></svg></span>
-      <h1 id="pair-title">Pair this device</h1>
-      <p>On the computer, open <strong>Pair a device</strong> in the Control Center and scan the code, or type the 6 digits shown there.</p>
-      <label for="pair-code" class="visually-hidden">Pairing code</label>
+      <h1 id="pair-title" data-i18n="deck.pair.title">Pair this device</h1>
+      <p data-i18n-html="deck.pair.intro">On the computer, open <strong>Pair a device</strong> in the Control Center and scan the code, or type the 6 digits shown there.</p>
+      <label for="pair-code" class="visually-hidden" data-i18n="deck.pair.codeLabel">Pairing code</label>
       <input id="pair-code" class="pair-code" type="text" inputmode="numeric" maxlength="7" placeholder="000000">
       <p class="pair-error" id="pair-error" role="alert"></p>
-      <button class="btn primary wide" id="pair-submit" type="submit">Pair</button>
+      <button class="btn primary wide" id="pair-submit" type="submit" data-i18n="deck.pair.submit">Pair</button>
     </form>
   </section>
 

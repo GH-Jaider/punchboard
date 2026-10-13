@@ -1,13 +1,14 @@
 // Typed JSON requests for pages on this computer (Control Center, pairing).
 // The deck signs its requests and has its own client in deck/api.ts.
 import type { ErrorResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 
 /** An error reply from the companion, with its HTTP status and body. */
 export class ApiError extends Error {
   readonly status: number
   readonly body: Partial<ErrorResponse>
   constructor(status: number, body: Partial<ErrorResponse>) {
-    super(body.error || `Request failed (${status})`)
+    super(body.error || t("common.http.failed", { status }))
     this.status = status
     this.body = body
   }
@@ -18,7 +19,7 @@ export async function readJson<T>(response: Response): Promise<T> {
   try {
     body = await response.json()
   } catch {
-    throw new ApiError(response.status, { error: `The companion sent an unreadable reply (${response.status}).` })
+    throw new ApiError(response.status, { error: t("common.http.unreadable", { status: response.status }) })
   }
   if (!response.ok) throw new ApiError(response.status, (body ?? {}) as Partial<ErrorResponse>)
   return body as T

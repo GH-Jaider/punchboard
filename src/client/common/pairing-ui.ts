@@ -2,16 +2,17 @@
 // the Control Center's pairing window and the standalone /pair page, which
 // exists because the terminal prints its link.
 import type { DeviceInfo, DevicesResponse, NewCodeResponse, PairInfo } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { el } from "./dom.ts"
 import { errorMessage, request } from "./http.ts"
 
 export function ago(iso: string): string {
   const minutes = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
-  if (minutes < 2) return "just now"
-  if (minutes < 60) return `${minutes} minutes ago`
+  if (minutes < 2) return t("common.pairing.justNow")
+  if (minutes < 60) return t("common.pairing.minutesAgo", { count: minutes })
   const hours = Math.round(minutes / 60)
-  if (hours < 48) return `${hours} hours ago`
-  return `${Math.round(hours / 24)} days ago`
+  if (hours < 48) return t("common.pairing.hoursAgo", { count: hours })
+  return t("common.pairing.daysAgo", { count: Math.round(hours / 24) })
 }
 
 /** "123456" → "123 456", the way people read a code out. */
@@ -20,7 +21,7 @@ export const formatCode = (code: string): string => `${code.slice(0, 3)} ${code.
 export function countdownText(expiresAt: number): string {
   if (!expiresAt) return ""
   const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000))
-  return `Changes in ${Math.floor(left / 60)}:${`0${left % 60}`.slice(-2)}`
+  return t("common.pairing.changesIn", { time: `${Math.floor(left / 60)}:${`0${left % 60}`.slice(-2)}` })
 }
 
 export type Toast = (message: string, isError?: boolean) => void
@@ -28,7 +29,7 @@ export type Toast = (message: string, isError?: boolean) => void
 export function renderDevices(host: HTMLElement, devices: DeviceInfo[], onRemove: (device: DeviceInfo, button: HTMLButtonElement) => void): void {
   host.innerHTML = ""
   if (!devices.length) {
-    host.appendChild(el("p", "field-help", "No devices yet. Scan the code with a tablet to add one."))
+    host.appendChild(el("p", "field-help", t("common.pairing.noDevices")))
     return
   }
   for (const device of devices) {
@@ -36,8 +37,8 @@ export function renderDevices(host: HTMLElement, devices: DeviceInfo[], onRemove
     const text = el("div")
     text.appendChild(el("strong", null, device.name))
     const where = device.ip ? ` · ${device.ip.replace(/^::ffff:/, "")}` : ""
-    text.appendChild(el("small", null, `Paired ${ago(device.createdAt)} · last seen ${ago(device.lastSeen)}${where}`))
-    const remove = el("button", "btn danger", "Remove")
+    text.appendChild(el("small", null, t("common.pairing.deviceSeen", { paired: ago(device.createdAt), seen: ago(device.lastSeen) }) + where))
+    const remove = el("button", "btn danger", t("common.pairing.remove"))
     remove.type = "button"
     remove.onclick = () => onRemove(device, remove)
     row.appendChild(text)
@@ -83,7 +84,7 @@ export function createPairingView(elements: PairingElements, toast: Toast): Pair
     request<DevicesResponse>(`/api/devices/${encodeURIComponent(device.id)}`, { method: "DELETE" })
       .then((data) => {
         renderDevices(elements.devices, data.devices, removeDevice)
-        toast(`${device.name} was removed. It will need to pair again.`)
+        toast(t("common.pairing.removed", { name: device.name }))
       })
       .catch((error: unknown) => {
         button.disabled = false
@@ -107,7 +108,7 @@ export function createPairingView(elements: PairingElements, toast: Toast): Pair
     request<NewCodeResponse>("/api/pair/new-code", { method: "POST" })
       .then((data) => {
         showCode(data)
-        toast("New code ready. The old one no longer works.")
+        toast(t("common.pairing.newCode"))
       })
       .catch((error: unknown) => toast(errorMessage(error), true))
   })
@@ -115,7 +116,7 @@ export function createPairingView(elements: PairingElements, toast: Toast): Pair
   // A broken-image icon is no help if the QR fails; say what to do instead.
   elements.qrImage.addEventListener("error", () => {
     elements.qrFrame.className = "qr-frame is-error"
-    elements.qrFrame.textContent = "The QR code could not be generated. Open the address on the tablet and type the code."
+    elements.qrFrame.textContent = t("common.pairing.qrFailed")
   })
 
   return {

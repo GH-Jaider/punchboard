@@ -2,6 +2,7 @@
 // touching it never jumps the level to where the finger landed.
 import { FADER_TARGETS } from "../../shared/actions.ts"
 import type { LevelsResponse, VolumeRequest, VolumeSyncRequest } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { appDisplayName, faderLevelKey } from "../../shared/model.ts"
 import type { FaderButton } from "../../shared/types.ts"
@@ -36,7 +37,7 @@ export function showLevel(tile: HTMLElement, level: number | null): void {
     tile.setAttribute("aria-valuetext", `${percent}%`)
   } else {
     tile.removeAttribute("aria-valuenow")
-    tile.setAttribute("aria-valuetext", "Level not known yet")
+    tile.setAttribute("aria-valuetext", t("deck.fader.unknownLevel"))
   }
 }
 
@@ -46,7 +47,7 @@ export function faderMarkup(button: FaderButton): HTMLElement {
   tile.setAttribute("role", "slider")
   tile.setAttribute("aria-valuemin", "0")
   tile.setAttribute("aria-valuemax", "100")
-  tile.setAttribute("aria-label", button.label || (button.fader.target === "app" ? `${appDisplayName(button.fader)} volume` : FADER_TARGETS[button.fader.target].label))
+  tile.setAttribute("aria-label", button.label || (button.fader.target === "app" ? t("deck.fader.appVolume", { app: appDisplayName(button.fader) }) : FADER_TARGETS[button.fader.target].label))
   tile.tabIndex = 0
   applyTileColor(tile, button.color)
 
@@ -77,7 +78,7 @@ function bindFader(tile: HTMLElement, button: FaderButton): void {
 
   const begin = (y: number): boolean => {
     if (isOffline()) {
-      toast("Companion offline — nothing was sent.", true)
+      toast(t("deck.offline.nothingSent"), true)
       return false
     }
     active = true
@@ -148,7 +149,7 @@ function bindFader(tile: HTMLElement, button: FaderButton): void {
     if (step === undefined) return
     event.preventDefault()
     if (isOffline()) {
-      toast("Companion offline — nothing was sent.", true)
+      toast(t("deck.offline.nothingSent"), true)
       return
     }
     const level = clamp01((levelFor(button) ?? 0.5) + step)

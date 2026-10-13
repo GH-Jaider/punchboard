@@ -4,7 +4,9 @@
 // iPads only offer the webkit-prefixed API; iPhones offer none for pages, so
 // there the deck hides its own bar and points at Add to Home Screen, which
 // opens it with no browser chrome at all.
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
+import { keyedText } from "../common/i18n.ts"
 import { scaleTiles } from "./grid.ts"
 import { hint } from "./ui.ts"
 
@@ -45,12 +47,12 @@ function exitFullscreen(): void {
 }
 
 function hintHomeScreen(): void {
-  hint(HINT_KEY, "This browser cannot go full screen. Use Share › Add to Home Screen, then open Punchboard from there and pair once.")
+  hint(HINT_KEY, t("deck.immersive.homeScreenHint"))
 }
 
 function setImmersive(on: boolean): void {
   document.body.classList.toggle("immersive", on)
-  button.textContent = on ? "Exit full screen" : "Full screen"
+  keyedText(button, on ? "deck.immersive.exit" : "deck.immersive.enter")
   button.setAttribute("aria-pressed", String(on))
   setTimeout(scaleTiles, 60)
 }

@@ -9,6 +9,7 @@
 // the light one of a switch: felt in the hand, not on a table. iPads have no
 // Taptic Engine at all, so they, and iPhones before iOS 18, keep plain
 // buttons. Each device can turn haptics off from the bar (initHapticsToggle).
+import { t } from "../../shared/i18n.ts"
 import { storage } from "../common/dom.ts"
 
 export type Haptic = "tap" | "tick" | "click" | "error"
@@ -79,7 +80,7 @@ export function initHapticsToggle(button: HTMLButtonElement, changed: () => void
     const on = hapticsEnabled()
     button.innerHTML = on ? ICON_ON : ICON_OFF
     button.setAttribute("aria-pressed", String(on))
-    button.title = on ? "Haptic feedback is on" : "Haptic feedback is off"
+    button.title = on ? t("deck.haptics.on") : t("deck.haptics.off")
   }
   paint()
   button.hidden = false

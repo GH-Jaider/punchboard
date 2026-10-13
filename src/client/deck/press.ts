@@ -1,6 +1,7 @@
 // Pressing a button. Only ids travel: the companion runs the button as saved
 // on the computer.
 import type { PressRequest, PressResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { webAddress } from "../../shared/links.ts"
 import { isConfigured, isSwitch } from "../../shared/model.ts"
 import type { PressButton } from "../../shared/types.ts"
@@ -14,7 +15,7 @@ import { isOffline, toast } from "./ui.ts"
 
 export function press(button: PressButton, tile: HTMLElement): void {
   if (isOffline()) {
-    toast("Companion offline — nothing was sent.", true)
+    toast(t("deck.offline.nothingSent"), true)
     return
   }
   haptic("tap")
@@ -22,7 +23,7 @@ export function press(button: PressButton, tile: HTMLElement): void {
   setTimeout(() => tile.classList.remove("pressed"), 160)
 
   if (!isConfigured(button)) {
-    toast("This button has no action yet.")
+    toast(t("deck.press.noAction"))
     return
   }
 
@@ -39,7 +40,7 @@ export function press(button: PressButton, tile: HTMLElement): void {
   if (button.steps.length === 1 && only && only.type === "browser_tile") {
     const address = webAddress(only.url)
     if (address) window.open(address, "_blank", "noopener")
-    else toast("This button's link is not a web address.", true)
+    else toast(t("deck.press.badLink"), true)
     return
   }
   const allSteps = button.steps.concat(button.offSteps ?? [])
@@ -77,15 +78,15 @@ export function press(button: PressButton, tile: HTMLElement): void {
       setTimeout(() => tile.classList.remove("is-error"), 1600)
       haptic("error")
       // Unreachable: the deck has gone offline already (live.ts); say it plainly.
-      toast(error instanceof OfflineError ? "Can't reach the companion. Check that it is running and on the same wifi." : errorMessage(error), true)
+      toast(error instanceof OfflineError ? t("deck.press.unreachable") : errorMessage(error), true)
     })
     .then(() => { delete state.inflight[key] })
 }
 
 function goToDeck(profileId: string | null): void {
   if (!profileId) {
-    toast("Choose which deck this button opens, in the Control Center.")
+    toast(t("deck.press.noDeckChosen"))
     return
   }
-  if (!showDeck(profileId, true)) toast("That deck no longer exists.", true)
+  if (!showDeck(profileId, true)) toast(t("deck.press.deckGone"), true)
 }

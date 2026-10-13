@@ -2,6 +2,8 @@
 // every device: the designed grid is honoured exactly and tiles resize
 // instead of re-flowing, because muscle memory is the product here.
 import { stepSummary } from "../../shared/actions.ts"
+import { t } from "../../shared/i18n.ts"
+import { richText } from "../common/i18n.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
 import { isStateful, isSwitch, shownProfiles, soundSlotOf } from "../../shared/model.ts"
@@ -66,8 +68,8 @@ export function showDeck(profileId: string, byButton = false): boolean {
 }
 
 function describe(button: Button): string {
-  if (isSwitch(button)) return "On / off macro"
-  if (button.steps.length > 1) return `${button.steps.length}-step macro`
+  if (isSwitch(button)) return t("deck.tile.switchMacro")
+  if (button.steps.length > 1) return t("deck.tile.macro", { count: button.steps.length })
   return stepSummary(button.steps[0])
 }
 
@@ -119,9 +121,8 @@ function pressTile(button: PressButton): HTMLElement {
   return tile
 }
 
-const EMPTY_DECK =
-  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>' +
-  "<div><strong>This deck is empty.</strong><br>Open the Control Center on your computer and add some buttons.</div>"
+const EMPTY_DECK_ICON =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>'
 
 export function renderGrid(): void {
   if (!state.library) return
@@ -141,7 +142,10 @@ export function renderGrid(): void {
 
   if (!profile || !profile.buttons.length) {
     const empty = el("div", "deck-empty")
-    empty.innerHTML = EMPTY_DECK
+    empty.innerHTML = EMPTY_DECK_ICON
+    const words = el("div")
+    richText(words, t("deck.grid.empty"))
+    empty.appendChild(words)
     gridEl.style.display = "block"
     gridEl.appendChild(empty)
     return
@@ -266,5 +270,5 @@ function suggestLandscape(colWidth: number): void {
   if (hintShown || colWidth >= 86) return
   if (window.innerWidth > window.innerHeight) return
   hintShown = true
-  toast("Turn the phone sideways for bigger buttons.")
+  toast(t("deck.grid.turnSideways"))
 }

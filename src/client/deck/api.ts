@@ -2,6 +2,7 @@
 // storage and signs every request with them (shared/sign.ts). The secret was
 // sent once, at pairing, and never again.
 import type { DeviceCredentials, HelloResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { signRequest } from "../../shared/sign.ts"
 import type { SignedFields } from "../../shared/api.ts"
 import { applyAccent, applyTheme, storage } from "../common/dom.ts"
@@ -18,7 +19,7 @@ let onUnreachable: () => void = () => {}
 /** Thrown when the companion no longer knows this deck; the pairing screen is already up. */
 export class UnpairedError extends Error {
   constructor() {
-    super("This deck needs to be paired.")
+    super(t("deck.api.needsPairing"))
   }
 }
 
@@ -54,7 +55,7 @@ export function whenUnpaired(handler: () => void): void {
     ("Failed to fetch", "Load failed") means nothing to anyone. */
 export class OfflineError extends Error {
   constructor() {
-    super("Can't reach the companion.")
+    super(t("deck.api.offline"))
   }
 }
 

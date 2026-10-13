@@ -1,5 +1,7 @@
 // Small bits of page chrome: the toast, one-time hints and the connection status.
+import { t } from "../../shared/i18n.ts"
 import { byId, el, storage } from "../common/dom.ts"
+import { keyedText } from "../common/i18n.ts"
 import type { Toast, ToastAction } from "../common/dom.ts"
 
 const toastEl = byId("toast")
@@ -51,7 +53,7 @@ function nextHint(): void {
   if (!next) return
   const hint = next
   showing = hint
-  paint(hint.message, false, { label: "Got it", onClick: () => seen(hint) }, () => after(PAUSE_MS, nextHint))
+  paint(hint.message, false, { label: t("deck.hint.gotIt"), onClick: () => seen(hint) }, () => after(PAUSE_MS, nextHint))
   after(HINT_MS, () => {
     seen(hint)
     hide()
@@ -95,6 +97,6 @@ export function setOnline(online: boolean): void {
   const changed = isOffline() === online
   document.body.classList.toggle("is-offline", !online)
   byId("link-status").className = `link-status${online ? "" : " is-offline"}`
-  byId("link-text").textContent = online ? "Connected" : "Companion offline"
+  keyedText(byId("link-text"), online ? "deck.status.connected" : "deck.status.offline")
   if (changed) onChromeChange()
 }

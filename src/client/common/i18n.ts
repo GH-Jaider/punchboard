@@ -7,7 +7,8 @@
 //   <input data-i18n-placeholder="designer.apps.search" placeholder="Search…">
 //   <p data-i18n-html="deck.pair.intro">On the computer, open <strong>…</strong></p>
 //
-// data-i18n-html allows only <strong>, <em>, <b>, <kbd> and <br> (see richText).
+// data-i18n-html allows only <strong>, <em>, <b>, <kbd> and <br> (see richText);
+// data-i18n-placeholder, -title, -aria-label and -alt set those attributes.
 import type { HelloResponse } from "../../shared/api.ts"
 import { createTranslator, FALLBACK_LANGUAGE, isLocaleFile, resolveLanguage, setTranslator, t } from "../../shared/i18n.ts"
 import type { LocaleFile, Messages } from "../../shared/i18n.ts"
@@ -113,7 +114,8 @@ export function richText(element: Element, text: string): void {
 const ATTRIBUTES: ReadonlyArray<{ data: string; target: string }> = [
   { data: "data-i18n-placeholder", target: "placeholder" },
   { data: "data-i18n-title", target: "title" },
-  { data: "data-i18n-aria-label", target: "aria-label" }
+  { data: "data-i18n-aria-label", target: "aria-label" },
+  { data: "data-i18n-alt", target: "alt" }
 ]
 
 /** Puts the current language into every marked element under `root`. Run
@@ -147,7 +149,7 @@ export function keyedText(element: Element, key: string): void {
 
 /** Sets an attribute (title, aria-label, placeholder) from a key and keeps
     the key on the element, like keyedText. */
-export function keyedAttribute(element: Element, attribute: "title" | "aria-label" | "placeholder", key: string): void {
+export function keyedAttribute(element: Element, attribute: "title" | "aria-label" | "placeholder" | "alt", key: string): void {
   element.setAttribute(`data-i18n-${attribute}`, key)
   element.setAttribute(attribute, t(key))
 }
