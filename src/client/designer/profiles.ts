@@ -2,6 +2,7 @@
 // order (drag, or Alt+arrows), showing or hiding them on devices (the eye) and
 // adding one, empty or ready-made. Devices show the tabs in this order.
 // Renaming, duplicating and deleting live in the inspector's deck panel.
+import { t } from "../../shared/i18n.ts"
 import { isMacLike } from "../../shared/keys.ts"
 import { createEmptyProfile } from "../../shared/model.ts"
 import { STARTER_IDS, STARTERS, starterDeck } from "../../shared/starter-decks.ts"
@@ -19,11 +20,9 @@ function eyeButton(profile: Profile): HTMLButtonElement {
   const eye = el("button", "profile-eye")
   eye.type = "button"
   eye.innerHTML = profile.hidden ? EYE_OFF : EYE
-  const tip = profile.hidden
-    ? `${profile.name} is hidden on devices. A Go to another deck button can still open it. Click to show it.`
-    : `${profile.name} is shown on devices. Click to hide it there (it is kept here).`
-  eye.title = tip
-  eye.setAttribute("aria-label", profile.hidden ? `Show ${profile.name} on devices` : `Hide ${profile.name} on devices`)
+  const name = { name: profile.name }
+  eye.title = profile.hidden ? t("designer.profiles.hiddenTip", name) : t("designer.profiles.shownTip", name)
+  eye.setAttribute("aria-label", profile.hidden ? t("designer.profiles.showOnDevices", name) : t("designer.profiles.hideOnDevices", name))
   eye.setAttribute("aria-pressed", String(!profile.hidden))
   eye.onclick = () => {
     if (profile.hidden) delete profile.hidden
@@ -103,8 +102,8 @@ export function renderProfiles(): void {
     row.setAttribute("aria-pressed", String(active))
     row.appendChild(el("strong", null, profile.name))
     const count = profile.buttons.length
-    const detail = profile.trackpad ? "Trackpad" : `${count}${count === 1 ? " button · " : " buttons · "}${profile.columns}×${profile.rows}`
-    row.appendChild(el("small", null, profile.hidden ? `Hidden · ${detail}` : detail))
+    const detail = profile.trackpad ? t("designer.profiles.trackpad") : t("designer.profiles.detail", { count, columns: profile.columns, rows: profile.rows })
+    row.appendChild(el("small", null, profile.hidden ? t("designer.profiles.hiddenDetail", { detail }) : detail))
     row.onclick = () => openDeck(index)
     // Up and down open the deck above or below; with Alt they move this deck
     // instead, as Alt+arrows moves buttons.
@@ -197,7 +196,7 @@ function openMenu(anchor: HTMLElement): void {
     }
     list.appendChild(item)
   }
-  option("Empty deck", "Start from nothing", () => createEmptyProfile("New deck"))
+  option(t("designer.profiles.emptyDeck"), t("designer.profiles.emptyDeckHint"), () => createEmptyProfile(t("designer.profiles.newDeckName")))
   for (const id of STARTER_IDS) option(STARTERS[id].label, STARTERS[id].hint, () => starterDeck(id, isMacLike()))
   const box = anchor.getBoundingClientRect()
   list.style.top = `${Math.round(box.bottom + 6)}px`

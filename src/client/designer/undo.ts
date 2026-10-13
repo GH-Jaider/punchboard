@@ -1,6 +1,7 @@
 // Undo for the destructive edits, in place of "Are you sure?" dialogs. Each
 // entry knows how to put its data back; the toast offers to run it, and ⌘Z
 // runs the latest.
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
 import { toast, view } from "./hub.ts"
 import { touch } from "./state.ts"
@@ -16,7 +17,7 @@ const stack: UndoEntry[] = []
 function apply(entry: UndoEntry): void {
   const index = stack.indexOf(entry)
   // Forgotten since (the deck was reloaded or restored): its objects are gone.
-  if (index === -1) return toast("That can no longer be undone.")
+  if (index === -1) return toast(t("designer.undo.gone"))
   stack.splice(index, 1)
   entry.restore()
   touch()
@@ -29,7 +30,7 @@ export function recordUndo(label: string, restore: () => void): void {
   const entry: UndoEntry = { label, restore }
   stack.push(entry)
   if (stack.length > MAX_ENTRIES) stack.shift()
-  toast(label, false, { label: "Undo", onClick: () => apply(entry) })
+  toast(label, false, { label: t("designer.undo.undo"), onClick: () => apply(entry) })
 }
 
 /** Forgets every entry, and hides a toast still offering one. For when the
@@ -38,7 +39,7 @@ export function recordUndo(label: string, restore: () => void): void {
 export function clearUndo(): void {
   stack.length = 0
   const element = byId("toast")
-  if (element.classList.contains("has-action") && element.querySelector(".toast-action")?.textContent === "Undo") {
+  if (element.classList.contains("has-action") && element.querySelector(".toast-action")?.textContent === t("designer.undo.undo")) {
     element.className = "toast"
   }
 }
@@ -46,7 +47,7 @@ export function clearUndo(): void {
 /** ⌘Z: undoes the most recent edit that can be undone. */
 export function undoLast(): void {
   const entry = stack[stack.length - 1]
-  if (!entry) return toast("Nothing to undo.")
+  if (!entry) return toast(t("designer.undo.nothing"))
   apply(entry)
-  toast(`Undid: ${entry.label.toLowerCase()}`)
+  toast(t("designer.undo.undid", { action: entry.label.toLowerCase() }))
 }

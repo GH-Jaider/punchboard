@@ -3,6 +3,7 @@
 // a button in the middle of a stream. Without OBS they fall back to typing.
 import type { ObsPick } from "../../shared/actions.ts"
 import type { ObsLink, ObsNames } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { el } from "../common/dom.ts"
 import { request } from "../common/http.ts"
 
@@ -58,14 +59,11 @@ export function pickOptions(pick: ObsPick, context: PickContext): string[] | nul
   }
 }
 
-const NEEDS: Partial<Record<ObsPick, string>> = { sceneItem: "Choose the scene first", filter: "Choose the source first" }
-const EMPTY: Record<ObsPick, string> = {
-  scene: "OBS has no scenes",
-  sceneItem: "This scene has no sources",
-  audioInput: "OBS has no audio inputs",
-  filterSource: "No source in OBS has filters yet",
-  filter: "This source has no filters"
-}
+/** What a list says when it has to wait for another choice. */
+const needs = (pick: ObsPick): string => t(pick === "filter" ? "designer.obsNames.chooseSourceFirst" : pick === "sceneItem" ? "designer.obsNames.chooseSceneFirst" : "designer.obsNames.choose")
+
+/** What a list says when OBS has nothing to offer. */
+const empty = (pick: ObsPick): string => t(`designer.obsNames.empty.${pick}`)
 
 export interface NameFieldOptions {
   id: string
@@ -103,10 +101,10 @@ export function obsNameField(options: NameFieldOptions): HTMLElement {
       const select = document.createElement("select")
       const context = options.context()
       const waiting = (options.pick === "sceneItem" && !context.sceneName) || (options.pick === "filter" && !context.sourceName)
-      select.add(new Option(waiting ? NEEDS[options.pick] ?? "Choose…" : list.length ? "Choose…" : EMPTY[options.pick], ""))
+      select.add(new Option(waiting ? needs(options.pick) : list.length ? t("designer.obsNames.choose") : empty(options.pick), ""))
       for (const name of list) select.add(new Option(name, name))
       // A saved name OBS does not have (renamed, deleted, or OBS on another scene collection).
-      if (value && list.indexOf(value) === -1) select.add(new Option(`${value} (not found in OBS)`, value))
+      if (value && list.indexOf(value) === -1) select.add(new Option(t("designer.obsNames.notFound", { name: value }), value))
       select.value = value
       select.disabled = waiting || (!list.length && !value)
       select.addEventListener("change", () => options.onChange(select.value))
@@ -118,7 +116,7 @@ export function obsNameField(options: NameFieldOptions): HTMLElement {
     else field.appendChild(next)
     control = next
 
-    const note = list === null ? "Connect OBS to choose from a list instead of typing the exact name." : ""
+    const note = list === null ? t("designer.obsNames.connectHint") : ""
     if (note && !help) {
       help = el("p", "field-help", note)
       field.appendChild(help)

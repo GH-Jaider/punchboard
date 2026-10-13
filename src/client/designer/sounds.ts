@@ -1,8 +1,10 @@
 // The eight sound slots: listing, previewing, replacing and restoring them.
 import { LIMITS } from "../../shared/actions.ts"
 import type { Ok, SoundsChanged, SoundSlot, SoundsResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { byId, el, svg } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
+import { onLanguageChange } from "../common/i18n.ts"
 import { confirmAction } from "./dialogs.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { selectedButton } from "./state.ts"
@@ -14,8 +16,9 @@ let playingNow: number[] = []
 /** Labels say whether a slot holds your file or the shipped tone. */
 export function soundSlotLabel(slot: number): string {
   const info = slots.find((item) => item.slot === slot)
-  if (!info) return `Sound ${slot}`
-  return `Sound ${slot}${info.custom ? ` · ${info.name || "your file"}` : " · built-in tone"}`
+  if (!info) return t("designer.sounds.slot", { slot })
+  if (!info.custom) return t("designer.sounds.slotBuiltIn", { slot })
+  return info.name ? t("designer.sounds.slotNamed", { slot, name: info.name }) : t("designer.sounds.slotYourFile", { slot })
 }
 
 /** "0:26" for a track, "0.4 s" for a short tone that would otherwise show as 0:00. */
@@ -39,8 +42,8 @@ export async function loadSounds(): Promise<void> {
     renderSoundList()
     const custom = slots.filter((slot) => slot.custom).length
     const chip = byId("sounds-state")
-    chip.textContent = custom ? `${custom} custom` : "Built-in"
-    chip.title = custom ? `${custom} of the ${LIMITS.soundSlots} slots hold your own sounds` : `All ${LIMITS.soundSlots} slots hold the built-in tones`
+    chip.textContent = custom ? t("designer.sounds.customCount", { count: custom }) : t("designer.sounds.builtIn")
+    chip.title = custom ? t("designer.sounds.customTitle", { count: custom, slots: LIMITS.soundSlots }) : t("designer.sounds.builtInTitle", { slots: LIMITS.soundSlots })
     chip.className = `state-chip ${custom ? "ready" : "warning"}`
   } catch {
     // The panel simply stays empty.
@@ -72,7 +75,7 @@ export function showPlaying(playing: number[]): void {
     if (!button) continue
     const on = playing.indexOf(Number(button.getAttribute("data-preview-slot"))) !== -1
     button.innerHTML = svg(on ? UI_ICONS.stop : UI_ICONS.play)
-    button.title = on ? "Stop" : "Preview on this computer"
+    button.title = on ? t("designer.sounds.stop") : t("designer.sounds.preview")
   }
 }
 
@@ -92,9 +95,9 @@ function soundNameHeader(name: string): string {
 }
 
 export async function uploadSound(slot: number, file: File, row: HTMLElement | null): Promise<void> {
-  if (file.size > LIMITS.maxSoundBytes) return toast("Keep sounds under 8 MB.", true)
+  if (file.size > LIMITS.maxSoundBytes) return toast(t("designer.sounds.tooLarge"), true)
   const given = file.type === "audio/mp3" ? "audio/mpeg" : file.type
-  if (!WAV_TYPES.includes(given) && given !== "audio/mpeg") return toast("Choose a WAV or MP3 file.", true)
+  if (!WAV_TYPES.includes(given) && given !== "audio/mpeg") return toast(t("designer.sounds.wrongType"), true)
   const type = WAV_TYPES.includes(given) ? "audio/wav" : given
 
   row?.classList.add("is-busy")
@@ -105,7 +108,7 @@ export async function uploadSound(slot: number, file: File, row: HTMLElement | n
       body: file
     })
     slotsChanged(result.slots)
-    toast(`Sound ${slot} replaced.`)
+    toast(t("designer.sounds.replaced", { slot }))
   } catch (error) {
     row?.classList.remove("is-busy")
     toast(errorMessage(error), true)
@@ -114,15 +117,15 @@ export async function uploadSound(slot: number, file: File, row: HTMLElement | n
 
 async function revertSound(slot: number): Promise<void> {
   const yes = await confirmAction({
-    title: "Restore the built-in tone?",
-    text: `Your uploaded file for Sound ${slot} will be deleted and the original tone put back.`,
-    confirm: "Restore tone"
+    title: t("designer.sounds.revertTitle"),
+    text: t("designer.sounds.revertText", { slot }),
+    confirm: t("designer.sounds.revertConfirm")
   })
   if (!yes) return
   try {
     const result = await request<SoundsChanged>(`/api/sounds/${slot}`, { method: "DELETE" })
     slotsChanged(result.slots)
-    toast(`Sound ${slot} is back to its built-in tone.`)
+    toast(t("designer.sounds.reverted", { slot }))
   } catch (error) {
     toast(errorMessage(error), true)
   }
@@ -156,21 +159,21 @@ function renderSoundList(): void {
     row.appendChild(el("span", "num", String(info.slot)))
 
     const meta = el("div", "meta")
-    meta.appendChild(el("strong", null, info.custom ? info.name || "Your file" : `Built-in tone ${info.slot}`))
+    meta.appendChild(el("strong", null, info.custom ? info.name || t("designer.sounds.yourFile") : t("designer.sounds.builtInTone", { slot: info.slot })))
     const details = [info.format, prettyBytes(info.bytes)]
     if (info.durationMs !== null) details.push(formatDuration(info.durationMs))
-    meta.appendChild(el("small", null, info.exists ? details.join(" · ") : "Missing"))
+    meta.appendChild(el("small", null, info.exists ? details.join(" · ") : t("designer.sounds.missing")))
     row.appendChild(meta)
 
     const tools = el("div", "tools")
     const play = el("button", "icon-btn")
     play.type = "button"
     play.setAttribute("data-preview-slot", String(info.slot))
-    play.setAttribute("aria-label", `Preview sound ${info.slot}`)
+    play.setAttribute("aria-label", t("designer.sounds.previewSlot", { slot: info.slot }))
     play.onclick = () => playSlot(info.slot)
     tools.appendChild(play)
 
-    const upload = audioFilePicker(`sound-file-${info.slot}`, "Replace with a WAV or MP3", (file) => void uploadSound(info.slot, file, row))
+    const upload = audioFilePicker(`sound-file-${info.slot}`, t("designer.sounds.replace"), (file) => void uploadSound(info.slot, file, row))
     tools.appendChild(upload.input)
     tools.appendChild(upload.label)
 
@@ -178,8 +181,8 @@ function renderSoundList(): void {
       const revert = el("button", "icon-btn danger")
       revert.type = "button"
       revert.innerHTML = svg(UI_ICONS.revert)
-      revert.title = "Restore the built-in tone"
-      revert.setAttribute("aria-label", `Restore built-in tone for sound ${info.slot}`)
+      revert.title = t("designer.sounds.revert")
+      revert.setAttribute("aria-label", t("designer.sounds.revertSlot", { slot: info.slot }))
       revert.onclick = () => void revertSound(info.slot)
       tools.appendChild(revert)
     }
@@ -193,4 +196,6 @@ function renderSoundList(): void {
 export function bindSounds(): void {
   const dialog = byId<HTMLDialogElement>("dlg-sounds")
   byId("sounds-toggle").addEventListener("click", () => dialog.showModal())
+  // The list and its chip are drawn from the last answer: redrawn in the new words.
+  onLanguageChange(() => void loadSounds())
 }

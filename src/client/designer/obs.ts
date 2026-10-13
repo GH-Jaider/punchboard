@@ -2,11 +2,11 @@
 // computer, so normally the only step is switching on OBS's WebSocket
 // server; the manual fields mirror OBS's Show Connect Info window.
 import type { ObsDetectResponse, ObsIssue, ObsLink, SettingsResponse, SettingsSaved } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
+import { keyedAttribute, onLanguageChange } from "../common/i18n.ts"
 import { toast } from "./hub.ts"
-
-const TURN_ON = "In OBS open Tools › WebSocket Server Settings and tick Enable WebSocket server. Punchboard connects by itself as soon as you do."
 
 let link: ObsLink = "unset"
 let issue: ObsIssue = null
@@ -18,20 +18,20 @@ function showStatus(): void {
   let title: string
   let help: string
   if (link === "connected") {
-    title = "Connected to OBS"
-    help = "OBS buttons and faders are ready."
+    title = t("designer.obs.connectedTitle")
+    help = t("designer.obs.connectedHelp")
   } else if (issue === "server-off") {
-    title = "Found OBS: switch on its WebSocket server"
-    help = TURN_ON
+    title = t("designer.obs.serverOffTitle")
+    help = t("designer.obs.turnOn")
   } else if (link === "disconnected" && issue === "wrong-password") {
-    title = "OBS refused the password"
-    help = "If OBS is on this computer, click Find OBS again. Otherwise paste the password from Show Connect Info below."
+    title = t("designer.obs.wrongPasswordTitle")
+    help = t("designer.obs.wrongPasswordHelp")
   } else if (link === "disconnected") {
-    title = "Waiting for OBS"
-    help = `Open OBS if it is closed. ${TURN_ON}`
+    title = t("designer.obs.waitingTitle")
+    help = t("designer.obs.waitingHelp")
   } else {
-    title = "Not set up"
-    help = "Only needed for OBS buttons and faders. If OBS is on this computer, click Find OBS."
+    title = t("designer.obs.unsetTitle")
+    help = t("designer.obs.unsetHelp")
   }
   byId("obs-status-title").textContent = title
   byId("obs-help").textContent = help
@@ -45,7 +45,7 @@ export function showObsLink(status: ObsLink, why: ObsIssue): void {
   const chip = byId("obs-state")
   // A word or two that fits the rail in every theme (Hardware's uppercase mono
   // is the widest); the tooltip and the OBS window say it in full.
-  chip.textContent = status === "connected" ? "Ready" : why === "wrong-password" ? "Password" : why === "server-off" ? "Turn on" : status === "disconnected" ? "Waiting" : "Set up"
+  chip.textContent = t(status === "connected" ? "designer.obs.chipReady" : why === "wrong-password" ? "designer.obs.chipPassword" : why === "server-off" ? "designer.obs.chipTurnOn" : status === "disconnected" ? "designer.obs.chipWaiting" : "designer.obs.chipSetUp")
   chip.className = `state-chip ${status === "connected" ? "ready" : why === "wrong-password" ? "error" : "warning"}`
   showStatus()
   chip.title = byId("obs-status-title").textContent ?? ""
@@ -75,7 +75,7 @@ export function showObsSettings(settings: SettingsResponse): void {
   const parsed = parseConnect(settings.obsAddress || "")
   input("obs-host").value = parsed ? parsed.host : ""
   input("obs-port").value = parsed ? parsed.port : ""
-  input("obs-password").placeholder = settings.obsConfigured ? "Saved (paste to replace)" : "From Show Connect Info"
+  keyedAttribute(input("obs-password"), "placeholder", settings.obsConfigured ? "designer.obs.passwordSaved" : "designer.obs.passwordFromOBS")
   // Typed-in settings live in the manual section; keep it open for them.
   byId<HTMLDetailsElement>("obs-manual").open = settings.obsSource === "manual"
 }
@@ -86,17 +86,17 @@ async function findObs(): Promise<void> {
   try {
     const found = await request<ObsDetectResponse>("/api/obs/detect", { method: "POST" })
     if (!found.found) {
-      toast("OBS isn't set up on this computer yet. Open OBS once, or enter it by hand below.", true)
+      toast(t("designer.obs.notFound"), true)
       byId<HTMLDetailsElement>("obs-manual").open = true
     } else if (!found.enabled) {
-      toast("Found OBS. One step left: switch on its WebSocket server.")
+      toast(t("designer.obs.foundOff"))
     } else {
-      toast("Found OBS. Connecting…")
+      toast(t("designer.obs.foundConnecting"))
     }
     input("obs-host").value = "127.0.0.1"
     input("obs-port").value = String(found.port)
     input("obs-password").value = ""
-    input("obs-password").placeholder = "Taken from OBS"
+    keyedAttribute(input("obs-password"), "placeholder", "designer.obs.passwordTaken")
   } catch (error) {
     toast(errorMessage(error), true)
   } finally {
@@ -108,6 +108,7 @@ export function bindObs(): void {
   const dialog = byId<HTMLDialogElement>("dlg-obs")
   byId("obs-toggle").addEventListener("click", () => dialog.showModal())
   byId("obs-find").addEventListener("click", () => void findObs())
+  onLanguageChange(() => showObsLink(link, issue))
 
   // Pasting OBS's whole connect link into any field fills all three.
   for (const id of ["obs-host", "obs-port", "obs-password"]) {
@@ -121,7 +122,7 @@ export function bindObs(): void {
     const host = input("obs-host").value.trim() || "127.0.0.1"
     const port = input("obs-port").value.trim() || "4455"
     if (!/^\d{1,5}$/.test(port) || Number(port) < 1 || Number(port) > 65535) {
-      return toast("The server port is a number from 1 to 65535, like 4455.", true)
+      return toast(t("designer.obs.badPort"), true)
     }
     const json: { obsAddress: string; obsPassword?: string } = { obsAddress: `ws://${host}:${port}` }
     const password = input("obs-password").value
@@ -129,8 +130,8 @@ export function bindObs(): void {
     try {
       await request<SettingsSaved>("/api/settings", { method: "PUT", json })
       input("obs-password").value = ""
-      input("obs-password").placeholder = "Saved (paste to replace)"
-      toast("OBS connection saved. Connecting…")
+      keyedAttribute(input("obs-password"), "placeholder", "designer.obs.passwordSaved")
+      toast(t("designer.obs.saved"))
     } catch (error) {
       toast(errorMessage(error), true)
     }

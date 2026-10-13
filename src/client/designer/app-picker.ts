@@ -2,6 +2,7 @@
 // is installed on the computer, with a typed path as the fallback.
 import { stepSummary } from "../../shared/actions.ts"
 import type { AppEntry, AppsResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import type { LaunchAppStep } from "../../shared/types.ts"
 import { byId, el } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
@@ -31,13 +32,13 @@ function appLabel(step: LaunchAppStep): string {
 function fillTrigger(trigger: HTMLElement, step: LaunchAppStep): void {
   trigger.innerHTML = ""
   const name = appLabel(step)
-  trigger.appendChild(el("strong", null, name || "Choose an application"))
-  trigger.appendChild(el("small", null, step.appPath ? step.appPath : "Tap to pick one from this computer"))
+  trigger.appendChild(el("strong", null, name || t("designer.apps.choose")))
+  trigger.appendChild(el("small", null, step.appPath ? step.appPath : t("designer.apps.tapToPick")))
 }
 
 export function appField(step: LaunchAppStep, title: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  field.appendChild(el("span", "field-label", "Application"))
+  field.appendChild(el("span", "field-label", t("designer.apps.application")))
   const trigger = el("button", "app-trigger")
   trigger.type = "button"
   fillTrigger(trigger, step)
@@ -60,7 +61,7 @@ function draw(): void {
   const host = byId("app-list")
   host.innerHTML = ""
   if (!apps) {
-    host.appendChild(el("p", "field-help", "Looking for applications…"))
+    host.appendChild(el("p", "field-help", t("designer.apps.looking")))
     request<AppsResponse>("/api/apps").then((data) => {
       apps = data.apps
       if (dialog().open) draw()
@@ -81,7 +82,7 @@ function draw(): void {
     row.onclick = () => choose(app.path, app.name)
     host.appendChild(row)
   }
-  if (!matches.length) host.appendChild(el("p", "field-help", query ? `No application matches “${query}”.` : "No applications were found. Type a path below instead."))
+  if (!matches.length) host.appendChild(el("p", "field-help", query ? t("designer.apps.noMatch", { query }) : t("designer.apps.noneFound")))
 }
 
 function openAppPicker(next: Target): void {
@@ -97,7 +98,7 @@ export function bindAppPicker(): void {
   search().addEventListener("input", draw)
   byId("app-path-use").addEventListener("click", () => {
     const value = pathInput().value.trim()
-    if (!value) return toast("Type the application's path first.", true)
+    if (!value) return toast(t("designer.apps.typePath"), true)
     const file = value.split(/[\\/]/).filter(Boolean).pop() ?? value
     choose(value, file.replace(/\.(app|lnk|exe)$/i, ""))
   })

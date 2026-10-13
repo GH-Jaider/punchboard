@@ -1,6 +1,7 @@
 // The "Keys" field of a Key combination step: click it, press the keys, and
 // the combination is recorded from the physical keys pressed.
 import { stepSummary } from "../../shared/actions.ts"
+import { t } from "../../shared/i18n.ts"
 import { KEY_NAMES, MODIFIERS, comboFromEvent, comboToString, currentKeyPlatform, formatCombo, isMacLike, modifierLabel, parseCombo, unsendableReason } from "../../shared/keys.ts"
 import type { Modifier } from "../../shared/keys.ts"
 import type { HotkeyStep } from "../../shared/types.ts"
@@ -8,13 +9,11 @@ import { el, svg } from "../common/dom.ts"
 import { UI_ICONS } from "./hub.ts"
 import { touch } from "./state.ts"
 
-const IDLE_HINT = "Click here, then press the keys"
-const RECORDING_HINT = "Press the keys…"
 
 /** Builds the field; `title` is the step's collapsed heading, kept in step. */
 export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "Keys")
+  const label = el("label", null, t("designer.keys.keys"))
   const row = el("div", "key-recorder")
 
   const input = el("input", "key-recorder-input")
@@ -27,8 +26,8 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   const clear = el("button", "icon-btn")
   clear.type = "button"
   clear.innerHTML = svg(UI_ICONS.x)
-  clear.title = "Clear"
-  clear.setAttribute("aria-label", "Clear the key combination")
+  clear.title = t("designer.keys.clear")
+  clear.setAttribute("aria-label", t("designer.keys.clearCombo"))
 
   // A key this computer cannot press (F21 on a Mac) is said here, under the
   // field, rather than as an error the first time the button is pressed.
@@ -38,7 +37,7 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   const show = (): void => {
     const text = formatCombo(step.keys, isMacLike())
     input.value = text
-    input.placeholder = document.activeElement === input ? RECORDING_HINT : IDLE_HINT
+    input.placeholder = document.activeElement === input ? t("designer.keys.recording") : t("designer.keys.idle")
     clear.hidden = !text
     const combo = parseCombo(step.keys)
     const problem = combo ? unsendableReason(combo.key, currentKeyPlatform()) : null
@@ -73,7 +72,7 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
   field.appendChild(row)
   field.appendChild(warning)
   field.appendChild(builder(step, record))
-  field.appendChild(el("p", "field-help", "Goes to whatever is in front on this computer, so global hotkeys like OBS's work best. macOS asks for permission the first time."))
+  field.appendChild(el("p", "field-help", t("designer.keys.help")))
   show()
   return field
 }
@@ -83,7 +82,7 @@ export function keysField(step: HotkeyStep, title: HTMLElement): HTMLElement {
 function builder(step: HotkeyStep, record: (keys: string | undefined) => void): HTMLElement {
   const mac = isMacLike()
   const wrap = el("div")
-  const toggle = el("button", "text-btn", "Can't press it here? Build it")
+  const toggle = el("button", "text-btn", t("designer.keys.build"))
   toggle.type = "button"
   const panel = el("div", "key-builder")
   panel.hidden = true
@@ -93,7 +92,7 @@ function builder(step: HotkeyStep, record: (keys: string | undefined) => void): 
     const button = el("button", "btn key-mod", modifierLabel(modifier, mac))
     button.type = "button"
     button.setAttribute("aria-pressed", "false")
-    button.title = modifier === "meta" ? (mac ? "Command" : "Windows key") : modifier === "alt" ? (mac ? "Option" : "Alt") : modifier === "ctrl" ? "Control" : "Shift"
+    button.title = t(modifier === "meta" ? (mac ? "designer.keys.command" : "designer.keys.windows") : modifier === "alt" ? (mac ? "designer.keys.option" : "designer.keys.alt") : modifier === "ctrl" ? "designer.keys.control" : "designer.keys.shift")
     button.onclick = () => {
       button.setAttribute("aria-pressed", String(button.getAttribute("aria-pressed") !== "true"))
       compose()
@@ -102,8 +101,8 @@ function builder(step: HotkeyStep, record: (keys: string | undefined) => void): 
     panel.appendChild(button)
   }
   const keySelect = el("select")
-  keySelect.setAttribute("aria-label", "Key")
-  keySelect.add(new Option("Key…", ""))
+  keySelect.setAttribute("aria-label", t("designer.keys.key"))
+  keySelect.add(new Option(t("designer.keys.keyChoose"), ""))
   for (const name of KEY_NAMES) keySelect.add(new Option(formatCombo(name, mac), name))
   keySelect.onchange = compose
   panel.appendChild(keySelect)

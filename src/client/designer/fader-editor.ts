@@ -2,6 +2,7 @@
 // input or which app.
 import { FADER_TARGETS, isFaderTarget } from "../../shared/actions.ts"
 import type { AudioApp, AudioAppsResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { appDisplayName, normalizeAppKey } from "../../shared/model.ts"
 import type { FaderButton, FaderTarget } from "../../shared/types.ts"
 import { el } from "../common/dom.ts"
@@ -14,7 +15,7 @@ const TARGETS = Object.keys(FADER_TARGETS) as FaderTarget[]
 
 export function faderField(button: FaderButton): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "Controls")
+  const label = el("label", null, t("designer.fader.controls"))
   const select = document.createElement("select")
   label.htmlFor = select.id = "fader-target"
   for (const target of TARGETS) select.add(new Option(FADER_TARGETS[target].label, target, false, target === button.fader.target))
@@ -33,8 +34,8 @@ export function faderField(button: FaderButton): HTMLElement {
   if (button.fader.target === "obs_input") {
     field.appendChild(obsNameField({
       id: "fader-input",
-      label: "Audio input",
-      placeholder: "Exact OBS input name, e.g. Mic/Aux",
+      label: t("designer.fader.audioInput"),
+      placeholder: t("designer.fader.audioInputPlaceholder"),
       pick: "audioInput",
       value: () => button.fader.inputName,
       context: () => ({}),
@@ -46,7 +47,7 @@ export function faderField(button: FaderButton): HTMLElement {
     }))
   }
   if (button.fader.target === "app") field.appendChild(appField(button))
-  field.appendChild(el("p", "inline-note", "On the deck, drag up or down anywhere on the tile to change the level."))
+  field.appendChild(el("p", "inline-note", t("designer.fader.dragHint")))
   return field
 }
 
@@ -78,9 +79,11 @@ function loadApps(force: boolean): Promise<AudioAppsResponse> {
   return loading
 }
 
-const HELP: Record<string, string> = {
-  win32: "Any app that plays sound, like Chrome, Spotify, Discord or a game. Chrome's tabs share one volume.",
-  darwin: "macOS has no per-app volume, so only Music and Spotify can be controlled."
+/** What can be offered on the companion's system, or null where nothing can. */
+function platformHelp(platform: string): string | null {
+  if (platform === "win32") return t("designer.fader.helpWindows")
+  if (platform === "darwin") return t("designer.fader.helpMac")
+  return null
 }
 
 /** Points the fader at an app, and names the button after it while the
@@ -100,17 +103,17 @@ function chooseApp(button: FaderButton, key: string, name: string): void {
 
 function appField(button: FaderButton): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "App")
+  const label = el("label", null, t("designer.fader.app"))
   const row = el("div", "app-volume-row")
   const select = document.createElement("select")
   label.htmlFor = select.id = "fader-app"
-  const refresh = el("button", "btn", "Refresh")
+  const refresh = el("button", "btn", t("designer.fader.refresh"))
   refresh.type = "button"
   row.appendChild(select)
   row.appendChild(refresh)
   field.appendChild(label)
   field.appendChild(row)
-  const help = el("p", "field-help", "Looking for apps…")
+  const help = el("p", "field-help", t("designer.fader.lookingForApps"))
   field.appendChild(help)
   // Typing a process name is for Windows, where any app can be controlled.
   const typed = el("div", "app-volume-row")
@@ -120,9 +123,9 @@ function appField(button: FaderButton): HTMLElement {
   typedInput.id = "fader-app-typed"
   typedInput.spellcheck = false
   typedInput.autocomplete = "off"
-  typedInput.placeholder = "Or type its process name, e.g. chrome"
-  typedInput.setAttribute("aria-label", "Process name")
-  const use = el("button", "btn", "Use")
+  typedInput.placeholder = t("designer.fader.processPlaceholder")
+  typedInput.setAttribute("aria-label", t("designer.fader.processName"))
+  const use = el("button", "btn", t("designer.fader.use"))
   use.type = "button"
   typed.appendChild(typedInput)
   typed.appendChild(use)
@@ -133,15 +136,15 @@ function appField(button: FaderButton): HTMLElement {
     select.innerHTML = ""
     const saved = button.fader.app
     const apps = list ?? []
-    select.add(new Option(list === null ? "Looking for apps…" : apps.length ? "Choose an app…" : "No app found", ""))
-    for (const app of apps) select.add(new Option(app.running ? app.name : `${app.name} (not running)`, app.key))
-    if (saved && !apps.some((app) => app.key === saved)) select.add(new Option(`${appDisplayName(button.fader)} (not running)`, saved))
+    select.add(new Option(list === null ? t("designer.fader.lookingForApps") : apps.length ? t("designer.fader.chooseApp") : t("designer.fader.noApp"), ""))
+    for (const app of apps) select.add(new Option(app.running ? app.name : t("designer.fader.notRunning", { name: app.name }), app.key))
+    if (saved && !apps.some((app) => app.key === saved)) select.add(new Option(t("designer.fader.notRunning", { name: appDisplayName(button.fader) }), saved))
     select.value = saved ?? ""
   }
 
   function show(response: AudioAppsResponse): void {
     draw(response.apps)
-    help.textContent = HELP[response.platform] ?? response.note ?? ""
+    help.textContent = platformHelp(response.platform) ?? response.note ?? ""
     // A note that adds something, like "No app is playing sound right now."
     if (response.note && response.note !== help.textContent) help.textContent += ` ${response.note}`
     typed.hidden = response.platform !== "win32"
@@ -170,7 +173,7 @@ function appField(button: FaderButton): HTMLElement {
   const useTyped = (): void => {
     const key = normalizeAppKey(typedInput.value)
     if (!key) {
-      toast("Type the app's process name, like chrome or spotify (letters, digits, spaces, dots and dashes).", true)
+      toast(t("designer.fader.typeProcess"), true)
       return
     }
     const found = (audio ? audio.apps : []).filter((app) => app.key === key)[0]

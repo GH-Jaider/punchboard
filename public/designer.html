@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="theme-color" content="#0a0c0f">
-  <title>Control Center | Punchboard</title>
+  <title data-i18n="designer.page.title">Control Center | Punchboard</title>
   <link rel="icon" href="/punchboard.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
@@ -17,36 +17,36 @@
   <header class="appbar">
     <a class="brand" href="/designer">
       <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g><rect x="14" y="3" width="7" height="7" rx="1.5" fill="currentColor"/></svg></span>
-      <span>Punchboard <span class="muted hide-sm">Control Center</span></span>
+      <span>Punchboard <span class="muted hide-sm" data-i18n="designer.page.appbar.controlCenter">Control Center</span></span>
     </a>
-    <span class="app-version" id="app-version" title="Punchboard's version"></span>
-    <a class="kofi-link" id="kofi-link" href="https://ko-fi.com/hit_here" target="_blank" rel="noopener" title="Support Punchboard on Ko-fi" aria-label="Support Punchboard on Ko-fi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M10.5 15.2s-2.5-1.4-2.5-3a1.3 1.3 0 0 1 2.5-.5 1.3 1.3 0 0 1 2.5.5c0 1.6-2.5 3-2.5 3Z" fill="currentColor" stroke="none"/></svg></a>
+    <span class="app-version" id="app-version" title="Punchboard's version" data-i18n-title="designer.page.appbar.version"></span>
+    <a class="kofi-link" id="kofi-link" href="https://ko-fi.com/hit_here" target="_blank" rel="noopener" title="Support Punchboard on Ko-fi" aria-label="Support Punchboard on Ko-fi" data-i18n-title="designer.page.appbar.kofi" data-i18n-aria-label="designer.page.appbar.kofi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M10.5 15.2s-2.5-1.4-2.5-3a1.3 1.3 0 0 1 2.5-.5 1.3 1.3 0 0 1 2.5.5c0 1.6-2.5 3-2.5 3Z" fill="currentColor" stroke="none"/></svg></a>
     <span class="appbar-spacer"></span>
     <!-- Shown while a deck's sound plays through this computer. -->
     <button class="btn now-playing" id="now-playing" type="button" hidden>
-      <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span id="now-playing-text">Stop sound</span>
+      <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span><span id="now-playing-text" data-i18n="designer.soundOutput.stop">Stop sound</span>
     </button>
     <span class="save-chip" id="save-chip" role="status" aria-live="polite">
-      <span class="dot" aria-hidden="true"></span><span id="save-text">Loading</span>
-      <button class="save-retry" id="save-retry" type="button" hidden>Retry</button>
+      <span class="dot" aria-hidden="true"></span><span id="save-text" data-i18n="designer.page.appbar.loading">Loading</span>
+      <button class="save-retry" id="save-retry" type="button" hidden data-i18n="designer.page.appbar.retry">Retry</button>
     </span>
-    <nav class="appbar-actions" aria-label="Control Center">
+    <nav class="appbar-actions" aria-label="Control Center" data-i18n-aria-label="designer.page.appbar.controlCenter">
       <!-- Doubles as the live count of connected devices. -->
       <button class="btn pair-btn" id="pair-btn" type="button" aria-haspopup="dialog">
-        <span class="dot" aria-hidden="true"></span><span id="pair-count">Devices</span>
+        <span class="dot" aria-hidden="true"></span><span id="pair-count" data-i18n="designer.page.appbar.devices">Devices</span>
       </button>
-      <a class="btn primary" id="open-deck" href="/deck" target="_blank" rel="noopener">Open deck</a>
+      <a class="btn primary" id="open-deck" href="/deck" target="_blank" rel="noopener" data-i18n="designer.page.appbar.openDeck">Open deck</a>
     </nav>
   </header>
 
   <!-- Three columns that scroll on their own, so the deck never scrolls away. -->
   <div class="shell">
 
-    <aside class="rail" aria-label="Profiles and setup">
+    <aside class="rail" aria-label="Profiles and setup" data-i18n-aria-label="designer.page.rail.label">
       <div class="rail-scroll">
         <div class="rail-head">
-          <h2>Profiles</h2>
-          <button class="icon-btn" id="new-profile" type="button" aria-label="Create a profile">
+          <h2 data-i18n="designer.page.rail.profiles">Profiles</h2>
+          <button class="icon-btn" id="new-profile" type="button" aria-label="Create a profile" data-i18n-aria-label="designer.page.rail.newProfile">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
           </button>
         </div>
@@ -54,38 +54,38 @@
       </div>
 
       <!-- Set once and left alone, so each opens in its own window. -->
-      <nav class="rail-setup" aria-label="Setup">
-        <h3>Setup</h3>
+      <nav class="rail-setup" aria-label="Setup" data-i18n-aria-label="designer.page.rail.setup">
+        <h3 data-i18n="designer.page.rail.setup">Setup</h3>
         <button class="setup-item" id="sounds-toggle" type="button" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
-          <span class="setup-name">Sounds</span>
-          <span class="state-chip" id="sounds-state">8 slots</span>
+          <span class="setup-name" data-i18n="designer.page.rail.sounds">Sounds</span>
+          <span class="state-chip" id="sounds-state" data-i18n="designer.page.rail.soundSlots">8 slots</span>
         </button>
         <button class="setup-item" id="obs-toggle" type="button" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 8 5-3v14l-5-3"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg>
-          <span class="setup-name">OBS Studio</span>
-          <span class="state-chip warning" id="obs-state" title="Not set up">Set up</span>
+          <span class="setup-name" data-i18n="designer.page.rail.obs">OBS Studio</span>
+          <span class="state-chip warning" id="obs-state" title="Not set up" data-i18n-title="designer.obs.unsetTitle" data-i18n="designer.obs.chipSetUp">Set up</span>
         </button>
         <button class="setup-item" id="appearance-btn" type="button" aria-haspopup="dialog">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.3 0-1.1.9-2 2-2h2.4A5.6 5.6 0 0 0 22 10c0-4.4-4.5-8-10-8z"/></svg>
-          <span class="setup-name">Appearance</span>
+          <span class="setup-name" data-i18n="designer.page.rail.appearance">Appearance</span>
           <span class="accent-dot" aria-hidden="true"></span>
         </button>
       </nav>
 
       <div class="rail-foot">
-        <button class="btn ghost" id="export-btn" type="button">Back up</button>
-        <button class="btn ghost" id="import-btn" type="button">Restore</button>
+        <button class="btn ghost" id="export-btn" type="button" data-i18n="designer.page.rail.backUp">Back up</button>
+        <button class="btn ghost" id="import-btn" type="button" data-i18n="designer.page.rail.restore">Restore</button>
         <input type="file" id="import-input" accept="application/json" hidden>
-        <button class="btn ghost danger-text" id="shutdown-btn" type="button" title="Stops Punchboard; paired devices go offline">Stop</button>
+        <button class="btn ghost danger-text" id="shutdown-btn" type="button" title="Stops Punchboard; paired devices go offline" data-i18n-title="designer.page.rail.stopTitle" data-i18n="designer.page.rail.stop">Stop</button>
       </div>
     </aside>
 
-    <main class="canvas-col" aria-label="Deck layout">
+    <main class="canvas-col" aria-label="Deck layout" data-i18n-aria-label="designer.page.canvas.label">
       <div class="canvas-head">
         <div class="canvas-title">
-          <h1 id="profile-title">Your deck</h1>
-          <div class="sub">What your devices show, slot for slot.</div>
+          <h1 id="profile-title" data-i18n="designer.page.canvas.title">Your deck</h1>
+          <div class="sub" data-i18n="designer.page.canvas.sub">What your devices show, slot for slot.</div>
         </div>
       </div>
 
@@ -102,21 +102,21 @@
       <p class="stage-hint" id="stage-hint"></p>
     </main>
 
-    <aside class="inspector" id="inspector" aria-label="Deck and button settings"></aside>
+    <aside class="inspector" id="inspector" aria-label="Deck and button settings" data-i18n-aria-label="designer.page.inspector.label"></aside>
 
     <!-- The first-run tips card waits here between renders of the deck panel. -->
     <div id="intro-parking" hidden>
       <section class="intro-card" id="intro-card" hidden>
         <span class="intro-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
         <div class="intro-text">
-          <h2>Three steps to a working deck</h2>
+          <h2 data-i18n="designer.page.intro.title">Three steps to a working deck</h2>
           <ol>
-            <li>Click an empty slot to add a button, then name it and pick an icon.</li>
-            <li>Give it an action &mdash; or chain several into a macro with delays between them.</li>
-            <li>Choose <strong>Pair a device</strong> and scan the code. Changes reach it as you make them.</li>
+            <li data-i18n="designer.page.intro.step1">Click an empty slot to add a button, then name it and pick an icon.</li>
+            <li data-i18n="designer.page.intro.step2">Give it an action &mdash; or chain several into a macro with delays between them.</li>
+            <li data-i18n-html="designer.page.intro.step3">Choose <strong>Pair a device</strong> and scan the code. Changes reach it as you make them.</li>
           </ol>
         </div>
-        <button class="icon-btn" id="intro-dismiss" type="button" aria-label="Dismiss these instructions">
+        <button class="icon-btn" id="intro-dismiss" type="button" aria-label="Dismiss these instructions" data-i18n-aria-label="designer.page.intro.dismiss">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </button>
       </section>
@@ -128,113 +128,113 @@
        prompt()/confirm() would. -->
   <dialog id="dlg-confirm">
     <form method="dialog">
-      <div class="dialog-head"><h2 id="confirm-title">Are you sure?</h2></div>
+      <div class="dialog-head"><h2 id="confirm-title" data-i18n="designer.page.confirm.title">Are you sure?</h2></div>
       <div class="dialog-body"><p id="confirm-text"></p></div>
       <div class="dialog-foot">
-        <button class="btn" value="cancel" type="submit">Cancel</button>
-        <button class="btn danger" value="ok" type="submit" id="confirm-ok">Delete</button>
+        <button class="btn" value="cancel" type="submit" data-i18n="designer.page.confirm.cancel">Cancel</button>
+        <button class="btn danger" value="ok" type="submit" id="confirm-ok" data-i18n="designer.dialogs.delete">Delete</button>
       </div>
     </form>
   </dialog>
 
   <dialog id="dlg-sounds" class="wide" aria-labelledby="sounds-title">
     <div class="dialog-head">
-      <h2 id="sounds-title">Sounds</h2>
-      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="sounds-title" data-i18n="designer.page.rail.sounds">Sounds</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close" data-i18n-aria-label="designer.page.close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="dialog-body">
-      <p class="field-help">Eight slots for <strong>Play a sound</strong> buttons. Replace any with your own WAV or MP3, up to 8 MB. Sounds play through this computer's speakers; devices never download them.</p>
+      <p class="field-help" data-i18n-html="designer.page.sounds.help">Eight slots for <strong>Play a sound</strong> buttons. Replace any with your own WAV or MP3, up to 8 MB. Sounds play through this computer's speakers; devices never download them.</p>
       <div class="sound-list" id="sound-list"></div>
     </div>
   </dialog>
 
   <dialog id="dlg-obs" aria-labelledby="obs-title">
     <div class="dialog-head">
-      <h2 id="obs-title">OBS Studio</h2>
-      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="obs-title" data-i18n="designer.page.rail.obs">OBS Studio</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close" data-i18n-aria-label="designer.page.close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="dialog-body">
       <!-- Live: says what is missing, in OBS's own words. -->
       <div class="obs-status" id="obs-status" role="status" aria-live="polite">
         <span class="dot" aria-hidden="true"></span>
         <div>
-          <strong id="obs-status-title">Not set up</strong>
-          <p class="field-help" id="obs-help">Only needed for OBS buttons and faders.</p>
+          <strong id="obs-status-title" data-i18n="designer.obs.unsetTitle">Not set up</strong>
+          <p class="field-help" id="obs-help" data-i18n="designer.page.obs.help">Only needed for OBS buttons and faders.</p>
         </div>
       </div>
-      <button class="btn primary wide" id="obs-find" type="button">Find OBS on this computer</button>
+      <button class="btn primary wide" id="obs-find" type="button" data-i18n="designer.page.obs.find">Find OBS on this computer</button>
 
       <details class="obs-manual" id="obs-manual">
-        <summary>OBS is on another computer, or enter it by hand</summary>
-        <p class="field-help">In OBS: <strong>Tools &rsaquo; WebSocket Server Settings &rsaquo; Show Connect Info</strong>. Copy each value into the same field here, or paste OBS's whole connect link into any field.</p>
+        <summary data-i18n="designer.page.obs.manual">OBS is on another computer, or enter it by hand</summary>
+        <p class="field-help" data-i18n-html="designer.page.obs.manualHelp">In OBS: <strong>Tools &rsaquo; WebSocket Server Settings &rsaquo; Show Connect Info</strong>. Copy each value into the same field here, or paste OBS's whole connect link into any field.</p>
         <div class="obs-fields">
           <div class="field">
-            <label for="obs-host">Server IP</label>
+            <label for="obs-host" data-i18n="designer.page.obs.host">Server IP</label>
             <input id="obs-host" type="text" placeholder="127.0.0.1" spellcheck="false" autocomplete="off">
           </div>
           <div class="field">
-            <label for="obs-port">Server Port</label>
+            <label for="obs-port" data-i18n="designer.page.obs.port">Server Port</label>
             <input id="obs-port" type="text" inputmode="numeric" placeholder="4455" spellcheck="false" autocomplete="off">
           </div>
         </div>
         <div class="field">
-          <label for="obs-password">Server Password</label>
-          <input id="obs-password" type="password" placeholder="From Show Connect Info" autocomplete="off">
+          <label for="obs-password" data-i18n="designer.page.obs.password">Server Password</label>
+          <input id="obs-password" type="password" placeholder="From Show Connect Info" data-i18n-placeholder="designer.obs.passwordFromOBS" autocomplete="off">
         </div>
-        <button class="btn" id="obs-save" type="button">Save connection</button>
+        <button class="btn" id="obs-save" type="button" data-i18n="designer.page.obs.save">Save connection</button>
       </details>
     </div>
   </dialog>
 
   <dialog id="dlg-pair" class="wide" aria-labelledby="pair-title">
     <div class="dialog-head">
-      <h2 id="pair-title">Pair a device</h2>
-      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="pair-title" data-i18n="designer.page.pair.title">Pair a device</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close" data-i18n-aria-label="designer.page.close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="dialog-body">
       <div class="pair-grid">
         <div>
-          <h3 class="pair-heading">Scan to pair</h3>
+          <h3 class="pair-heading" data-i18n="designer.page.pair.scan">Scan to pair</h3>
           <ol class="pair-steps">
-            <li><span class="step-number">1</span><span>Keep this computer and the tablet or phone on the same wifi network.</span></li>
-            <li><span class="step-number">2</span><span>Scan the code with the device's camera, then tap the link it offers.</span></li>
-            <li><span class="step-number">3</span><span>No camera? Open the address on the device and type the 6-digit code.</span></li>
+            <li><span class="step-number">1</span><span data-i18n="designer.page.pair.step1">Keep this computer and the tablet or phone on the same wifi network.</span></li>
+            <li><span class="step-number">2</span><span data-i18n="designer.page.pair.step2">Scan the code with the device's camera, then tap the link it offers.</span></li>
+            <li><span class="step-number">3</span><span data-i18n="designer.page.pair.step3">No camera? Open the address on the device and type the 6-digit code.</span></li>
           </ol>
-          <p class="field-help">Only paired devices can press buttons. Each one gets its own key, and you can remove it below at any time.</p>
+          <p class="field-help" data-i18n="designer.page.pair.only">Only paired devices can press buttons. Each one gets its own key, and you can remove it below at any time.</p>
         </div>
         <div class="pair-qr">
           <div class="qr-frame" id="pair-qr-frame">
-            <img id="pair-qr-image" src="/api/pair-qr.svg" alt="QR code that opens and pairs this deck on your local network">
+            <img id="pair-qr-image" src="/api/pair-qr.svg" alt="QR code that opens and pairs this deck on your local network" data-i18n-alt="designer.page.pair.qrAlt">
           </div>
           <div class="pair-code-box">
-            <span class="pair-code-label">Pairing code</span>
+            <span class="pair-code-label" data-i18n="designer.page.pair.code">Pairing code</span>
             <strong class="pair-code-value" id="pair-code">&middot;&middot;&middot;&middot;&middot;&middot;</strong>
             <span class="pair-hint" id="pair-expiry"></span>
           </div>
-          <span class="pair-url" id="pair-address">Finding this computer&hellip;</span>
-          <button class="btn ghost" id="pair-new-code" type="button">Make a new code</button>
+          <span class="pair-url" id="pair-address" data-i18n="designer.page.pair.finding">Finding this computer&hellip;</span>
+          <button class="btn ghost" id="pair-new-code" type="button" data-i18n="designer.page.pair.newCode">Make a new code</button>
         </div>
       </div>
-      <h3 class="pair-heading">Paired devices</h3>
+      <h3 class="pair-heading" data-i18n="designer.page.pair.devices">Paired devices</h3>
       <div class="device-list" id="pair-devices"></div>
     </div>
   </dialog>
 
   <dialog id="dlg-appearance" class="wide" aria-labelledby="appearance-title">
     <div class="dialog-head">
-      <h2 id="appearance-title">Appearance</h2>
-      <button class="icon-btn" type="button" id="appearance-close" data-close aria-label="Close">
+      <h2 id="appearance-title" data-i18n="designer.page.rail.appearance">Appearance</h2>
+      <button class="icon-btn" type="button" id="appearance-close" data-close aria-label="Close" data-i18n-aria-label="designer.page.close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
     <div class="dialog-body">
-      <div class="theme-cards" id="theme-list" role="radiogroup" aria-label="Theme"></div>
+      <div class="theme-cards" id="theme-list" role="radiogroup" aria-label="Theme" data-i18n-aria-label="designer.page.appearance.theme"></div>
       <label class="accent-row" for="accent-picker">
-        <span>Accent colour</span>
+        <span data-i18n="designer.page.appearance.accent">Accent colour</span>
         <span class="accent-hex" id="accent-hex">#5fd0d6</span>
-        <input id="accent-picker" type="color" aria-label="Choose the interface colour">
+        <input id="accent-picker" type="color" aria-label="Choose the interface colour" data-i18n-aria-label="designer.page.appearance.accentPicker">
       </label>
-      <p class="field-help">Theme and accent apply here and on every paired deck.</p>
+      <p class="field-help" data-i18n="designer.page.appearance.help">Theme and accent apply here and on every paired deck.</p>
       <label class="accent-row language-row" for="language-picker">
         <span data-i18n="designer.appearance.language">Language</span>
         <select id="language-picker">
@@ -247,35 +247,35 @@
 
   <dialog id="dlg-apps" class="wide" aria-labelledby="apps-title">
     <div class="dialog-head">
-      <h2 id="apps-title">Choose an application</h2>
-      <button class="icon-btn" type="button" data-close aria-label="Close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+      <h2 id="apps-title" data-i18n="designer.page.apps.title">Choose an application</h2>
+      <button class="icon-btn" type="button" data-close aria-label="Close" data-i18n-aria-label="designer.page.close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
     </div>
     <div class="picker-search">
-      <input id="app-search" type="search" placeholder="Search the applications on this computer" aria-label="Search applications" autocomplete="off">
+      <input id="app-search" type="search" placeholder="Search the applications on this computer" aria-label="Search applications" data-i18n-placeholder="designer.page.apps.search" data-i18n-aria-label="designer.page.apps.searchLabel" autocomplete="off">
     </div>
     <div class="picker-scroll app-list" id="app-list"></div>
     <div class="dialog-foot app-path-row">
-      <input id="app-path" type="text" placeholder="Or type a path, e.g. /Applications/OBS.app" aria-label="Application path" spellcheck="false">
-      <button class="btn" id="app-path-use" type="button">Use path</button>
+      <input id="app-path" type="text" placeholder="Or type a path, e.g. /Applications/OBS.app" aria-label="Application path" data-i18n-placeholder="designer.page.apps.path" data-i18n-aria-label="designer.page.apps.pathLabel" spellcheck="false">
+      <button class="btn" id="app-path-use" type="button" data-i18n="designer.page.apps.usePath">Use path</button>
     </div>
   </dialog>
 
   <dialog id="dlg-icons" class="wide">
     <div class="dialog-head">
-      <h2>Choose an icon</h2>
-      <button class="icon-btn" type="button" id="icons-close" aria-label="Close">
+      <h2 data-i18n="designer.page.icons.title">Choose an icon</h2>
+      <button class="icon-btn" type="button" id="icons-close" aria-label="Close" data-i18n-aria-label="designer.page.close">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
       </button>
     </div>
     <div class="picker-search">
-      <input id="icon-search" type="search" placeholder="Search Google's icons" aria-label="Search icons" autocomplete="off">
+      <input id="icon-search" type="search" placeholder="Search Google's icons" aria-label="Search icons" data-i18n-placeholder="designer.page.icons.search" data-i18n-aria-label="designer.page.icons.searchLabel" autocomplete="off">
       <div class="google-options" id="google-options">
-        <div class="segmented" role="group" aria-label="Icon style">
-          <button type="button" data-style="outlined" aria-pressed="true">Outlined</button>
-          <button type="button" data-style="rounded" aria-pressed="false">Rounded</button>
-          <button type="button" data-style="sharp" aria-pressed="false">Sharp</button>
+        <div class="segmented" role="group" aria-label="Icon style" data-i18n-aria-label="designer.page.icons.style">
+          <button type="button" data-style="outlined" aria-pressed="true" data-i18n="designer.page.icons.outlined">Outlined</button>
+          <button type="button" data-style="rounded" aria-pressed="false" data-i18n="designer.page.icons.rounded">Rounded</button>
+          <button type="button" data-style="sharp" aria-pressed="false" data-i18n="designer.page.icons.sharp">Sharp</button>
         </div>
-        <label class="check"><input type="checkbox" id="google-fill"> Filled</label>
+        <label class="check"><input type="checkbox" id="google-fill"> <span data-i18n="designer.page.icons.filled">Filled</span></label>
       </div>
     </div>
     <div class="picker-scroll" id="icon-groups"></div>
@@ -287,12 +287,12 @@
   <aside class="support-note" id="support-note" role="dialog" aria-labelledby="support-title" hidden>
     <span class="support-cup" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M10.5 15.2s-2.5-1.4-2.5-3a1.3 1.3 0 0 1 2.5-.5 1.3 1.3 0 0 1 2.5.5c0 1.6-2.5 3-2.5 3Z" fill="currentColor" stroke="none"/></svg></span>
     <div class="support-text">
-      <strong id="support-title">Enjoying Punchboard?</strong>
-      <p>It is free and open source. If it is useful to you, a coffee on Ko-fi helps keep it going.</p>
-      <p class="subtle">This note will not show again. The cup next to the version always leads there.</p>
+      <strong id="support-title" data-i18n="designer.page.support.title">Enjoying Punchboard?</strong>
+      <p data-i18n="designer.page.support.text">It is free and open source. If it is useful to you, a coffee on Ko-fi helps keep it going.</p>
+      <p class="subtle" data-i18n="designer.page.support.once">This note will not show again. The cup next to the version always leads there.</p>
       <div class="support-actions">
-        <a class="btn primary" id="support-go" href="https://ko-fi.com/hit_here" target="_blank" rel="noopener">Support on Ko-fi</a>
-        <button class="btn" id="support-close" type="button">No thanks</button>
+        <a class="btn primary" id="support-go" href="https://ko-fi.com/hit_here" target="_blank" rel="noopener" data-i18n="designer.page.support.go">Support on Ko-fi</a>
+        <button class="btn" id="support-close" type="button" data-i18n="designer.page.support.close">No thanks</button>
       </div>
     </div>
   </aside>

@@ -3,11 +3,13 @@
 // grid. Deleting, duplicating and resizing live here too, so the inspector
 // and the keyboard share one implementation.
 import { FADER_TARGETS, LIMITS, stepSummary } from "../../shared/actions.ts"
+import { t } from "../../shared/i18n.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { layoutGrid } from "../../shared/layout.ts"
 import { appDisplayName, createEmptyButton, isConfigured, isSwitch, nextId, parkedButtons } from "../../shared/model.ts"
 import type { Button, Profile } from "../../shared/types.ts"
 import { applyTileColor, byId, el, svg } from "../common/dom.ts"
+import { onLanguageChange } from "../common/i18n.ts"
 import { toast, UI_ICONS, view } from "./hub.ts"
 import { activeProfile, store, touch } from "./state.ts"
 import { recordUndo, undoLast } from "./undo.ts"
@@ -19,18 +21,18 @@ let dragFrom: number | null = null
 
 /** Faders and macros say so on the tile, so they are spotted at a glance. */
 function tileBadge(button: Button): string {
-  if (button.control === "fader") return "Fader"
-  if (isSwitch(button)) return "On / off"
-  return button.steps.length > 1 ? `${button.steps.length} steps` : ""
+  if (button.control === "fader") return t("designer.grid.badgeFader")
+  if (isSwitch(button)) return t("designer.grid.badgeSwitch")
+  return button.steps.length > 1 ? t("designer.grid.badgeSteps", { count: button.steps.length }) : ""
 }
 
 function describeButton(button: Button): string {
-  if (!isConfigured(button)) return "no action yet"
+  if (!isConfigured(button)) return t("designer.grid.noAction")
   if (button.control === "fader") {
     if (button.fader.target === "app") return `${FADER_TARGETS.app.label} · ${appDisplayName(button.fader)}`
     return FADER_TARGETS[button.fader.target].label
   }
-  if (isSwitch(button)) return "two-state macro"
+  if (isSwitch(button)) return t("designer.grid.twoState")
   return stepSummary(button.steps[0])
 }
 
@@ -49,9 +51,9 @@ function tileNode(button: Button): HTMLButtonElement {
   const icon = el("span", "tile-icon")
   icon.innerHTML = iconMarkup(button)
   tile.appendChild(icon)
-  tile.appendChild(el("span", `tile-label${button.label ? "" : " is-empty"}`, button.label || "Untitled"))
+  tile.appendChild(el("span", `tile-label${button.label ? "" : " is-empty"}`, button.label || t("designer.grid.untitled")))
 
-  tile.setAttribute("aria-label", `${button.label || "Untitled"} — ${describeButton(button)}`)
+  tile.setAttribute("aria-label", `${button.label || t("designer.grid.untitled")} — ${describeButton(button)}`)
   tile.onclick = () => select(button.slot)
 
   tile.addEventListener("dragstart", (event) => {
@@ -74,7 +76,7 @@ function addSlotNode(slot: number): HTMLButtonElement {
   const add = el("button", "add-slot")
   add.type = "button"
   add.innerHTML = svg(UI_ICONS.plus, 20)
-  add.setAttribute("aria-label", `Add a button in slot ${slot + 1}`)
+  add.setAttribute("aria-label", t("designer.grid.addInSlot", { slot: slot + 1 }))
   add.onclick = () => {
     activeProfile().buttons.push(createEmptyButton(slot))
     touch()
@@ -128,7 +130,7 @@ export function deleteButton(button: Button): void {
   if (index === -1) return
   profile.buttons.splice(index, 1)
   store.selectedSlot = null
-  recordUndo("Button deleted", () => {
+  recordUndo(t("designer.grid.buttonDeleted"), () => {
     // Its slot may have been taken meanwhile; then it goes to the nearest free
     // one, and on a full grid to the first slot of a new row. At the row limit
     // it goes just past the grid, where the parked notice offers it back.
@@ -156,7 +158,7 @@ export function deleteButton(button: Button): void {
 export function duplicateButton(button: Button): void {
   const profile = activeProfile()
   const slot = freeSlot(profile, button.slot + 1)
-  if (slot === null) return toast("The grid is full. Add a row or a column first.")
+  if (slot === null) return toast(t("designer.grid.full"))
   const copy = JSON.parse(JSON.stringify(button, (key, value: unknown) => (key === "open" ? undefined : value))) as Button
   copy.id = nextId("btn")
   copy.slot = slot
@@ -191,8 +193,8 @@ export function renderGrid(): void {
   if (profile.trackpad) {
     // The deck itself is the trackpad; nothing to arrange here.
     const preview = el("div", "trackpad-preview")
-    preview.appendChild(el("strong", null, "Trackpad"))
-    preview.appendChild(el("span", null, "On your devices this deck is one big trackpad for this computer's mouse, like a Magic Trackpad."))
+    preview.appendChild(el("strong", null, t("designer.grid.trackpad")))
+    preview.appendChild(el("span", null, t("designer.grid.trackpadPreview")))
     gridEl.appendChild(preview)
     layoutStage()
     byId("parked-notice").innerHTML = ""
@@ -312,7 +314,7 @@ export function refreshTile(button: Button): void {
   if (icon) icon.innerHTML = iconMarkup(button)
   const label = tile.querySelector(".tile-label")
   if (label) {
-    label.textContent = button.label || "Untitled"
+    label.textContent = button.label || t("designer.grid.untitled")
     label.classList.toggle("is-empty", !button.label)
   }
   let badge = tile.querySelector(".step-count")
@@ -335,26 +337,26 @@ function renderParked(): void {
   const profile = activeProfile()
   const parked = parkedButtons(profile)
   if (!parked.length) return
-  const one = parked.length === 1
+  const count = parked.length
 
   const notice = el("div", "notice")
   notice.innerHTML = `<span class="notice-icon">${svg(UI_ICONS.alert)}</span>`
   const body = el("div")
   body.style.flex = "1 1 auto"
-  body.appendChild(el("strong", null, `${parked.length}${one ? " button is" : " buttons are"} outside this grid`))
-  body.appendChild(el("span", null, `Shrinking the grid left ${one ? "it" : "them"} parked. Nothing was deleted — grow the grid back, move ${one ? "it" : "them"} into the free slots, or delete ${one ? "it" : "them"}.`))
+  body.appendChild(el("strong", null, t("designer.grid.parkedTitle", { count })))
+  body.appendChild(el("span", null, t("designer.grid.parkedBody", { count })))
 
   const actions = el("div", "notice-actions")
-  const grow = el("button", "btn", "Grow the grid to fit")
+  const grow = el("button", "btn", t("designer.grid.grow"))
   grow.type = "button"
   grow.onclick = () => {
     const needed = parked.reduce((most, button) => Math.max(most, button.slot + 1), 0)
     profile.rows = Math.min(LIMITS.rows.max, Math.ceil(needed / profile.columns))
     touch()
     view.renderAll()
-    if (parkedButtons(profile).length) toast("Grid is at its maximum, so some buttons are still parked.")
+    if (parkedButtons(profile).length) toast(t("designer.grid.atMaximum"))
   }
-  const pull = el("button", "btn", "Move into free slots")
+  const pull = el("button", "btn", t("designer.grid.moveIn"))
   pull.type = "button"
   pull.onclick = () => {
     const capacity = profile.rows * profile.columns
@@ -371,15 +373,15 @@ function renderParked(): void {
     }
     touch()
     view.renderAll()
-    toast(moved ? `Moved ${moved} into free slots.` : "No free slots — make the grid bigger first.")
+    toast(moved ? t("designer.grid.moved", { count: moved }) : t("designer.grid.noFreeSlots"))
   }
   // For when the smaller grid is the point: they go, with an undo.
-  const drop = el("button", "btn ghost danger-text", one ? "Delete it" : "Delete them")
+  const drop = el("button", "btn ghost danger-text", t("designer.grid.deleteParked", { count }))
   drop.type = "button"
   drop.onclick = () => {
     const removed = parked.slice()
     profile.buttons = profile.buttons.filter((button) => removed.indexOf(button) === -1)
-    recordUndo(`${removed.length}${removed.length === 1 ? " parked button" : " parked buttons"} deleted`, () => {
+    recordUndo(t("designer.grid.parkedDeleted", { count: removed.length }), () => {
       for (const button of removed) profile.buttons.push(button)
     })
     touch()
@@ -466,7 +468,9 @@ export function bindGrid(): void {
   document.addEventListener("keydown", onKeyDown)
 
   const modifier = isMac ? "⌘" : "Ctrl+"
-  byId("stage-hint").textContent = `Drag to move · Alt+arrows move · ${modifier}D duplicate · ${modifier}Z undo`
+  const showHint = (): void => { byId("stage-hint").textContent = t("designer.grid.stageHint", { modifier }) }
+  showHint()
+  onLanguageChange(showHint)
 
   // Only the measurements change on resize, so the tiles are not rebuilt.
   let resizeTimer: number | null = null

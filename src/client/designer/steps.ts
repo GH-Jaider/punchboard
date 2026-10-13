@@ -1,10 +1,11 @@
 // The macro editor: a button's steps, each with its action, fields and delay.
 // It re-renders on its own, so editing a macro never disturbs the fields above.
 import {
-  ACTION_FIELDS, ACTION_GROUPS, ACTION_META, ACTION_TYPES, isActionType, isMediaKey, isSetMode, LIMITS, MEDIA_KEYS,
+  ACTION_FIELDS, ACTION_GROUPS, ACTION_META, actionGroupLabel, ACTION_TYPES, isActionType, isMediaKey, isSetMode, LIMITS, MEDIA_KEYS,
   SET_LABELS, SET_MODES, setModeOf, stepSummary, stepText
 } from "../../shared/actions.ts"
 import type { FieldSpec } from "../../shared/actions.ts"
+import { t } from "../../shared/i18n.ts"
 import { clampDelay, createStep, isSwitch, retypeStep } from "../../shared/model.ts"
 import type { Button, GoToDeckStep, MediaKey, MediaKeyStep, SetMode, SoundStep, Step, StepTextField } from "../../shared/types.ts"
 import { el, svg } from "../common/dom.ts"
@@ -39,10 +40,11 @@ function swapSteps(button: Button, list: Step[], a: number, b: number): void {
 function addStepButton(button: Button, list: () => Step[], text: string): HTMLElement {
   const add = el("button", "step-add")
   add.type = "button"
-  add.innerHTML = `${svg(UI_ICONS.plus, 14)}<span>${text}</span>`
+  add.innerHTML = svg(UI_ICONS.plus, 14)
+  add.appendChild(el("span", null, text))
   add.onclick = () => {
     const steps = list()
-    if (steps.length >= LIMITS.maxSteps) return toast(`A macro can hold at most ${LIMITS.maxSteps} steps.`)
+    if (steps.length >= LIMITS.maxSteps) return toast(t("designer.steps.maxSteps", { count: LIMITS.maxSteps }))
     steps.push(createStep("none"))
     touch()
     view.refreshTile(button)
@@ -57,15 +59,15 @@ export function stepsField(button: Button): HTMLElement {
   const field = el("div", "field")
   const head = el("div")
   head.style.cssText = "display:flex;align-items:center;gap:8px"
-  head.appendChild(el("span", "field-label", "What it does"))
+  head.appendChild(el("span", "field-label", t("designer.steps.whatItDoes")))
   field.appendChild(head)
 
   const two = isSwitch(button)
-  if (two) field.appendChild(el("p", "steps-phase", "First press · turns the button on"))
+  if (two) field.appendChild(el("p", "steps-phase", t("designer.steps.firstPress")))
   const host = el("div", "steps")
   host.id = STEPS_HOST_ID
   field.appendChild(host)
-  field.appendChild(addStepButton(button, () => button.steps, "Add another step"))
+  field.appendChild(addStepButton(button, () => button.steps, t("designer.steps.addStep")))
 
   // Stream Deck calls this a multi action switch. Offered once there is a macro.
   const row = el("label", "steps-switch")
@@ -82,17 +84,17 @@ export function stepsField(button: Button): HTMLElement {
   })
   row.appendChild(box)
   const words = el("span")
-  words.appendChild(el("strong", null, "Press again to run a second list"))
-  words.appendChild(el("span", "field-help", "The button stays lit until it is pressed again, like a Stream Deck multi action switch. Choose Mute rather than Mute / unmute in these lists, so each press does the same thing every time."))
+  words.appendChild(el("strong", null, t("designer.steps.secondList")))
+  words.appendChild(el("span", "field-help", t("designer.steps.secondListHelp")))
   row.appendChild(words)
   field.appendChild(row)
 
   if (two) {
-    field.appendChild(el("p", "steps-phase", "Second press · turns it off again"))
+    field.appendChild(el("p", "steps-phase", t("designer.steps.secondPress")))
     const offHost = el("div", "steps")
     offHost.id = OFF_HOST_ID
     field.appendChild(offHost)
-    field.appendChild(addStepButton(button, () => button.offSteps ?? (button.offSteps = []), "Add a step to the second list"))
+    field.appendChild(addStepButton(button, () => button.offSteps ?? (button.offSteps = []), t("designer.steps.addSecondStep")))
   }
   return field
 }
@@ -135,12 +137,12 @@ function stepCard(button: Button, list: Step[], step: Step, index: number): HTML
 
   // Action picker, grouped, with a plain-language hint.
   const typeField = el("div", "field")
-  const typeLabel = el("label", null, "Action")
+  const typeLabel = el("label", null, t("designer.steps.action"))
   const select = document.createElement("select")
   typeLabel.htmlFor = select.id = `step-type-${step.id}`
   for (const groupName of ACTION_GROUPS) {
     const group = document.createElement("optgroup")
-    group.label = groupName
+    group.label = actionGroupLabel(groupName)
     for (const type of ACTION_TYPES) {
       if (ACTION_META[type].group === groupName) group.appendChild(new Option(ACTION_META[type].label, type, false, type === step.type))
     }
@@ -199,7 +201,7 @@ function stepCard(button: Button, list: Step[], step: Step, index: number): HTML
 
   // The per-step delay is what makes a list of actions a macro.
   const delayField = el("div", "field")
-  const delayLabel = el("label", null, index === 0 ? "Wait before this step" : "Wait after the previous step")
+  const delayLabel = el("label", null, index === 0 ? t("designer.steps.waitBefore") : t("designer.steps.waitAfter"))
   const delayInput = document.createElement("input")
   delayInput.type = "number"
   delayInput.min = "0"
@@ -213,7 +215,7 @@ function stepCard(button: Button, list: Step[], step: Step, index: number): HTML
   })
   delayField.appendChild(delayLabel)
   delayField.appendChild(delayInput)
-  delayField.appendChild(el("p", "field-help", "Milliseconds. 0 fires immediately."))
+  delayField.appendChild(el("p", "field-help", t("designer.steps.delayHelp")))
   body.appendChild(delayField)
 
   if (list.length > 1 || list !== button.steps) body.appendChild(reorderRow(button, list, index))
@@ -228,23 +230,23 @@ function reorderRow(button: Button, list: Step[], index: number): HTMLElement {
   const up = el("button", "icon-btn")
   up.type = "button"
   up.innerHTML = svg(UI_ICONS.up)
-  up.setAttribute("aria-label", "Move this step earlier")
+  up.setAttribute("aria-label", t("designer.steps.moveEarlier"))
   up.disabled = index === 0
   up.onclick = () => swapSteps(button, list, index, index - 1)
   const down = el("button", "icon-btn")
   down.type = "button"
   down.innerHTML = svg(UI_ICONS.down)
-  down.setAttribute("aria-label", "Move this step later")
+  down.setAttribute("aria-label", t("designer.steps.moveLater"))
   down.disabled = index === list.length - 1
   down.onclick = () => swapSteps(button, list, index, index + 1)
   const grow = el("span")
   grow.style.flex = "1 1 auto"
-  const drop = el("button", "btn ghost danger-text", "Remove step")
+  const drop = el("button", "btn ghost danger-text", t("designer.steps.removeStep"))
   drop.type = "button"
   drop.onclick = () => {
     const removed = list.splice(index, 1)[0]
     if (!removed) return
-    recordUndo("Step removed", () => {
+    recordUndo(t("designer.steps.stepRemoved"), () => {
       list.splice(Math.min(index, list.length), 0, removed)
     })
     touch()
@@ -260,7 +262,7 @@ function reorderRow(button: Button, list: Step[], index: number): HTMLElement {
 
 function soundField(step: SoundStep, title: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "Sound slot")
+  const label = el("label", null, t("designer.steps.soundSlot"))
   const row = el("div")
   row.style.cssText = "display:flex;gap:8px;align-items:center"
 
@@ -278,19 +280,19 @@ function soundField(step: SoundStep, title: HTMLElement): HTMLElement {
   const preview = el("button", "icon-btn")
   preview.type = "button"
   preview.innerHTML = svg(UI_ICONS.play)
-  preview.title = "Preview on this computer"
-  preview.setAttribute("aria-label", "Preview this sound")
+  preview.title = t("designer.steps.previewHere")
+  preview.setAttribute("aria-label", t("designer.steps.previewSound"))
   preview.onclick = () => playSlot(Number(select.value))
   row.appendChild(preview)
 
   // Uploads straight into the slot this step uses.
-  const upload = audioFilePicker(`step-sound-file-${step.id}`, "Replace this slot with a WAV or MP3", (file) => void uploadSound(Number(select.value), file, null))
+  const upload = audioFilePicker(`step-sound-file-${step.id}`, t("designer.steps.replaceSlot"), (file) => void uploadSound(Number(select.value), file, null))
   row.appendChild(upload.input)
   row.appendChild(upload.label)
 
   field.appendChild(label)
   field.appendChild(row)
-  field.appendChild(el("p", "field-help", "WAV or MP3, up to 8 MB. Plays through this computer's speakers — the device never downloads the file."))
+  field.appendChild(el("p", "field-help", t("designer.steps.soundHelp")))
   return field
 }
 
@@ -326,7 +328,7 @@ function pickField(button: Button, step: Step, spec: FieldSpec, title: HTMLEleme
 
 function mediaKeyField(step: MediaKeyStep, title: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "Key")
+  const label = el("label", null, t("designer.steps.mediaKey"))
   const select = document.createElement("select")
   label.htmlFor = select.id = `step-media-${step.id}`
   for (const key of Object.keys(MEDIA_KEYS) as MediaKey[]) select.add(new Option(MEDIA_KEYS[key], key))
@@ -339,20 +341,20 @@ function mediaKeyField(step: MediaKeyStep, title: HTMLElement): HTMLElement {
   })
   field.appendChild(label)
   field.appendChild(select)
-  field.appendChild(el("p", "field-help", "Works with the app that is playing, even in the background. On a Mac the first press asks for the same permission as key combinations."))
+  field.appendChild(el("p", "field-help", t("designer.steps.mediaKeyHelp")))
   return field
 }
 
 function deckField(step: GoToDeckStep, title: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "Deck")
+  const label = el("label", null, t("designer.steps.deck"))
   const select = document.createElement("select")
   label.htmlFor = select.id = `step-deck-${step.id}`
   const here = activeProfile().id
   const others = library().profiles.filter((profile) => profile.id !== here)
-  select.add(new Option(others.length ? "Choose…" : "Add another deck first", ""))
+  select.add(new Option(others.length ? t("designer.steps.choose") : t("designer.steps.addDeckFirst"), ""))
   for (const profile of others) select.add(new Option(profile.name, profile.id))
-  if (step.profileId && !library().profiles.some((profile) => profile.id === step.profileId)) select.add(new Option("A deck that was deleted", step.profileId))
+  if (step.profileId && !library().profiles.some((profile) => profile.id === step.profileId)) select.add(new Option(t("designer.steps.deletedDeck"), step.profileId))
   select.value = step.profileId ?? ""
   select.disabled = !others.length && !step.profileId
   select.addEventListener("change", () => {
@@ -368,7 +370,7 @@ function deckField(step: GoToDeckStep, title: HTMLElement): HTMLElement {
 /** Toggle, or always on, or always off, for the actions that have a state. */
 function modeField(button: Button, step: Step, labels: Readonly<Record<SetMode, string>>, title: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  const label = el("label", null, "Each press")
+  const label = el("label", null, t("designer.steps.eachPress"))
   const select = document.createElement("select")
   label.htmlFor = select.id = `step-set-${step.id}`
   for (const mode of SET_MODES) select.add(new Option(labels[mode], mode))

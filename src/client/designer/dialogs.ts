@@ -1,4 +1,5 @@
 // In-page dialogs that follow the theme, in place of prompt() and confirm().
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
 
 export interface ConfirmOptions {
@@ -14,7 +15,7 @@ export function confirmAction(options: ConfirmOptions): Promise<boolean> {
   byId("confirm-title").textContent = options.title
   byId("confirm-text").textContent = options.text
   const ok = byId("confirm-ok")
-  ok.textContent = options.confirm ?? "Delete"
+  ok.textContent = options.confirm ?? t("designer.dialogs.delete")
   ok.className = options.safe ? "btn primary" : "btn danger"
   return new Promise((resolve) => {
     dialog.onclose = () => resolve(dialog.returnValue === "ok")

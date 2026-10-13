@@ -1,6 +1,7 @@
 // The icon picker (Google's Material Symbols) and custom image uploads.
 import { LIMITS } from "../../shared/actions.ts"
 import type { GlyphResponse, GoogleIconEntry, GoogleIconsResponse } from "../../shared/api.ts"
+import { currentLanguage, t } from "../../shared/i18n.ts"
 import type { Button, GlyphStyle } from "../../shared/types.ts"
 import { byId, el } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
@@ -71,12 +72,12 @@ function drawGoogleIcons(button: Button): void {
   const host = byId("icon-groups")
   if (!googleCatalog) {
     host.innerHTML = ""
-    host.appendChild(el("p", "field-help", "Loading Google icons…"))
+    host.appendChild(el("p", "field-help", t("designer.icons.loading")))
     request<GoogleIconsResponse>("/api/icons/google").then((data) => {
       googleCatalog = data.icons
       // Google's catalog grows, so the count comes from the catalog itself.
       const hundreds = Math.floor(data.icons.length / 100) * 100
-      if (hundreds >= 100) search().placeholder = `Search ${hundreds.toLocaleString("en-US")}+ icons`
+      if (hundreds >= 100) search().placeholder = t("designer.icons.searchCount", { count: hundreds.toLocaleString(currentLanguage()) })
       if (dialog().open) drawGoogleIcons(button)
     }).catch((error: unknown) => {
       host.innerHTML = ""
@@ -90,8 +91,8 @@ function drawGoogleIcons(button: Button): void {
 
   host.innerHTML = ""
   host.appendChild(el("p", "picker-note", matches.length > GOOGLE_LIMIT
-    ? `Showing the ${GOOGLE_LIMIT} most popular of ${matches.length}. Search to narrow it down.`
-    : `${matches.length}${matches.length === 1 ? " icon" : " icons"}`))
+    ? t("designer.icons.showingTop", { limit: GOOGLE_LIMIT, total: matches.length })
+    : t("designer.icons.count", { count: matches.length })))
   const grid = el("div", "picker-grid")
   for (const icon of matches.slice(0, GOOGLE_LIMIT)) {
     const choice = el("button", "icon-choice")
@@ -106,7 +107,7 @@ function drawGoogleIcons(button: Button): void {
     grid.appendChild(choice)
   }
   host.appendChild(grid)
-  if (!matches.length) host.appendChild(el("p", "field-help", `No Google icon matches “${query.replace(/_/g, " ")}”.`))
+  if (!matches.length) host.appendChild(el("p", "field-help", t("designer.icons.noMatch", { query: query.replace(/_/g, " ") })))
 }
 
 async function pickGoogleIcon(button: Button, name: string, choice: HTMLElement): Promise<void> {
@@ -134,11 +135,11 @@ const UNSAFE_SVG = /<script|<foreignObject|\son\w+\s*=|(?:href|src)\s*=\s*["']\s
 /** Reads an uploaded icon as a data URI, refusing SVGs with scripts or external references. */
 export function readIcon(file: File): Promise<string | null> {
   if (file.size > LIMITS.maxIconBytes) {
-    toast("Keep custom icons under 750 KB.", true)
+    toast(t("designer.icons.tooLarge"), true)
     return Promise.resolve(null)
   }
   if (!/^image\/(png|jpeg|webp|svg\+xml)$/.test(file.type)) {
-    toast("Choose a PNG, JPG, WebP or SVG file.", true)
+    toast(t("designer.icons.wrongType"), true)
     return Promise.resolve(null)
   }
   const isSvg = file.type === "image/svg+xml"
@@ -148,7 +149,7 @@ export function readIcon(file: File): Promise<string | null> {
       const data = String(reader.result)
       if (!isSvg) return resolve(data)
       if (UNSAFE_SVG.test(data)) {
-        toast("That SVG contains embedded content this deck will not load.", true)
+        toast(t("designer.icons.unsafeSvg"), true)
         return resolve(null)
       }
       resolve(`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(data)))}`)

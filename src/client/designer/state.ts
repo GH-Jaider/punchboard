@@ -7,8 +7,10 @@ import type { LibraryResponse, SaveLibraryResponse } from "../../shared/api.ts"
 import { nameDecksWith } from "../../shared/actions.ts"
 import { normalizeLibrary } from "../../shared/model.ts"
 import type { Button, Library, Profile } from "../../shared/types.ts"
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
 import { ApiError, errorMessage, readJson } from "../common/http.ts"
+import { onLanguageChange } from "../common/i18n.ts"
 import { toast, view } from "./hub.ts"
 import { clearUndo } from "./undo.ts"
 
@@ -71,7 +73,10 @@ let failures = 0
 /** The page is hidden or closing: saves go out at once, kept alive if small enough. */
 let leaving = false
 
+let shownMode: SaveMode = ""
+
 export function setSaveState(mode: SaveMode, message: string): void {
+  shownMode = mode
   byId("save-chip").className = `save-chip${mode ? ` is-${mode}` : ""}`
   byId("save-text").textContent = message
   byId("save-retry").hidden = mode !== "error" || !dirty
@@ -88,10 +93,10 @@ export function queueSave(): void {
   dirty = true
   if (retryTimer !== null) {
     // Still failing: the retry already waiting carries this edit too.
-    setSaveState("error", "Not saved")
+    setSaveState("error", t("designer.save.notSaved"))
     return
   }
-  setSaveState("saving", "Saving")
+  setSaveState("saving", t("designer.save.saving"))
   if (saveTimer !== null) window.clearTimeout(saveTimer)
   if (leaving) return void save()
   saveTimer = window.setTimeout(() => {
@@ -144,7 +149,7 @@ async function save(): Promise<void> {
       if (saveTimer === null && retryTimer === null) void save()
       return
     }
-    setSaveState("", "Saved · decks in sync")
+    setSaveState("", t("designer.save.inSync"))
   } catch (error) {
     store.saving = false
     if (error instanceof ApiError && error.status === 409) {
@@ -153,7 +158,7 @@ async function save(): Promise<void> {
       clearSaveTimers()
       dirty = false
       failures = 0
-      void reloadLibrary("This deck was changed in another window, so it was reloaded. Redo your last change.")
+      void reloadLibrary(t("designer.save.conflict"))
       return
     }
     // Keep the edits (and any made meanwhile). A dropped connection or a busy
@@ -170,9 +175,9 @@ async function save(): Promise<void> {
         void save()
       }, wait)
     }
-    setSaveState("error", "Not saved")
+    setSaveState("error", t("designer.save.notSaved"))
     // Once per outage; the chip keeps saying so after the toast has gone.
-    if (failures === 1) toast(`Not saved: ${errorMessage(error)}`, true)
+    if (failures === 1) toast(t("designer.save.notSavedBecause", { reason: errorMessage(error) }), true)
   }
 }
 
@@ -193,6 +198,11 @@ export function bindSaving(): void {
   })
   window.addEventListener("pagehide", flushOnLeave)
   window.addEventListener("pageshow", () => { leaving = false })
+  // The chip says its state again in the new language.
+  onLanguageChange(() => {
+    const key = shownMode === "saving" ? "designer.save.saving" : shownMode === "error" ? (store.library ? "designer.save.notSaved" : "designer.save.couldNotLoad") : "designer.save.inSync"
+    setSaveState(shownMode, t(key))
+  })
   // Normally the keepalive save on pagehide covers a close. When it cannot
   // (saves are failing, an edit is queued behind a save in flight, or the
   // library is too big for keepalive), the save starts now and the browser
@@ -217,7 +227,7 @@ export function touch(): void {
 /** Loads the library and remembers its revision for the next save. */
 export async function fetchLibrary(): Promise<Library> {
   const response = await fetch("/api/library")
-  if (!response.ok) throw new Error("Could not load the deck.")
+  if (!response.ok) throw new Error(t("designer.save.loadFailed"))
   store.libraryRev = Number(response.headers.get("X-Library-Rev")) || null
   showNotice(response.headers.get("X-Library-Notice"))
   return normalizeLibrary((await response.json()) as LibraryResponse)
@@ -234,7 +244,7 @@ function showNotice(header: string | null): void {
     message = decodeURIComponent(header)
   } catch { /* shown as it came */ }
   // An action keeps the toast up long enough to read.
-  toast(message, true, { label: "OK", onClick: () => {} })
+  toast(message, true, { label: t("designer.save.ok"), onClick: () => {} })
 }
 
 /** Picks up a newer library from elsewhere, keeping the selection where it still exists. */
@@ -247,7 +257,7 @@ export async function reloadLibrary(message?: string): Promise<void> {
     clearUndo()
     if (!next.profiles.some((profile) => profile.id === store.activeId)) store.activeId = next.activeProfileId
     if (!selectedButton()) store.selectedSlot = null
-    setSaveState("", "Saved · decks in sync")
+    setSaveState("", t("designer.save.inSync"))
     view.renderAll()
     if (message) toast(message)
   } catch (error) {

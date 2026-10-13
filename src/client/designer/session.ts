@@ -1,7 +1,8 @@
 // Backup, restore, stopping the companion, and the first-run intro card.
 import type { Ok } from "../../shared/api.ts"
 import { isLibraryShape, normalizeLibrary } from "../../shared/model.ts"
-import { byId, storage } from "../common/dom.ts"
+import { t } from "../../shared/i18n.ts"
+import { byId, el, storage } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
 import { confirmAction } from "./dialogs.ts"
 import { toast, view } from "./hub.ts"
@@ -17,7 +18,7 @@ function exportBackup(): void {
   link.download = "punchboard-backup.json"
   link.click()
   URL.revokeObjectURL(url)
-  toast("Backup downloaded.")
+  toast(t("designer.session.backupDone"))
 }
 
 /** Restoring replaces everything, so it asks first and can be undone after. */
@@ -28,11 +29,11 @@ async function importBackup(file: File): Promise<void> {
   } catch {
     next = null
   }
-  if (!isLibraryShape(next)) return toast("That file is not a Punchboard backup.", true)
+  if (!isLibraryShape(next)) return toast(t("designer.session.notBackup"), true)
   const yes = await confirmAction({
-    title: "Replace this deck?",
-    text: `Restoring will replace all ${library().profiles.length} deck(s) on this computer with the ${next.profiles.length} in the file.`,
-    confirm: "Replace everything"
+    title: t("designer.session.restoreTitle"),
+    text: t("designer.session.restoreText", { current: library().profiles.length, incoming: next.profiles.length }),
+    confirm: t("designer.session.restoreConfirm")
   })
   if (!yes) return
   const previous = store.library
@@ -44,7 +45,7 @@ async function importBackup(file: File): Promise<void> {
   // itself still works: it puts that whole library back.
   clearUndo()
   if (previous) {
-    recordUndo("Restored from file", () => {
+    recordUndo(t("designer.session.restored"), () => {
       store.library = previous
       store.activeId = previousActive
       store.selectedSlot = null
@@ -56,14 +57,19 @@ async function importBackup(file: File): Promise<void> {
 
 async function shutdown(): Promise<void> {
   const yes = await confirmAction({
-    title: "Stop the companion?",
-    text: "Every paired device will show as offline until you start it again from your computer.",
-    confirm: "Stop companion"
+    title: t("designer.session.stopTitle"),
+    text: t("designer.session.stopText"),
+    confirm: t("designer.session.stopConfirm")
   })
   if (!yes) return
   try {
     await request<Ok>("/api/shutdown", { method: "POST" })
-    document.body.innerHTML = '<div class="empty-inspector" style="padding:80px 20px"><strong>The companion has stopped.</strong><div class="subtle">Start it again on your computer when you are ready.</div></div>'
+    const box = el("div", "empty-inspector")
+    box.style.padding = "80px 20px"
+    box.appendChild(el("strong", null, t("designer.session.stopped")))
+    box.appendChild(el("div", "subtle", t("designer.session.stoppedHint")))
+    document.body.innerHTML = ""
+    document.body.appendChild(box)
   } catch (error) {
     toast(errorMessage(error), true)
   }

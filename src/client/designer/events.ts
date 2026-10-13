@@ -1,6 +1,7 @@
 // Live state from the companion: theme and accent, sounds, other windows'
 // saves, devices, OBS.
 import type { Snapshot, StatusResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { applyAccent } from "../common/dom.ts"
 import { toast } from "./hub.ts"
 import { request } from "../common/http.ts"
@@ -32,11 +33,11 @@ function handle(state: Snapshot): void {
     else if (state.build !== loadedBuild && !reloadOffered) {
       // Not automatic here: an edit could be mid-flight. The toast waits for the click.
       reloadOffered = true
-      toast("Punchboard was updated. Reload to get the new version.", false, { label: "Reload", onClick: () => location.reload() })
+      toast(t("designer.events.updated"), false, { label: t("designer.events.reload"), onClick: () => location.reload() })
     }
   }
   if (store.libraryRev !== null && state.libraryRev > store.libraryRev && !unsavedEdits()) {
-    void reloadLibrary("Updated with changes from another window.")
+    void reloadLibrary(t("designer.events.otherWindow"))
   }
   renderNowPlaying(state.playback)
   showPlaying(state.playing)

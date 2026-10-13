@@ -2,6 +2,7 @@
 // nothing is selected. It is built once per selection and edits then update
 // it in place, so focus and scroll position survive typing.
 import { LIMITS } from "../../shared/actions.ts"
+import { t } from "../../shared/i18n.ts"
 import { BUTTON_COLORS, colorValue, isHexColor } from "../../shared/colors.ts"
 import { iconMarkup } from "../../shared/icons.ts"
 import { DEFAULT_TRACKPAD, isStateful, nextId, soundSlotOf, TRACKPAD_SPEED, withControl } from "../../shared/model.ts"
@@ -42,11 +43,11 @@ export function renderInspector(): void {
   if (!button) return renderDeckPanel()
 
   const head = el("div", "panel-head")
-  head.appendChild(el("h2", null, `Button ${button.slot + 1}`))
+  head.appendChild(el("h2", null, t("designer.inspector.buttonTitle", { number: button.slot + 1 })))
   head.appendChild(el("span", "spacer"))
   const closeButton = el("button", "icon-btn")
   closeButton.type = "button"
-  closeButton.setAttribute("aria-label", "Deselect")
+  closeButton.setAttribute("aria-label", t("designer.inspector.deselect"))
   closeButton.innerHTML = svg(UI_ICONS.x)
   closeButton.onclick = () => {
     store.selectedSlot = null
@@ -76,7 +77,7 @@ function renderDeckPanel(): void {
   const profile = activeProfile()
 
   const head = el("div", "panel-head")
-  head.appendChild(el("h2", null, "Deck"))
+  head.appendChild(el("h2", null, t("designer.inspector.deckTitle")))
   inspectorEl.appendChild(head)
 
   const body = el("div", "inspector-body")
@@ -92,15 +93,15 @@ function renderDeckPanel(): void {
   }
 
   const size = el("div", "field")
-  size.appendChild(el("span", "field-label", "Grid size"))
+  size.appendChild(el("span", "field-label", t("designer.inspector.gridSize")))
   const stat = el("p", "deck-stat")
   const refreshStat = (): void => {
     const count = profile.buttons.length
     const free = freeSlotCount(profile)
-    stat.textContent = `${count}${count === 1 ? " button" : " buttons"} · ${free}${free === 1 ? " free slot" : " free slots"}`
+    stat.textContent = `${t("designer.inspector.buttonCount", { count })} · ${t("designer.inspector.freeSlots", { count: free })}`
   }
-  size.appendChild(stepper("Columns", "columns", profile, refreshStat))
-  size.appendChild(stepper("Rows", "rows", profile, refreshStat))
+  size.appendChild(stepper(t("designer.inspector.columns"), "columns", profile, refreshStat))
+  size.appendChild(stepper(t("designer.inspector.rows"), "rows", profile, refreshStat))
   size.appendChild(stat)
   refreshStat()
   body.appendChild(size)
@@ -111,13 +112,13 @@ function renderDeckPanel(): void {
 /** Buttons, or one big trackpad. A deck's buttons are kept while it is a trackpad. */
 function deckTypeField(profile: Profile): HTMLElement {
   const field = el("div", "field")
-  field.appendChild(el("span", "field-label", "Type"))
+  field.appendChild(el("span", "field-label", t("designer.inspector.type")))
   const kinds = el("div", "segmented")
   kinds.setAttribute("role", "group")
-  kinds.setAttribute("aria-label", "Deck type")
+  kinds.setAttribute("aria-label", t("designer.inspector.deckType"))
   const choices: ReadonlyArray<{ trackpad: boolean; text: string }> = [
-    { trackpad: false, text: "Buttons" },
-    { trackpad: true, text: "Trackpad" }
+    { trackpad: false, text: t("designer.inspector.typeButtons") },
+    { trackpad: true, text: t("designer.inspector.typeTrackpad") }
   ]
   for (const choice of choices) {
     const option = el("button", null, choice.text)
@@ -135,8 +136,8 @@ function deckTypeField(profile: Profile): HTMLElement {
   }
   field.appendChild(kinds)
   field.appendChild(el("p", "field-help", profile.trackpad
-    ? "The whole deck moves this computer's mouse. Its buttons are kept, in case you switch back."
-    : "A grid of buttons and faders."))
+    ? t("designer.inspector.trackpadHelp")
+    : t("designer.inspector.buttonsHelp")))
   return field
 }
 
@@ -144,7 +145,7 @@ function trackpadFields(profile: Profile): HTMLElement {
   const settings = profile.trackpad!
   const field = el("div", "field")
 
-  const speedLabel = el("label", null, "Cursor speed")
+  const speedLabel = el("label", null, t("designer.inspector.cursorSpeed"))
   const speed = document.createElement("input")
   speed.type = "range"
   speed.min = String(TRACKPAD_SPEED.min)
@@ -169,16 +170,16 @@ function trackpadFields(profile: Profile): HTMLElement {
   })
   natural.appendChild(box)
   const words = el("span")
-  words.appendChild(el("strong", null, "Natural scrolling"))
-  words.appendChild(el("span", "field-help", "The page follows your fingers, as on a Mac trackpad or a phone. Off: the classic mouse wheel direction."))
+  words.appendChild(el("strong", null, t("designer.inspector.naturalScroll")))
+  words.appendChild(el("span", "field-help", t("designer.inspector.naturalScrollHelp")))
   natural.appendChild(words)
   field.appendChild(natural)
 
-  const zoomLabel = el("label", null, "Pinch to zoom")
+  const zoomLabel = el("label", null, t("designer.inspector.pinchZoom"))
   const zoom = document.createElement("select")
   zoomLabel.htmlFor = zoom.id = "trackpad-zoom"
-  zoom.add(new Option("Like a trackpad: maps, photos, pages zoom smoothly", "gesture"))
-  zoom.add(new Option("Page zoom (⌘ + / ⌘ −), for apps that ignore it", "keys"))
+  zoom.add(new Option(t("designer.inspector.pinchGesture"), "gesture"))
+  zoom.add(new Option(t("designer.inspector.pinchKeys"), "keys"))
   zoom.value = settings.pinchZoom
   zoom.addEventListener("change", () => {
     settings.pinchZoom = zoom.value === "keys" ? "keys" : "gesture"
@@ -188,41 +189,31 @@ function trackpadFields(profile: Profile): HTMLElement {
   field.appendChild(zoom)
 
   const gestures = el("ul", "gesture-list")
-  const rows: ReadonlyArray<[string, string]> = [
-    ["One finger", "move the cursor"],
-    ["Tap · two-finger tap", "click · right-click"],
-    ["Tap, then touch and hold", "drag; lift to drop"],
-    ["Two fingers", "scroll, with momentum"],
-    ["Pinch", "zoom in or out"],
-    ["Three fingers up · down", "Mission Control · App Exposé (Windows: Task View · desktop)"],
-    ["Three fingers left · right", "next or previous desktop (Windows: switch apps)"],
-    ["Three-finger tap", "Look Up (Windows: Search)"],
-    ["Four fingers", "like three; spread for the desktop, pinch for your apps"]
-  ]
+  const rows = ["oneFinger", "tap", "drag", "twoFingers", "pinch", "threeUpDown", "threeLeftRight", "threeTap", "fourFingers"]
   for (const row of rows) {
     const item = el("li")
-    item.appendChild(el("strong", null, row[0]))
-    item.appendChild(el("span", null, row[1]))
+    item.appendChild(el("strong", null, t(`designer.inspector.gesture.${row}`)))
+    item.appendChild(el("span", null, t(`designer.inspector.gesture.${row}Does`)))
     gestures.appendChild(item)
   }
   field.appendChild(gestures)
-  field.appendChild(el("p", "field-help", "On a Mac this uses the same Accessibility permission as key combinations."))
+  field.appendChild(el("p", "field-help", t("designer.inspector.trackpadPermission")))
   return field
 }
 
 function nameField(profile: Profile): HTMLElement {
   const field = el("div", "field label-field")
-  const label = el("label", null, "Name")
+  const label = el("label", null, t("designer.inspector.name"))
   label.htmlFor = "deck-name"
   const input = document.createElement("input")
   input.type = "text"
   input.id = "deck-name"
   input.value = profile.name
-  input.placeholder = "Streaming"
+  input.placeholder = t("designer.inspector.namePlaceholder")
   input.maxLength = 40
   input.autocomplete = "off"
   input.addEventListener("input", () => {
-    profile.name = input.value.trim() || "Untitled deck"
+    profile.name = input.value.trim() || t("designer.inspector.untitledDeck")
     byId("profile-title").textContent = profile.name
     view.renderProfiles()
     touch()
@@ -256,8 +247,8 @@ function stepper(text: string, key: "columns" | "rows", profile: Profile, onChan
     }
     return control
   }
-  const less = make(-1, `Fewer ${key}`)
-  const more = make(1, `More ${key}`)
+  const less = make(-1, t(key === "columns" ? "designer.inspector.fewerColumns" : "designer.inspector.fewerRows"))
+  const more = make(1, t(key === "columns" ? "designer.inspector.moreColumns" : "designer.inspector.moreRows"))
   less.disabled = profile[key] <= range.min
   more.disabled = profile[key] >= range.max
   group.appendChild(less)
@@ -269,13 +260,13 @@ function stepper(text: string, key: "columns" | "rows", profile: Profile, onChan
 
 function deckActions(profile: Profile): HTMLElement {
   const row = el("div", "inspector-actions")
-  const duplicate = el("button", "btn", "Duplicate deck")
+  const duplicate = el("button", "btn", t("designer.inspector.duplicateDeck"))
   duplicate.type = "button"
   duplicate.onclick = () => duplicateProfile(profile)
-  const remove = el("button", "btn danger-text", "Delete deck")
+  const remove = el("button", "btn danger-text", t("designer.inspector.deleteDeck"))
   remove.type = "button"
   remove.disabled = library().profiles.length < 2
-  remove.title = remove.disabled ? "The last deck cannot be deleted" : ""
+  remove.title = remove.disabled ? t("designer.inspector.lastDeck") : ""
   remove.onclick = () => deleteProfile(profile)
   row.appendChild(duplicate)
   row.appendChild(remove)
@@ -287,7 +278,7 @@ function duplicateProfile(profile: Profile): void {
   const loaded = library()
   const copy = JSON.parse(JSON.stringify(profile, (key, value: unknown) => (key === "open" ? undefined : value))) as Profile
   copy.id = nextId("profile")
-  copy.name = `${profile.name} copy`
+  copy.name = t("designer.inspector.deckCopyName", { name: profile.name })
   copy.updatedAt = new Date().toISOString()
   for (const button of copy.buttons) {
     button.id = nextId("btn")
@@ -299,7 +290,7 @@ function duplicateProfile(profile: Profile): void {
   store.selectedSlot = null
   touch()
   view.renderAll()
-  toast(`Made “${copy.name}”.`)
+  toast(t("designer.inspector.deckMade", { name: copy.name }))
 }
 
 /** Deletes straight away; the toast (and ⌘Z) puts the deck back where it was. */
@@ -310,7 +301,7 @@ function deleteProfile(profile: Profile): void {
   loaded.profiles.splice(index, 1)
   store.activeId = loaded.profiles[Math.min(index, loaded.profiles.length - 1)]!.id
   store.selectedSlot = null
-  recordUndo("Deck deleted", () => {
+  recordUndo(t("designer.inspector.deckDeleted"), () => {
     const current = library()
     current.profiles.splice(Math.min(index, current.profiles.length), 0, profile)
     store.activeId = profile.id
@@ -324,13 +315,13 @@ function deleteProfile(profile: Profile): void {
 
 function labelField(button: Button): HTMLElement {
   const field = el("div", "field label-field")
-  const label = el("label", null, "Label")
+  const label = el("label", null, t("designer.inspector.label"))
   label.htmlFor = "label-input"
   const input = document.createElement("input")
   input.type = "text"
   input.id = "label-input"
   input.value = button.label
-  input.placeholder = "Go Live"
+  input.placeholder = t("designer.inspector.labelPlaceholder")
   input.maxLength = 28
   input.addEventListener("input", () => {
     button.label = input.value
@@ -344,13 +335,13 @@ function labelField(button: Button): HTMLElement {
 
 function kindField(button: Button): HTMLElement {
   const field = el("div", "field")
-  field.appendChild(el("span", "field-label", "Type"))
+  field.appendChild(el("span", "field-label", t("designer.inspector.type")))
   const kinds = el("div", "segmented")
   kinds.setAttribute("role", "group")
-  kinds.setAttribute("aria-label", "Button type")
+  kinds.setAttribute("aria-label", t("designer.inspector.buttonType"))
   const choices: ReadonlyArray<{ control: Button["control"]; text: string }> = [
-    { control: "press", text: "Button" },
-    { control: "fader", text: "Volume fader" }
+    { control: "press", text: t("designer.inspector.typeButton") },
+    { control: "fader", text: t("designer.inspector.typeFader") }
   ]
   for (const choice of choices) {
     const option = el("button", null, choice.text)
@@ -365,7 +356,7 @@ function kindField(button: Button): HTMLElement {
 
 function colorField(button: Button, iconTrigger: HTMLElement): HTMLElement {
   const field = el("div", "field")
-  field.appendChild(el("span", "field-label", "Colour"))
+  field.appendChild(el("span", "field-label", t("designer.inspector.colour")))
   const swatches = el("div", "swatch-grid")
   const choose = (color: ButtonColor, swatch: HTMLElement): void => {
     button.color = color
@@ -392,11 +383,11 @@ function colorField(button: Button, iconTrigger: HTMLElement): HTMLElement {
 
   // Any colour at all, through the system's colour picker.
   const custom = el("label", "swatch swatch-custom")
-  custom.title = "Custom colour"
+  custom.title = t("designer.inspector.customColour")
   const picker = document.createElement("input")
   picker.type = "color"
   picker.className = "visually-hidden"
-  picker.setAttribute("aria-label", "Custom colour")
+  picker.setAttribute("aria-label", t("designer.inspector.customColour"))
   picker.value = isHexColor(button.color) ? button.color : colorValue(button.color)
   picker.addEventListener("input", () => {
     if (!isHexColor(picker.value)) return
@@ -435,14 +426,14 @@ function onIconField(button: Button): HTMLElement {
   const preview = el("span", "preview")
   preview.innerHTML = button.onGlyph ? iconMarkup({ icon: button.icon, iconData: null, glyph: button.onGlyph }) : iconMarkup(button)
   const names = el("div", "names")
-  names.appendChild(el("strong", null, "While on"))
-  names.appendChild(el("small", null, button.onGlyph ? `${button.onGlyph.name.replace(/_/g, " ")} · tap to change` : "Same icon · tap to choose another, like a crossed-out mic"))
+  names.appendChild(el("strong", null, t("designer.inspector.whileOn")))
+  names.appendChild(el("small", null, button.onGlyph ? t("designer.inspector.iconTapToChange", { name: button.onGlyph.name.replace(/_/g, " ") }) : t("designer.inspector.sameIconHint")))
   trigger.appendChild(preview)
   trigger.appendChild(names)
   trigger.onclick = () => openIconPicker(button, "onGlyph")
   box.appendChild(trigger)
   if (button.onGlyph) {
-    const clear = el("button", "btn ghost", "Same icon")
+    const clear = el("button", "btn ghost", t("designer.inspector.sameIcon"))
     clear.type = "button"
     clear.onclick = () => {
       delete button.onGlyph
@@ -475,16 +466,16 @@ export function syncOnIcon(button: Button): void {
 
 function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   const field = el("div", "field")
-  field.appendChild(el("span", "field-label", "Icon"))
+  field.appendChild(el("span", "field-label", t("designer.inspector.icon")))
   trigger.type = "button"
   applyTileColor(trigger, button.color)
   const preview = el("span", "preview")
   preview.innerHTML = iconMarkup(button)
   const names = el("div", "names")
-  names.appendChild(el("strong", null, button.iconData ? "Custom image" : button.glyph ? button.glyph.name.replace(/_/g, " ") : button.icon))
+  names.appendChild(el("strong", null, button.iconData ? t("designer.inspector.customImage") : button.glyph ? button.glyph.name.replace(/_/g, " ") : button.icon))
   names.appendChild(el("small", null, button.iconData
-    ? "Tap to use an icon instead"
-    : button.glyph ? `${button.glyph.style}${button.glyph.fill ? ", filled" : ""} · tap to change` : "Tap to choose an icon"))
+    ? t("designer.inspector.useIconInstead")
+    : button.glyph ? t(button.glyph.fill ? "designer.inspector.styleFilledTapToChange" : "designer.inspector.iconTapToChange", { name: t(`designer.icons.style.${button.glyph.style}`) }) : t("designer.inspector.chooseIcon")))
   trigger.appendChild(preview)
   trigger.appendChild(names)
   trigger.onclick = () => openIconPicker(button)
@@ -501,9 +492,9 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   fileInput.id = "icon-file"
   fileInput.className = "visually-hidden"
   fileInput.accept = "image/png,image/jpeg,image/webp,image/svg+xml,.svg"
-  const fileLabel = el("label", "btn", button.iconData ? "Replace image" : "Upload image")
+  const fileLabel = el("label", "btn", button.iconData ? t("designer.inspector.replaceImage") : t("designer.inspector.uploadImage"))
   fileLabel.htmlFor = "icon-file"
-  const fileName = el("span", "name", button.iconData ? "Custom image in use" : "PNG, JPG, WebP or SVG · max 750 KB")
+  const fileName = el("span", "name", button.iconData ? t("designer.inspector.customImageInUse") : t("designer.inspector.imageFormats"))
   fileInput.addEventListener("change", async () => {
     const file = fileInput.files?.[0]
     if (!file) return
@@ -515,7 +506,7 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
     touch()
     view.refreshTile(button)
     renderInspector()
-    toast("Custom icon saved in this deck.")
+    toast(t("designer.inspector.customIconSaved"))
   })
   upload.appendChild(fileInput)
   upload.appendChild(fileLabel)
@@ -523,7 +514,7 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
   if (button.iconData) {
     const clear = el("button", "icon-btn danger")
     clear.type = "button"
-    clear.setAttribute("aria-label", "Remove the custom image")
+    clear.setAttribute("aria-label", t("designer.inspector.removeImage"))
     clear.innerHTML = svg(UI_ICONS.x)
     clear.onclick = () => {
       button.iconData = null
@@ -539,10 +530,10 @@ function iconField(button: Button, trigger: HTMLButtonElement): HTMLElement {
 
 function buttonActions(button: Button): HTMLElement {
   const row = el("div", "inspector-actions")
-  const duplicate = el("button", "btn", "Duplicate")
+  const duplicate = el("button", "btn", t("designer.inspector.duplicate"))
   duplicate.type = "button"
   duplicate.onclick = () => duplicateButton(button)
-  const remove = el("button", "btn danger-text", "Delete")
+  const remove = el("button", "btn danger-text", t("designer.inspector.delete"))
   remove.type = "button"
   remove.onclick = () => deleteButton(button)
   row.appendChild(duplicate)
