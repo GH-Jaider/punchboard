@@ -191,7 +191,7 @@ if (!findChrome()) {
     let text = await visibleText()
     check("Chrome: the Control Center switches to Spanish without a reload", text.includes(spanish["designer.appearance.language"] ?? "Idioma") || text.includes(spanish["designer.save.inSync"]), text.slice(0, 300))
     check("Chrome: no key shows in the Control Center", !KEY_LIKE.test(text), (text.match(KEY_LIKE) ?? [""])[0])
-    const fresh = await request({ path: "/api/settings" })
+    const fresh = await pages.request({ path: "/api/settings" })
     check("Chrome: the choice is saved", fresh.json?.language === "es", fresh.text)
 
     await chrome.goto(`http://127.0.0.1:${port}/designer`)
@@ -204,11 +204,11 @@ if (!findChrome()) {
     await chrome.goto(`http://127.0.0.1:${port}/deck`)
     await waitFor(`document.documentElement.lang === "es" && document.querySelectorAll(".tile").length > 0`, 10000)
     text = await visibleText()
-    check("Chrome: the deck speaks Spanish", document_has(text, spanish), text.slice(0, 200))
+    check("Chrome: the deck speaks Spanish", deckSpeaks(text, spanish), text.slice(0, 200))
     check("Chrome: no key shows on the deck", !KEY_LIKE.test(text), (text.match(KEY_LIKE) ?? [""])[0])
 
     // Back to English from elsewhere: the open deck follows by itself.
-    await request({ method: "PUT", path: "/api/settings", headers: JSON_TYPE, body: JSON.stringify({ language: "en" }) })
+    await pages.request({ method: "PUT", path: "/api/settings", headers: JSON_TYPE, body: JSON.stringify({ language: "en" }) })
     await waitFor(`document.documentElement.lang === "en" && document.querySelectorAll(".tile").length > 0`, 10000)
     check("Chrome: an open deck follows a language change", true, "")
     check("Chrome: no page errors", chrome.errors.length === 0, chrome.errors.join("\n"))
@@ -222,7 +222,7 @@ if (!findChrome()) {
 }
 
 /** Whether a page's text holds a few Spanish texts that a deck shows. */
-function document_has(text, messages) {
+function deckSpeaks(text, messages) {
   return ["deck.status.connected", "deck.immersive.enter"].some((key) => messages[key] && text.includes(messages[key]))
 }
 

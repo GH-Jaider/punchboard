@@ -52,6 +52,12 @@ On a Mac, key combinations, music controls and the trackpad need a one-time perm
 - **Lock the device to the deck**, so a swipe from the edge cannot leave it mid-stream: **Guided Access** on iPad and iPhone (Settings › Accessibility, then triple-click), **App pinning** on Android (Settings › Security). Full screen helps too.
 - **Keep the device's screen on yourself**: a page on your local wifi cannot do it. On iPad and iPhone set **Settings › Display & Brightness › Auto-Lock** to Never; on Android set **Settings › Display › Screen timeout** (or *Sleep*) to the longest.
 
+## Languages
+
+Punchboard speaks English and Spanish. **Appearance › Language** in the Control Center picks one for the Control Center and every device, or *Automatic*, where each device follows its own language (and English when Punchboard does not speak it).
+
+To add a language, copy `public/locales/en.json` to `public/locales/<code>.json` (`fr.json`, `pt-BR.json`), set `meta.name` to the language's own name (`Français`) and `meta.code` to the code, translate the values, keeping every `{placeholder}` as it is, and open a pull request. Nothing else needs to change: the new file shows up in the picker by itself, and the companion, the pages and the menu-bar menu all read it. `npm test` checks that every locale file has exactly English's keys, placeholders and plural forms (`one` / `other`, or whichever of CLDR's categories the language needs), so a missing or extra line is caught before it ships.
+
 ## For developers
 
 Punchboard is strict TypeScript: `src/server` (the companion, run by Node 22.18+ directly), `src/client` (Control Center and deck, bundled by esbuild), `src/shared` (the model and API types both use). The desktop app is a small Tauri shell in `src-tauri` that carries its own Node.
@@ -65,6 +71,8 @@ npm run app:dev   # the desktop app
 ```
 
 The deck runs on old tablets too (Safari 11, ES2015): keep newer JavaScript and CSS out of `src/client/deck` and the shared code.
+
+Interface text lives in `public/locales/en.json`, never in the code: pages call `t("deck.status.connected")` (`src/shared/i18n.ts`), the HTML marks its English with `data-i18n="…"` attributes, and the companion throws `UserError("server.…")` or `HttpError(status, say("server.…"))`, worded in the asker's language when sent. `tests/i18n-literals.mjs` lists English left in the code; its `ALLOWED` list says what rightly stays English (log lines, scripts sent to the system).
 
 Pushing a tag like `v1.2.0` builds the Mac and Windows apps on GitHub Actions and drafts a release with them.
 

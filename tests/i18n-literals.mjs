@@ -17,6 +17,8 @@ const LOG_CALLS = /(?:^|[^\w.])(?:log|options\.log|console\.(?:log|error|warn|in
     entry is [file (relative, "*" for any), pattern, why]. */
 export const ALLOWED = [
   ["*", /^Punchboard$|^OBS$|^Ko-fi$|^Spotify$|^Music$/, "product and app names stay as they are"],
+  ["*", /^(\{x\}\s*[·—|]\s*)+\{x\}$/, "separators joining texts that are already translated"],
+  ["*", /^#[0-9a-f]{6}$/i, "a colour value, such as the accent's hex code"],
   ["src/client/common/dom.ts", /^Missing #/, "a programming error: the page lacks an element the code needs"],
   ["src/client/designer/state.ts", /^The deck has not loaded yet\.$/, "a programming error, never shown: nothing renders before the deck loads"],
   ["src/server/main.ts", /^\\n {2}Punchboard is ready|^ {2}(Control Center|Pair a device|Your data|Scan with|Punchboard is already|Opening it|Ports |Close one|Port |Paired tablets|Punchboard stopped|Punchboard could not)/, "the terminal banner at start-up stays English, like the log"],
@@ -30,9 +32,14 @@ export const ALLOWED = [
   ["src/server/apps.ts", /Start Menu|Programs/, "Windows folder names"],
   ["src/server/google-icons.ts", /^HTTP \{x\}$/, "an HTTP status, wrapped in a translated message"],
   ["src/server/actions.ts", /^Unknown action \{x\}$/, "a programming error: every action type is handled"],
+  ["src/server/obs.ts", /^OBS did not answer \{x\} in time; reconnecting\.$|^OBS closed the connection; will reconnect when it is back\.$/, "log lines: drop() passes them to options.log"],
+  ["src/server/store.ts", /could not be read \(\{x\}\)\. It was kept as/, "only reaches the log, when the decks or settings file is loaded"],
+  ["*", /^(\{x\}\s*)+$/, "nothing but values: a protocol line or a join, no words of its own"],
   ["src/server/obs-config.ts", /Application Support/, "a folder name"],
   ["src/server/powershell.ts", /At line|CategoryInfo/, "PowerShell's own wording, matched to be removed"],
-  ["src/shared/touchpad/trace.ts", /.*/, "debug traces for the touchpad tests"]
+  ["src/shared/touchpad/trace.ts", /.*/, "debug traces for the touchpad tests"],
+  ["src/shared/actions.ts", /^(OBS|This computer|On the deck|Other)$/, "ActionGroup ids; people see them through actionGroupLabel()"],
+  ["src/client/deck/trackpad.ts", /^\{x\} · \{x\}\{x\}$|^idle · none$/, "the touchpad engine's state, shown only in #trackpad-debug"]
 ]
 
 const WORD = "[A-Za-zÀ-ɏ'’]"
@@ -194,11 +201,11 @@ const ATTRS = ["placeholder", "title", "aria-label", "alt"]
 export function scanHtml(file, html) {
   const hits = []
   const stack = []
-  const pattern = /<!--[\s\S]*?-->|<(\/?)([a-zA-Z0-9-]+)([^>]*)>|([^<]+)/g
+  const pattern = /<!--[\s\S]*?-->|<![^>]*>|<(\/?)([a-zA-Z0-9-]+)([^>]*)>|([^<]+)/g
   let match
   const lineOf = (index) => html.slice(0, index).split("\n").length
   while ((match = pattern.exec(html))) {
-    if (match[0].startsWith("<!--")) continue
+    if (match[0].startsWith("<!")) continue
     if (match[4] !== undefined) {
       const text = match[4].replace(/&[a-z#0-9]+;/g, " ").trim()
       if (!/[A-Za-z]{2,}/.test(text)) continue
