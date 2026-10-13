@@ -15,7 +15,9 @@
 <body>
   <div class="box">
     <svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></g><rect x="14" y="3" width="7" height="7" rx="1.5" fill="#ff4f00"/></svg>
-    <div class="dots">Starting Punchboard</div>
+    <div class="dots" id="starting">Starting Punchboard</div>
   </div>
+  <!-- The app passes this line in the menu's language (language.rs). -->
+  <script>if (window.__punchboardStarting) { document.getElementById("starting").textContent = window.__punchboardStarting; document.documentElement.lang = window.__punchboardLanguage || "en" }</script>
 </body>
 </html>

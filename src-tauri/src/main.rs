@@ -4,6 +4,8 @@
 // Control Center in a window, and keeps an icon in the menu bar.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod language;
+
 use std::collections::VecDeque;
 use std::io::Write;
 use std::net::TcpStream;
@@ -18,6 +20,8 @@ use tauri_plugin_autostart::{MacosLauncher, ManagerExt};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_updater::UpdaterExt;
+
+use language::{tr, Language};
 
 /// Passed when the app starts at login: stay in the menu bar, no window.
 const HIDDEN_ARG: &str = "--hidden";
@@ -54,7 +58,7 @@ fn log_path(app: &AppHandle) -> Option<std::path::PathBuf> {
 
 /// Replaces whatever the window shows (the starting screen, or a Control
 /// Center that can no longer reach its companion) with the problem.
-const PROBLEM_PAGE: &str = r#"function (title, details, log) {
+const PROBLEM_PAGE: &str = r#"function (title, help, details, log) {
   var body = document.body
   body.innerHTML = ""
   body.style.cssText = "margin:0;min-height:100vh;display:grid;place-items:center;background:#0d0e11;color:#a3a9b4;font:15px -apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif"
@@ -62,9 +66,9 @@ const PROBLEM_PAGE: &str = r#"function (title, details, log) {
   box.style.cssText = "max-width:760px;padding:0 24px"
   function add(tag, text, css) { var el = document.createElement(tag); el.textContent = text; if (css) el.style.cssText = css; box.appendChild(el) }
   add("h1", title, "margin:0 0 8px;color:#f1f2f4;font-size:18px")
-  add("p", "Quit Punchboard from its icon next to the clock (or in the menu bar) and open it again. If it keeps happening, send the lines below, or the log file, to whoever looks after your Punchboard.")
-  add("pre", details || "It printed nothing.", "max-height:50vh;overflow:auto;padding:12px;border-radius:8px;background:#16181d;color:#d7dae0;font:12px ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap")
-  if (log) add("p", "Full log: " + log)
+  add("p", help)
+  add("pre", details, "max-height:50vh;overflow:auto;padding:12px;border-radius:8px;background:#16181d;color:#d7dae0;font:12px ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap")
+  if (log) add("p", log)
   body.appendChild(box)
 }"#;
 
@@ -73,12 +77,25 @@ const PROBLEM_PAGE: &str = r#"function (title, details, log) {
 fn show_problem(app: &AppHandle, status: String) {
     *app.state::<Companion>().port.lock().unwrap() = None;
     open_window(app, "/designer");
-    let details = app.state::<Companion>().recent.lock().unwrap().iter().cloned().collect::<Vec<_>>().join("\n");
-    let log = log_path(app).map(|p| p.display().to_string()).unwrap_or_default();
+    let mut details = app.state::<Companion>().recent.lock().unwrap().iter().cloned().collect::<Vec<_>>().join("\n");
+    if details.is_empty() {
+        details = tr(app, "desktop.problem.nothing", "It printed nothing.", &[]);
+    }
+    let log = log_path(app)
+        .map(|p| tr(app, "desktop.problem.log", "Full log: {path}", &[("path", &p.display().to_string())]))
+        .unwrap_or_default();
+    let title = tr(app, "desktop.problem.title", "Punchboard's companion stopped ({status}).", &[("status", &status)]);
+    let help = tr(
+        app,
+        "desktop.problem.help",
+        "Quit Punchboard from its icon next to the clock (or in the menu bar) and open it again. If it keeps happening, send the lines below, or the log file, to whoever looks after your Punchboard.",
+        &[],
+    );
     let script = format!(
-        "({})({}, {}, {})",
+        "({})({}, {}, {}, {})",
         PROBLEM_PAGE,
-        serde_json::to_string(&format!("Punchboard's companion stopped ({status}).")).unwrap_or_default(),
+        serde_json::to_string(&title).unwrap_or_default(),
+        serde_json::to_string(&help).unwrap_or_default(),
         serde_json::to_string(&details).unwrap_or_default(),
         serde_json::to_string(&log).unwrap_or_default()
     );
@@ -114,7 +131,13 @@ struct Ready {
     installer: Option<(tauri_plugin_updater::Update, Vec<u8>)>,
 }
 
-const CHECK_LABEL: &str = "Check for updates…";
+fn check_label(app: &AppHandle) -> String {
+    tr(app, "desktop.tray.checkUpdates", "Check for updates…", &[])
+}
+
+fn restart_label(app: &AppHandle, version: &str) -> String {
+    tr(app, "desktop.tray.restartToUpdate", "Restart to update to {version}", &[("version", version)])
+}
 /// Checked a little after start, then this often.
 const CHECK_EVERY: Duration = Duration::from_secs(6 * 60 * 60);
 
@@ -145,8 +168,16 @@ fn open_window(app: &AppHandle, page: &str) {
     };
     let downloads = app.path().download_dir().ok();
     let opener = app.clone();
+    // The starting screen (ui/index.html) reads its one line from here, in
+    // the menu's language; the Control Center has its own.
+    let starting = format!(
+        "window.__punchboardStarting = {}; window.__punchboardLanguage = {};",
+        serde_json::to_string(&tr(app, "desktop.starting", "Starting Punchboard", &[])).unwrap_or_default(),
+        serde_json::to_string(&language::current(app)).unwrap_or_default()
+    );
     let built = WebviewWindowBuilder::new(app, "main", source)
         .title("Punchboard")
+        .initialization_script(&starting)
         .inner_size(1440.0, 900.0)
         // Wider than the Control Center's stacked phone layout (980px and
         // under), which has no place in a desktop window.
@@ -250,6 +281,9 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
         .env("PUNCHBOARD_DESKTOP", "1")
         .env("PUNCHBOARD_VERSION", app.package_info().version.to_string())
         .env("PUNCHBOARD_NO_OPEN", "1")
+        // A process started from the Dock or the Start menu has no LANG: the
+        // companion learns this computer's language here, for "Automatic".
+        .env("PUNCHBOARD_LOCALE", language::system_locales().join(","))
         .spawn()?;
     let pid = child.pid();
     *app.state::<Companion>().child.lock().unwrap() = Some(child);
@@ -266,6 +300,9 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
                         let line = line.trim();
                         println!("{line}");
                         note(&app, line);
+                        if let Some(code) = line.strip_prefix("PUNCHBOARD_LANGUAGE ") {
+                            follow_language(&app, code.trim());
+                        }
                         if let Some(value) = line.strip_prefix("PUNCHBOARD_READY ") {
                             if let Ok(ready) = value.trim().parse::<u16>() {
                                 *app.state::<Companion>().port.lock().unwrap() = Some(ready);
@@ -300,7 +337,8 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
                     if !still_served {
                         eprintln!("The companion stopped ({status:?}).");
                         note(&app, &format!("The companion stopped ({status:?})."));
-                        show_problem(&app, format!("exit code {}", status.code.map(|c| c.to_string()).unwrap_or_else(|| "unknown".into())));
+                        let code = status.code.map(|c| c.to_string()).unwrap_or_else(|| tr(&app, "desktop.problem.unknown", "unknown", &[]));
+                        show_problem(&app, tr(&app, "desktop.problem.exitCode", "exit code {code}", &[("code", &code)]));
                     }
                     break;
                 }
@@ -352,48 +390,48 @@ fn check_for_updates(app: &AppHandle, manual: bool) {
         }
         *updates.checking.lock().unwrap() = true;
         if manual {
-            let _ = updates.item.set_text("Checking for updates…");
+            let _ = updates.item.set_text(tr(&app, "desktop.tray.checking", "Checking for updates…", &[]));
         }
         let found = match updater(&app) {
             Ok(updater) => updater.check().await,
             Err(error) => Err(error),
         };
+        // A short answer in the menu, then back to the usual label.
+        let say_briefly = |text: String| {
+            let _ = updates.item.set_text(text);
+            let item = updates.item.clone();
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move {
+                tokio_sleep(Duration::from_secs(4)).await;
+                let _ = item.set_text(check_label(&app));
+            });
+        };
         match found {
             Ok(Some(update)) => {
                 let version = update.version.clone();
-                let _ = updates.item.set_text(format!("Downloading version {version}…"));
+                let _ = updates.item.set_text(tr(&app, "desktop.tray.downloading", "Downloading version {version}…", &[("version", &version)]));
                 let _ = updates.item.set_enabled(false);
                 match download(update).await {
                     Ok(installer) => {
                         *updates.ready.lock().unwrap() = Some(Ready { version: version.clone(), installer });
-                        let _ = updates.item.set_text(format!("Restart to update to {version}"));
+                        let _ = updates.item.set_text(restart_label(&app, &version));
                     }
                     Err(error) => {
                         eprintln!("Update download failed: {error}");
-                        let _ = updates.item.set_text(CHECK_LABEL);
+                        let _ = updates.item.set_text(check_label(&app));
                     }
                 }
                 let _ = updates.item.set_enabled(true);
             }
             Ok(None) => {
                 if manual {
-                    let _ = updates.item.set_text("Punchboard is up to date");
-                    let item = updates.item.clone();
-                    tauri::async_runtime::spawn(async move {
-                        tokio_sleep(Duration::from_secs(4)).await;
-                        let _ = item.set_text(CHECK_LABEL);
-                    });
+                    say_briefly(tr(&app, "desktop.tray.upToDate", "Punchboard is up to date", &[]));
                 }
             }
             Err(error) => {
                 eprintln!("Update check failed: {error}");
                 if manual {
-                    let _ = updates.item.set_text("Could not check (offline?)");
-                    let item = updates.item.clone();
-                    tauri::async_runtime::spawn(async move {
-                        tokio_sleep(Duration::from_secs(4)).await;
-                        let _ = item.set_text(CHECK_LABEL);
-                    });
+                    say_briefly(tr(&app, "desktop.tray.checkFailed", "Could not check (offline?)", &[]));
                 }
             }
         }
@@ -432,11 +470,11 @@ fn restart_to_update(app: &AppHandle) {
         let message = format!("Update {} could not be installed: {error}", ready.version);
         eprintln!("{message}");
         note(app, &message);
-        let _ = app.state::<Updates>().item.set_text(CHECK_LABEL);
+        let _ = app.state::<Updates>().item.set_text(check_label(app));
         // Keep serving decks on this version.
         *app.state::<Companion>().quitting.lock().unwrap() = false;
         if let Err(error) = start_companion(app, false) {
-            show_problem(app, format!("could not start again: {error}"));
+            show_problem(app, tr(app, "desktop.problem.restartFailed", "could not start again: {error}", &[("error", &error.to_string())]));
         }
     }
 }
@@ -445,18 +483,62 @@ async fn tokio_sleep(duration: Duration) {
     let _ = tauri::async_runtime::spawn_blocking(move || std::thread::sleep(duration)).await;
 }
 
+/// The menu's fixed items, kept to be reworded when the language changes.
+struct TrayItems {
+    open: MenuItem<tauri::Wry>,
+    pair: MenuItem<tauri::Wry>,
+    login: CheckMenuItem<tauri::Wry>,
+    quit: MenuItem<tauri::Wry>,
+}
+
+fn open_label(app: &AppHandle) -> String {
+    tr(app, "desktop.tray.open", "Open Control Center", &[])
+}
+fn pair_label(app: &AppHandle) -> String {
+    tr(app, "desktop.tray.pair", "Pair a device…", &[])
+}
+fn login_label(app: &AppHandle) -> String {
+    tr(app, "desktop.tray.login", "Open at login", &[])
+}
+fn quit_label(app: &AppHandle) -> String {
+    tr(app, "desktop.tray.quit", "Quit Punchboard", &[])
+}
+
+/// The companion said which language it speaks: the menu follows. An update
+/// item showing progress keeps it; it says the usual label again after.
+fn follow_language(app: &AppHandle, code: &str) {
+    if !language::load(app, code) {
+        return;
+    }
+    let items = app.state::<TrayItems>();
+    let _ = items.open.set_text(open_label(app));
+    let _ = items.pair.set_text(pair_label(app));
+    let _ = items.login.set_text(login_label(app));
+    let _ = items.quit.set_text(quit_label(app));
+    let updates = app.state::<Updates>();
+    if *updates.checking.lock().unwrap() {
+        return;
+    }
+    let version = updates.ready.lock().unwrap().as_ref().map(|ready| ready.version.clone());
+    let _ = updates.item.set_text(match version {
+        Some(version) => restart_label(app, &version),
+        None => check_label(app),
+    });
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open Control Center", true, None::<&str>)?;
-    let pair = MenuItem::with_id(app, "pair", "Pair a device…", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", open_label(app), true, None::<&str>)?;
+    let pair = MenuItem::with_id(app, "pair", pair_label(app), true, None::<&str>)?;
     let login_enabled = app.autolaunch().is_enabled().unwrap_or(false);
-    let login = CheckMenuItem::with_id(app, "login", "Open at login", true, login_enabled, None::<&str>)?;
-    let update = MenuItem::with_id(app, "update", CHECK_LABEL, true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit Punchboard", true, None::<&str>)?;
+    let login = CheckMenuItem::with_id(app, "login", login_label(app), true, login_enabled, None::<&str>)?;
+    let update = MenuItem::with_id(app, "update", check_label(app), true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", quit_label(app), true, None::<&str>)?;
     let menu = Menu::with_items(
         app,
         &[&open, &pair, &PredefinedMenuItem::separator(app)?, &login, &update, &PredefinedMenuItem::separator(app)?, &quit],
     )?;
     app.manage(Updates { item: update, ready: Mutex::new(None), checking: Mutex::new(false) });
+    app.manage(TrayItems { open, pair, login: login.clone(), quit });
 
     let login_item = login.clone();
     // macOS draws menu-bar icons from their shape alone (a template), tinted
@@ -506,9 +588,11 @@ fn main() {
         .plugin(tauri_plugin_autostart::init(MacosLauncher::LaunchAgent, Some(vec![HIDDEN_ARG])))
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(Companion::default())
+        .manage(Language::default())
         .setup(|app| {
             let handle = app.handle().clone();
             let show_window = !std::env::args().any(|arg| arg == HIDDEN_ARG);
+            language::init(&handle);
             build_tray(&handle)?;
             if show_window {
                 open_window(&handle, "/designer");

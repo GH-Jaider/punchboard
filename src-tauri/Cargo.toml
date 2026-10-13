@@ -16,6 +16,7 @@ tauri-plugin-autostart = "2"
 tauri-plugin-updater = "2"
 serde_json = "1"
 dunce = "1"
+sys-locale = "0.3"
 
 [profile.release]
 codegen-units = 1
