@@ -22,7 +22,7 @@ import type {
   PointerNotice,
   AppsResponse,
   AudioAppsResponse,
-  ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LevelsResponse,
+  ClaimResponse, DevicesResponse, ErrorResponse, GlyphResponse, GoogleIconsResponse, HelloResponse, LanguagesResponse, LevelsResponse,
   NewCodeResponse, Ok, PairInfo, PressResponse, SaveLibraryResponse, SettingsResponse, SettingsSaved, SignedFields,
   SoundsChanged, SoundsResponse, StatusResponse, TraceSaved
 } from "../shared/api.ts"
@@ -52,6 +52,7 @@ import { loadConfig, saveConfig } from "./config.ts"
 import { createLive } from "./events.ts"
 import { createGoogleIcons } from "./google-icons.ts"
 import { HttpError, JSON_LIMIT, SECURITY_HEADERS, errorText, jsonBody, rawBody, sendJson, staticFile } from "./http.ts"
+import { isLanguageSetting, languageCodes, languageFor, languages, LOCALES_DIR, render, say, textOf, useLanguageSetting } from "./i18n.ts"
 import type { Request } from "./http.ts"
 import { createLibraryStore } from "./library.ts"
 import { getLocalIPv4, ownHostnames } from "./net.ts"
@@ -79,6 +80,8 @@ const log = (message: string): void => console.log(`[punchboard] ${message}`)
 
 migrateLegacyData(log)
 const config = loadConfig(paths.config, log)
+// Replies are worded in this language, or each asker's own under "auto".
+useLanguageSetting(() => config.language)
 /** PUNCHBOARD_PORT overrides the saved port for this run only (used by tests). */
 const PORT_OVERRIDE = Number(process.env.PUNCHBOARD_PORT) || 0
 /** The port actually listened on, settled at start-up (see claimPort). */
@@ -139,6 +142,7 @@ const player = createPlayer({
 const live = createLive({
   accent: () => config.theme.accent,
   theme: () => config.theme.name,
+  language: () => config.language,
   libraryRev: library.revision,
   build: () => build,
   obs: () => obs.status(),
@@ -337,7 +341,15 @@ function route<T>(method: Route["method"], pattern: string | RegExp, access: Acc
 const routes: Route[] = [
   // --- pairing
   // Public on purpose: the clock for signatures, and colours for the pairing screen.
-  route<HelloResponse>("GET", "/api/hello", "public", () => ({ serverTime: Date.now(), accent: config.theme.accent, theme: config.theme.name })),
+  route<HelloResponse>("GET", "/api/hello", "public", () => ({
+    serverTime: Date.now(),
+    accent: config.theme.accent,
+    theme: config.theme.name,
+    language: config.language,
+    languages: languageCodes()
+  })),
+  // The picker's list: whatever files public/locales holds right now.
+  route<LanguagesResponse>("GET", "/api/languages", "deck", () => ({ languages: languages() })),
   route<ClaimResponse>("POST", "/api/pair/claim", "public", async ({ req }) => {
     const data = await jsonBody(req)
     try {
@@ -413,12 +425,14 @@ const routes: Route[] = [
     platform: process.platform,
     version: VERSION,
     desktop: DESKTOP,
-    supportNote: !config.supportShown
+    supportNote: !config.supportShown,
+    language: config.language
   })),
   route<SettingsSaved>("PUT", "/api/settings", "local", async ({ req }) => {
     const data = await jsonBody(req)
-    if (data.accent && !isHexColor(data.accent)) throw new HttpError(400, "Choose a six-digit colour.")
-    if (data.theme !== undefined && !isThemeId(data.theme)) throw new HttpError(400, "That theme does not exist.")
+    if (data.accent && !isHexColor(data.accent)) throw new HttpError(400, say("server.settings.badColour"))
+    if (data.theme !== undefined && !isThemeId(data.theme)) throw new HttpError(400, say("server.settings.badTheme"))
+    if (data.language !== undefined && !isLanguageSetting(data.language)) throw new HttpError(400, say("server.settings.badLanguage"))
     // Checked before anything is saved, so a rejected address changes nothing
     // (and does not stop Punchboard following OBS's own settings).
     const obsAddress = typeof data.obsAddress === "string" ? data.obsAddress.trim() : null
@@ -433,9 +447,10 @@ const routes: Route[] = [
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
     if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
     if (data.supportShown === true) config.supportShown = true
+    if (isLanguageSetting(data.language)) config.language = data.language
     writeConfig()
     live.broadcast()
-    return { ok: true, accent: config.theme.accent, theme: config.theme.name }
+    return { ok: true, accent: config.theme.accent, theme: config.theme.name, language: config.language }
   }),
 
   // --- pressing: the server runs the saved button, never steps from the request
@@ -680,9 +695,17 @@ async function handle(req: Request, res: ServerResponse): Promise<void> {
     return
   }
 
+  // The locale files come from LOCALES_DIR, the same folder /api/languages
+  // lists (public/locales, unless a test points it elsewhere).
+  const locale = /^\/locales\/([^/]+\.json)$/.exec(url.pathname)
+  if (locale) {
+    const file = path.resolve(LOCALES_DIR, locale[1]!)
+    if (path.dirname(file) !== LOCALES_DIR) throw new HttpError(403, "Forbidden")
+    return staticFile(res, file, req)
+  }
   const file = path.resolve(PUBLIC_DIR, PAGES[url.pathname] ?? url.pathname.replace(/^\/+/, ""))
   if (!file.startsWith(PUBLIC_DIR + path.sep)) throw new HttpError(403, "Forbidden")
-  staticFile(res, file)
+  staticFile(res, file, req)
 }
 
 const server = http.createServer((req, res) => {
@@ -691,9 +714,13 @@ const server = http.createServer((req, res) => {
     // Refused before its body was read (too large, unsigned): the reply goes
     // out first, then the connection closes rather than waiting for the rest.
     const headers: Record<string, string> = req.complete ? {} : { Connection: "close" }
-    if (error instanceof HttpError) return sendJson(res, error.status, { error: error.message, ...error.extra } satisfies ErrorResponse, headers)
+    // Worded for whoever asked; the English stays in error.message for logs.
+    if (error instanceof HttpError) {
+      const message = error.text ? render(error.text, languageFor(req)) : error.message
+      return sendJson(res, error.status, { error: message, ...error.extra } satisfies ErrorResponse, headers)
+    }
     log(`Request failed: ${errorText(error)}`)
-    sendJson(res, 500, { error: errorText(error) || "Something went wrong" } satisfies ErrorResponse, headers)
+    sendJson(res, 500, { error: render(textOf(error), languageFor(req)) || render(say("server.request.failed"), languageFor(req)) } satisfies ErrorResponse, headers)
   })
 })
 

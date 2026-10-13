@@ -4,7 +4,8 @@ import type { Snapshot, StatusResponse } from "../../shared/api.ts"
 import { applyAccent } from "../common/dom.ts"
 import { toast } from "./hub.ts"
 import { request } from "../common/http.ts"
-import { activeTheme, setTheme } from "./appearance.ts"
+import { languageSetting } from "../common/i18n.ts"
+import { activeTheme, followLanguage, setTheme } from "./appearance.ts"
 import { showObsLink } from "./obs.ts"
 import { noteObsLink } from "./obs-names.ts"
 import { showDeviceCount } from "./pairing.ts"
@@ -20,6 +21,8 @@ let knownSoundsRev: number | null = null
 function handle(state: Snapshot): void {
   if (state.accent) applyAccent(state.accent)
   if (state.theme && state.theme !== activeTheme()) setTheme(state.theme)
+  // Another window changed the language: this one follows, in place.
+  if (state.language && state.language !== languageSetting()) void followLanguage(state.language)
   if (knownSoundsRev !== null && state.soundsRev !== knownSoundsRev) void loadSounds()
   knownSoundsRev = state.soundsRev
   // Another window saved: follow it, unless an edit here is on its way (that

@@ -1,0 +1,24 @@
+{
+  "meta": {
+    "name": "Español",
+    "code": "es"
+  },
+  "messages": {
+    "designer.appearance.accentSaved": "Color de la interfaz guardado para todos los decks.",
+    "designer.appearance.dark": "Oscuro",
+    "designer.appearance.hardwareMode": "Hardware claro u oscuro",
+    "designer.appearance.language": "Idioma",
+    "designer.appearance.languageAuto": "Automático (idioma del sistema)",
+    "designer.appearance.languageHelp": "Automático usa el idioma de cada dispositivo, o inglés si Punchboard no lo tiene.",
+    "designer.appearance.languageSaved": "Idioma guardado para todos los decks.",
+    "designer.appearance.light": "Claro",
+    "designer.appearance.themeApplied": "Tema {theme} aplicado a todos los decks.",
+    "designer.appearance.themeDark": "{theme} (oscuro)",
+    "designer.save.couldNotLoad": "No se pudo cargar",
+    "designer.save.inSync": "Guardado · decks sincronizados",
+    "server.request.failed": "Algo salió mal",
+    "server.settings.badColour": "Elige un color de seis dígitos.",
+    "server.settings.badLanguage": "No hay un archivo para ese idioma en public/locales.",
+    "server.settings.badTheme": "Ese tema no existe."
+  }
+}

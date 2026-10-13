@@ -19,8 +19,10 @@ export function checker() {
 }
 
 /** Starts a companion; `config` is written to its config.json first, and
-    `files` ({ "decks/library.json": text }) into its data folder. */
-export function startCompanion({ config, files = {} } = {}) {
+    `files` ({ "decks/library.json": text }) into its data folder, and `env`
+    added to its environment. It speaks English unless told otherwise, so
+    the tests pass on a computer set to any language. */
+export function startCompanion({ config, files = {}, env = {} } = {}) {
   const port = 18000 + Math.floor(Math.random() * 1000)
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-test-"))
   if (config) fs.writeFileSync(path.join(dataDir, "config.json"), JSON.stringify(config))
@@ -31,7 +33,7 @@ export function startCompanion({ config, files = {} } = {}) {
   // Pointer commands always go to a file, so no test can move the real mouse.
   const pointerLog = process.env.PUNCHBOARD_POINTER_LOG || path.join(dataDir, "pointer.log")
   const child = spawn(process.execPath, ["src/server/main.ts"], {
-    env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1", PUNCHBOARD_POINTER_LOG: pointerLog },
+    env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1", PUNCHBOARD_POINTER_LOG: pointerLog, PUNCHBOARD_LOCALE: "en", ...env },
     stdio: ["pipe", "pipe", "inherit"]
   })
   let out = ""

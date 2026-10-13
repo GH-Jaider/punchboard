@@ -5,6 +5,7 @@ import { nameDecksWith } from "../../shared/actions.ts"
 import { isStateful, normalizeLibrary, shownProfiles } from "../../shared/model.ts"
 import type { Button } from "../../shared/types.ts"
 import { applyAccent, applyTheme } from "../common/dom.ts"
+import { languageForSetting, languageSetting, noteLanguages, pageLanguage } from "../common/i18n.ts"
 import { api, eventsUrl, UnpairedError, whenUnreachable, withTimeout } from "./api.ts"
 import { levelFor, showLevel, syncFaders } from "./faders.ts"
 import { gridEl, openedByButton, renderGrid, renderProfiles } from "./grid.ts"
@@ -37,6 +38,13 @@ export function applyState(snapshot: Snapshot): void {
   if (snapshot.build) {
     if (loadedBuild === null) loadedBuild = snapshot.build
     else if (snapshot.build !== loadedBuild) return location.reload()
+  }
+  // A new language setting that changes what this deck speaks reloads it:
+  // like a new build, there is nothing on a deck to lose, and every text it
+  // drew is drawn again.
+  if (snapshot.language && snapshot.language !== languageSetting()) {
+    noteLanguages(snapshot.language)
+    if (languageForSetting(snapshot.language) !== pageLanguage()) return location.reload()
   }
   if (snapshot.accent) applyAccent(snapshot.accent)
   if (snapshot.theme) applyTheme(snapshot.theme)

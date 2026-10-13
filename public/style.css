@@ -615,6 +615,10 @@ select {
 .accent-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; border-radius: 50%; }
 .accent-row input[type="color"]::-webkit-color-swatch { border: 0; border-radius: 50%; }
 .accent-row input[type="color"]::-moz-color-swatch { border: 0; border-radius: 50%; }
+/* The language picker shares the accent row's frame; its select keeps to
+   its text rather than stretching across the dialog. */
+.language-row { cursor: default; }
+.language-row select { width: auto; min-width: 0; max-width: 65%; flex: 0 1 auto; }
 
 /* Theme picker (Appearance dialog). Each preview is drawn in its theme's
    own fixed colours, so all three keep their look whatever is active. */

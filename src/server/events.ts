@@ -9,6 +9,7 @@ import type { Player } from "./player.ts"
 export interface LiveSettings {
   accent: () => string
   theme: () => ThemeId
+  language: () => string
   libraryRev: () => number
   build: () => string
   obs: () => ObsLink
@@ -46,7 +47,8 @@ export function createLive(settings: LiveSettings, player: Player, soundVolume: 
       tablets: new Set([...listeners.values()].filter(Boolean)).size,
       build: settings.build(),
       accent: settings.accent(),
-      theme: settings.theme()
+      theme: settings.theme(),
+      language: settings.language()
     }
   }
 

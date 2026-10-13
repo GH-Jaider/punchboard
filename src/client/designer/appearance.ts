@@ -1,9 +1,12 @@
-// Theme and accent colour, applied here and pushed to every paired deck.
-import type { SettingsSaved } from "../../shared/api.ts"
+// Theme, accent colour and language, applied here and pushed to every paired deck.
+import type { LanguagesResponse, SettingsSaved } from "../../shared/api.ts"
+import { AUTO_LANGUAGE, t } from "../../shared/i18n.ts"
+import type { LanguageInfo } from "../../shared/i18n.ts"
 import { DEFAULT_THEME, isDarkVariant, THEMES, themeById, themeFamily } from "../../shared/themes.ts"
 import type { ThemeId } from "../../shared/types.ts"
 import { applyAccent, applyTheme, byId, el } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
+import { changeLanguage, languageForSetting, languageSetting, noteLanguages, onLanguageChange, pageLanguage } from "../common/i18n.ts"
 import { toast } from "./hub.ts"
 
 let currentTheme: ThemeId = DEFAULT_THEME
@@ -44,13 +47,13 @@ function renderThemes(): void {
 
 function modeSwitch(): HTMLElement {
   const row = el("div", "theme-mode")
-  row.appendChild(el("span", "field-label", "Hardware"))
+  row.appendChild(el("span", "field-label", themeById("hardware").label))
   const group = el("div", "segmented")
   group.setAttribute("role", "group")
-  group.setAttribute("aria-label", "Hardware light or dark")
+  group.setAttribute("aria-label", t("designer.appearance.hardwareMode"))
   const choices: ReadonlyArray<{ id: ThemeId; text: string }> = [
-    { id: "hardware", text: "Light" },
-    { id: "hardware-dark", text: "Dark" }
+    { id: "hardware", text: t("designer.appearance.light") },
+    { id: "hardware-dark", text: t("designer.appearance.dark") }
   ]
   for (const choice of choices) {
     const option = el("button", null, choice.text)
@@ -75,7 +78,8 @@ async function chooseTheme(id: ThemeId): Promise<void> {
   setTheme(id)
   try {
     await request<SettingsSaved>("/api/settings", { method: "PUT", json: { theme: id } })
-    toast(`${themeById(id).label}${isDarkVariant(id) ? " (dark)" : ""} theme applied to every deck.`)
+    const label = themeById(id).label
+    toast(t("designer.appearance.themeApplied", { theme: isDarkVariant(id) ? t("designer.appearance.themeDark", { theme: label }) : label }))
   } catch (error) {
     setTheme(previous)
     toast(errorMessage(error), true)
@@ -89,9 +93,61 @@ export function showAccent(accent: string): void {
   applyAccent(accent)
 }
 
+// --------------------------------------------------------------- language
+
+let languageList: LanguageInfo[] = []
+
+function renderLanguages(): void {
+  const picker = byId<HTMLSelectElement>("language-picker")
+  picker.innerHTML = ""
+  picker.appendChild(new Option(t("designer.appearance.languageAuto"), AUTO_LANGUAGE))
+  // Each language in its own name, as people look for it.
+  for (const language of languageList) picker.appendChild(new Option(language.name, language.code))
+  const setting = languageSetting()
+  picker.value = languageList.some((language) => language.code === setting) ? setting : AUTO_LANGUAGE
+}
+
+/** Fills the language picker from the files the companion has right now. */
+export async function showLanguage(): Promise<void> {
+  try {
+    languageList = (await request<LanguagesResponse>("/api/languages")).languages
+    noteLanguages(undefined, languageList.map((language) => language.code))
+  } catch {
+    // Without the list the picker still offers Automatic and what is in use.
+  }
+  renderLanguages()
+}
+
+/** Follows a language setting, from here or another window: the page
+    switches in place when it changes what this page speaks. */
+export async function followLanguage(setting: string): Promise<void> {
+  noteLanguages(setting)
+  const code = languageForSetting(setting)
+  if (code !== pageLanguage()) await changeLanguage(code)
+  renderLanguages()
+}
+
+async function chooseLanguage(setting: string): Promise<void> {
+  const previous = languageSetting()
+  if (setting === previous) return
+  try {
+    const saved = await request<SettingsSaved>("/api/settings", { method: "PUT", json: { language: setting } })
+    await followLanguage(saved.language)
+    toast(t("designer.appearance.languageSaved"))
+  } catch (error) {
+    noteLanguages(previous)
+    renderLanguages()
+    toast(errorMessage(error), true)
+  }
+}
+
 export function bindAppearance(): void {
   const dialog = byId<HTMLDialogElement>("dlg-appearance")
-  byId("appearance-btn").addEventListener("click", () => dialog.showModal())
+  byId("appearance-btn").addEventListener("click", () => {
+    dialog.showModal()
+    // A language file dropped in since the page loaded shows up here.
+    void showLanguage()
+  })
 
   const picker = byId<HTMLInputElement>("accent-picker")
   picker.addEventListener("input", () => {
@@ -102,9 +158,16 @@ export function bindAppearance(): void {
     try {
       const saved = await request<SettingsSaved>("/api/settings", { method: "PUT", json: { accent: picker.value } })
       applyAccent(saved.accent)
-      toast("Interface colour saved for every deck.")
+      toast(t("designer.appearance.accentSaved"))
     } catch (error) {
       toast(errorMessage(error), true)
     }
+  })
+
+  const languages = byId<HTMLSelectElement>("language-picker")
+  languages.addEventListener("change", () => void chooseLanguage(languages.value))
+  onLanguageChange(() => {
+    renderThemes()
+    renderLanguages()
   })
 }

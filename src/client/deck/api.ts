@@ -94,12 +94,17 @@ function sign(method: string, path: string, body: string): SignedFields | null {
   return device ? signRequest(device, method, path, body, serverNow(), nonce()) : null
 }
 
+/** The companion's public hello: its clock, colours and languages. */
+export async function fetchHello(): Promise<HelloResponse> {
+  return readJson<HelloResponse>(await fetch("/api/hello"))
+}
+
 /** Syncs the clock and paints the companion's colours, even before pairing. */
-export async function syncClock(): Promise<void> {
-  const hello = await readJson<HelloResponse>(await fetch("/api/hello"))
-  setServerTime(hello.serverTime)
-  applyAccent(hello.accent)
-  applyTheme(hello.theme)
+export async function syncClock(hello: Promise<HelloResponse> = fetchHello()): Promise<void> {
+  const answer = await hello
+  setServerTime(answer.serverTime)
+  applyAccent(answer.accent)
+  applyTheme(answer.theme)
 }
 
 export interface DeckRequest {

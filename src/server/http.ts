@@ -3,14 +3,20 @@ import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
 import type { ErrorResponse } from "../shared/api.ts"
+import { english, isText } from "./i18n.ts"
+import type { Said, Text } from "./i18n.ts"
 
+/** An error reply. Given a Text, it is worded in the asker's language when
+    it is sent (main.ts); its .message is the English, for logs. */
 export class HttpError extends Error {
   readonly status: number
   readonly extra: Omit<ErrorResponse, "error">
-  constructor(status: number, message: string, extra: Omit<ErrorResponse, "error"> = {}) {
-    super(message)
+  readonly text: Text | undefined
+  constructor(status: number, message: Said, extra: Omit<ErrorResponse, "error"> = {}) {
+    super(typeof message === "string" ? message : english(message))
     this.status = status
     this.extra = extra
+    this.text = isText(message) ? message : undefined
   }
 }
 
@@ -45,15 +51,29 @@ const STATIC_TYPES: Record<string, string> = {
   ".mp3": "audio/mpeg",
   ".woff2": "font/woff2",
   ".webmanifest": "application/manifest+json",
-  ".png": "image/png"
+  ".png": "image/png",
+  ".json": "application/json; charset=utf-8"
 }
 
-export function staticFile(res: ServerResponse, file: string): void {
-  fs.readFile(file, (error, data) => {
-    if (error) return sendJson(res, 404, { error: "Not found" } satisfies ErrorResponse)
+/** Serves a file. Browsers check back every time (no-cache) but, given the
+    request, a file they already hold is answered with a bodyless 304: every
+    page load asks for its locale file, and it rarely changes. */
+export function staticFile(res: ServerResponse, file: string, req?: IncomingMessage): void {
+  fs.stat(file, (statError, stats) => {
+    if (statError || !stats.isFile()) return sendJson(res, 404, { error: "Not found" } satisfies ErrorResponse)
+    const etag = `"${stats.size.toString(36)}-${Math.round(stats.mtimeMs).toString(36)}"`
     const type = STATIC_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream"
-    res.writeHead(200, { ...SECURITY_HEADERS, "Content-Type": type, "Content-Length": data.length, "Cache-Control": "no-cache" })
-    res.end(data)
+    const headers = { ...SECURITY_HEADERS, "Content-Type": type, "Cache-Control": "no-cache", ETag: etag }
+    if (req && req.headers["if-none-match"] === etag) {
+      res.writeHead(304, headers)
+      res.end()
+      return
+    }
+    fs.readFile(file, (error, data) => {
+      if (error) return sendJson(res, 404, { error: "Not found" } satisfies ErrorResponse)
+      res.writeHead(200, { ...headers, "Content-Length": data.length })
+      res.end(data)
+    })
   })
 }
 

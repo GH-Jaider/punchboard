@@ -1,9 +1,11 @@
 // The Control Center: builds decks on this computer and serves as its sound
 // output. This file wires the modules together and loads the first state.
-import type { Ok, SettingsResponse } from "../../shared/api.ts"
+import type { HelloResponse, Ok, SettingsResponse } from "../../shared/api.ts"
+import { t } from "../../shared/i18n.ts"
 import { byId } from "../common/dom.ts"
 import { errorMessage, request } from "../common/http.ts"
-import { bindAppearance, setTheme, showAccent } from "./appearance.ts"
+import { loadLanguage, noteLanguages, onLanguageChange } from "../common/i18n.ts"
+import { bindAppearance, setTheme, showAccent, showLanguage } from "./appearance.ts"
 import { watchEvents } from "./events.ts"
 import { bindGrid, refreshTile, renderGrid, select } from "./grid.ts"
 import { toast, view } from "./hub.ts"
@@ -30,28 +32,35 @@ function renderAll(): void {
 
 Object.assign(view, { renderAll, renderGrid, renderProfiles, renderInspector, renderSteps, refreshTile, syncOnIcon, select })
 
-bindGrid()
-bindProfiles()
-bindIconPicker()
-bindAppPicker()
-bindSounds()
-bindSoundOutput()
-bindAppearance()
-bindObs()
-bindPairing()
-
 // The desktop app's "Pair a device…" opens /designer#pair.
 function openPairingFromHash(): void {
   if (location.hash !== "#pair") return
   history.replaceState(null, "", location.pathname)
   byId("pair-btn").click()
 }
-window.addEventListener("hashchange", openPairingFromHash)
-openPairingFromHash()
-bindSession()
-bindSupport()
-bindSaving()
-bindDialogChrome()
+
+function bindAll(): void {
+  bindGrid()
+  bindProfiles()
+  bindIconPicker()
+  bindAppPicker()
+  bindSounds()
+  bindSoundOutput()
+  bindAppearance()
+  bindObs()
+  bindPairing()
+
+  window.addEventListener("hashchange", openPairingFromHash)
+  openPairingFromHash()
+  bindSession()
+  bindSupport()
+  bindSaving()
+  bindDialogChrome()
+  // A new language redraws what is on screen; dialogs draw their text as they open.
+  onLanguageChange(() => {
+    if (store.library) renderAll()
+  })
+}
 
 async function start(): Promise<void> {
   try {
@@ -69,20 +78,28 @@ async function start(): Promise<void> {
         request<Ok>("/api/open-deck", { method: "POST" }).catch((error: unknown) => toast(errorMessage(error), true))
       })
     }
+    noteLanguages(settings.language)
     showAccent(settings.accent)
     setTheme(settings.theme)
+    void showLanguage()
     showObsSettings(settings)
     showIntroIfNew()
     showSupportNote(settings)
 
-    setSaveState("", "Saved · decks in sync")
+    setSaveState("", t("designer.save.inSync"))
     renderAll()
     void loadSounds()
     watchEvents()
   } catch (error) {
-    setSaveState("error", "Could not load")
+    setSaveState("error", t("designer.save.couldNotLoad"))
     toast(errorMessage(error), true)
   }
 }
 
-void start()
+// Nothing is drawn until the language file is in, so the page never flashes
+// English first; the HTML's own English stays if it cannot be fetched.
+const ready = (): void => {
+  bindAll()
+  void start()
+}
+loadLanguage(request<HelloResponse>("/api/hello").catch(() => null)).then(ready, ready)

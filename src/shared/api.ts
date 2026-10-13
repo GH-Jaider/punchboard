@@ -2,6 +2,7 @@
 // clients both type against these, so a changed field breaks the build on
 // both sides instead of at runtime.
 import type { TouchFrame, TouchpadEvent } from "./touchpad/types.ts"
+import type { LanguageInfo } from "./i18n.ts"
 import type { Glyph, Library, ThemeId, TrackpadSettings } from "./types.ts"
 
 export interface ErrorResponse {
@@ -22,6 +23,16 @@ export interface HelloResponse {
   serverTime: number
   accent: string
   theme: ThemeId
+  /** The language setting: "auto" or a code (see LanguagesResponse). */
+  language: string
+  /** The codes there are locale files for, so a page can match its
+      browser's languages before it has paired. */
+  languages: string[]
+}
+
+/** The locale files in public/locales, for the Control Center's picker. */
+export interface LanguagesResponse {
+  languages: LanguageInfo[]
 }
 
 export interface DeviceCredentials {
@@ -147,6 +158,8 @@ export interface Snapshot {
   build: string
   accent: string
   theme: ThemeId
+  /** The language setting ("auto" or a code); pages follow a change. */
+  language: string
 }
 
 export interface StatusResponse extends Snapshot { ok: true }
@@ -221,6 +234,8 @@ export interface SettingsResponse {
   desktop: boolean
   /** The one-time Ko-fi note is still to be shown in the Control Center. */
   supportNote: boolean
+  /** "auto" (each device's own language) or a locale file's code. */
+  language: string
 }
 
 export interface SettingsUpdate {
@@ -230,11 +245,14 @@ export interface SettingsUpdate {
   obsPassword?: string
   /** The Ko-fi note was shown: it never comes back. */
   supportShown?: true
+  /** "auto" or the code of a file in public/locales. */
+  language?: string
 }
 
 export interface SettingsSaved extends Ok {
   accent: string
   theme: ThemeId
+  language: string
 }
 
 // ---------------------------------------------------------- press + faders
