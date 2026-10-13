@@ -3,6 +3,7 @@
 // revision, and repeated ids, slots and odd values are repaired. Also the
 // links people type.
 //   node tests/library.test.mjs
+import "./english.mjs"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"

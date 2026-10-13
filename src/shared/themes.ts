@@ -2,19 +2,28 @@
 // html[data-theme] (public/themes.css); `bg` feeds the browser's theme-color.
 // Hardware also comes dark: the same theme with html[data-mode="dark"],
 // stored as its own id so it travels to every deck like any other choice.
+import { t } from "./i18n.ts"
 import type { ThemeId } from "./types.ts"
 
 export interface Theme { id: ThemeId; label: string; hint: string; bg: string }
 
+/** A theme whose name and hint are read in the page's language when shown. */
+const theme = (id: ThemeId, bg: string): Theme => ({
+  id,
+  bg,
+  get label() { return t(`shared.theme.${id}.label`) },
+  get hint() { return t(`shared.theme.${id}.hint`) }
+})
+
 export const THEMES: readonly Theme[] = [
-  { id: "studio", label: "Studio", hint: "Dark and soft. The original look.", bg: "#0d0e11" },
-  { id: "hardware", label: "Hardware", hint: "Light chassis, physical keys.", bg: "#e4e2dc" },
-  { id: "broadcast", label: "Broadcast", hint: "Switcher console, hard edges.", bg: "#0b0b0b" }
+  theme("studio", "#0d0e11"),
+  theme("hardware", "#e4e2dc"),
+  theme("broadcast", "#0b0b0b")
 ]
 
 /** Variants that share a card with their family in the Appearance window. */
 const VARIANTS: readonly Theme[] = [
-  { id: "hardware-dark", label: "Hardware", hint: "Dark chassis, physical keys.", bg: "#1c1c1a" }
+  theme("hardware-dark", "#1c1c1a")
 ]
 const ALL_THEMES: readonly Theme[] = THEMES.concat(VARIANTS)
 

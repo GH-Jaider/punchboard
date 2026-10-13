@@ -3,6 +3,7 @@
 // "ctrl+shift+k". Keys are named after the physical key (KeyboardEvent.code),
 // so a combination recorded on one keyboard layout fires the same key on
 // another, which is how OBS hotkeys behave too.
+import { t } from "./i18n.ts"
 
 export type Modifier = "ctrl" | "alt" | "shift" | "meta"
 export const MODIFIERS: readonly Modifier[] = ["ctrl", "alt", "shift", "meta"]
@@ -90,10 +91,18 @@ export function comboFromEvent(event: KeyEventLike): string | null {
 
 const MAC_MODIFIER_GLYPHS: Record<Modifier, string> = { ctrl: "⌃", alt: "⌥", shift: "⇧", meta: "⌘" }
 const OTHER_MODIFIER_NAMES: Record<Modifier, string> = { ctrl: "Ctrl", alt: "Alt", shift: "Shift", meta: "Win" }
-const KEY_LABELS: Record<string, string> = {
-  enter: "Enter", space: "Space", tab: "Tab", escape: "Esc", backspace: "⌫", delete: "⌦",
-  up: "↑", down: "↓", left: "←", right: "→", home: "Home", end: "End", pageup: "PgUp", pagedown: "PgDn",
+// Symbols read the same everywhere; only the keys named with a word take
+// their name from the locale file ("Space" is "Espacio" on Spanish keyboards).
+const KEY_SYMBOLS: Record<string, string> = {
+  backspace: "⌫", delete: "⌦", up: "↑", down: "↓", left: "←", right: "→",
   minus: "-", equal: "=", comma: ",", period: ".", slash: "/", backquote: "`", bracketleft: "[", bracketright: "]", backslash: "\\", semicolon: ";", quote: "'"
+}
+const WORD_KEYS: readonly string[] = ["enter", "space", "tab", "escape", "home", "end", "pageup", "pagedown"]
+
+/** How a key is printed on the keyboard: a symbol, its name, or its letter. */
+function keyLabel(key: string): string {
+  if (WORD_KEYS.indexOf(key) !== -1) return t(`shared.key.${key}`)
+  return KEY_SYMBOLS[key] ?? key.toUpperCase()
 }
 
 /** One modifier's label, for the builder's toggles. */
@@ -103,7 +112,7 @@ export const modifierLabel = (modifier: Modifier, mac: boolean): string => (mac 
 export function formatCombo(text: string | undefined, mac: boolean): string {
   const combo = parseCombo(text)
   if (!combo) return ""
-  const key = KEY_LABELS[combo.key] ?? combo.key.toUpperCase()
+  const key = keyLabel(combo.key)
   if (mac) return combo.modifiers.map((modifier) => MAC_MODIFIER_GLYPHS[modifier]).join("") + key
   return combo.modifiers.map((modifier) => OTHER_MODIFIER_NAMES[modifier]).concat(key).join("+")
 }
@@ -128,8 +137,8 @@ export const currentKeyPlatform = (): KeyPlatform => keyPlatform(typeof navigato
     key codes for F21 to F24 (the server's MAC_CODES has none); Windows
     sends every key here by its scan code. */
 export function unsendableReason(key: string, platform: KeyPlatform): string | null {
-  if (platform === "other") return "Key combinations work on macOS and Windows only for now."
-  if (platform === "mac" && /^f(2[1-4])$/.test(key)) return `macOS cannot press ${key.toUpperCase()}: it has no key code for F21 to F24. Pick another key.`
+  if (platform === "other") return t("shared.keys.unsupportedPlatform")
+  if (platform === "mac" && /^f(2[1-4])$/.test(key)) return t("shared.keys.noMacKeyCode", { key: key.toUpperCase() })
   return null
 }
 

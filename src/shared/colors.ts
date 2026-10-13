@@ -1,5 +1,6 @@
 // Colour maths in plain hex, so old tablets need no oklch() or color-mix():
 // anything derived from a colour is computed here and handed to CSS.
+import { t } from "./i18n.ts"
 import type { ButtonColor, ButtonColorId, HexColor } from "./types.ts"
 
 export interface Rgb { r: number; g: number; b: number }
@@ -64,23 +65,30 @@ export const isVeryDark = (hex: string): boolean => relativeLuminance(hex) < 0.0
 
 export interface ColorPreset { id: ButtonColorId; label: string; value: string }
 
+/** A preset whose name is read in the page's language when it is shown. */
+const preset = (id: ButtonColorId, value: string): ColorPreset => ({
+  id,
+  value,
+  get label() { return t(`shared.color.${id}`) }
+})
+
 export const BUTTON_COLORS: readonly ColorPreset[] = [
-  { id: "accent", label: "Aqua", value: "#5fd0d6" },
-  { id: "blue", label: "Blue", value: "#69a9ff" },
-  { id: "indigo", label: "Indigo", value: "#8095ff" },
-  { id: "violet", label: "Violet", value: "#b18cd9" },
-  { id: "pink", label: "Pink", value: "#e982bd" },
-  { id: "rose", label: "Rose", value: "#e8778c" },
-  { id: "red", label: "Red", value: "#f06d6d" },
-  { id: "orange", label: "Orange", value: "#ed9a55" },
-  { id: "amber", label: "Amber", value: "#e0b95c" },
-  { id: "yellow", label: "Yellow", value: "#f2d85b" },
-  { id: "lime", label: "Lime", value: "#9ed36a" },
-  { id: "green", label: "Green", value: "#56c596" },
-  { id: "mint", label: "Mint", value: "#63d6b6" },
-  { id: "cyan", label: "Cyan", value: "#38c7e8" },
-  { id: "slate", label: "Slate", value: "#93a2ad" },
-  { id: "white", label: "White", value: "#eaf1f8" }
+  preset("accent", "#5fd0d6"),
+  preset("blue", "#69a9ff"),
+  preset("indigo", "#8095ff"),
+  preset("violet", "#b18cd9"),
+  preset("pink", "#e982bd"),
+  preset("rose", "#e8778c"),
+  preset("red", "#f06d6d"),
+  preset("orange", "#ed9a55"),
+  preset("amber", "#e0b95c"),
+  preset("yellow", "#f2d85b"),
+  preset("lime", "#9ed36a"),
+  preset("green", "#56c596"),
+  preset("mint", "#63d6b6"),
+  preset("cyan", "#38c7e8"),
+  preset("slate", "#93a2ad"),
+  preset("white", "#eaf1f8")
 ]
 
 export const isButtonColorId = (value: unknown): value is ButtonColorId => BUTTON_COLORS.some((color) => color.id === value)

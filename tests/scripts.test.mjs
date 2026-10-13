@@ -5,6 +5,7 @@
 // a script, presses a key or starts an app; tests/windows.test.mjs runs the
 // scripts themselves, dry, on Windows.
 //   node tests/scripts.test.mjs
+import "./english.mjs"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"

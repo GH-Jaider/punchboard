@@ -3,6 +3,7 @@
 // input into a valid Library or fills in safe defaults.
 import { isActionType, isFaderTarget, isMediaKey, isSetMode, LIMITS } from "./actions.ts"
 import { isButtonColor } from "./colors.ts"
+import { t } from "./i18n.ts"
 import { DEFAULT_FADER_GLYPH, DEFAULT_PRESS_GLYPH } from "./default-glyphs.ts"
 import { DEFAULT_ICON, isIconId, isSafeIconData, safeGlyph } from "./icons.ts"
 import { comboToString, parseCombo } from "./keys.ts"
@@ -168,7 +169,7 @@ function normalizeProfile(raw: unknown): Profile {
   const fields = isRecord(raw) ? raw : {}
   const profile: Profile = {
     id: text(fields.id) || nextId("profile"),
-    name: text(fields.name) || "My deck",
+    name: text(fields.name) || t("shared.model.defaultDeckName"),
     columns: clamp(Math.floor(Number(fields.columns)) || 4, LIMITS.columns.min, LIMITS.columns.max),
     rows: clamp(Math.floor(Number(fields.rows)) || 3, LIMITS.rows.min, LIMITS.rows.max),
     buttons: (Array.isArray(fields.buttons) ? fields.buttons : []).map(normalizeButton)
@@ -240,7 +241,7 @@ function repairIds(profiles: Profile[]): void {
 export function normalizeLibrary(raw: unknown): Library {
   const fields = isRecord(raw) ? raw : {}
   const profiles = (Array.isArray(fields.profiles) ? fields.profiles : []).map(normalizeProfile)
-  if (!profiles.length) profiles.push(createEmptyProfile("My deck"))
+  if (!profiles.length) profiles.push(createEmptyProfile(t("shared.model.defaultDeckName")))
   repairIds(profiles)
   const requested = text(fields.activeProfileId)
   const activeProfileId = profiles.some((profile) => profile.id === requested) ? requested! : profiles[0]!.id
@@ -315,5 +316,5 @@ export function faderLevelKey(fader: Fader): string {
 export function appDisplayName(fader: Fader): string {
   if (fader.appName) return fader.appName
   const key = fader.app ?? ""
-  return key ? key.charAt(0).toUpperCase() + key.slice(1) : "The app"
+  return key ? key.charAt(0).toUpperCase() + key.slice(1) : t("shared.model.unnamedApp")
 }

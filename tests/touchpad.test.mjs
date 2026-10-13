@@ -5,6 +5,7 @@
 //   node tests/touchpad.test.mjs
 //   FUZZ_RUNS=20000 node tests/touchpad.test.mjs   more random sequences
 //   FUZZ_SEED=1234 node tests/touchpad.test.mjs    replay one failing sequence
+import "./english.mjs"
 import fs from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"

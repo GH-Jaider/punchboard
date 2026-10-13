@@ -1,5 +1,6 @@
 // What each action is called, where it runs, and which fields it needs. The
 // Control Center builds its editors from these tables instead of if-chains.
+import { t } from "./i18n.ts"
 import { formatCombo, isMacLike } from "./keys.ts"
 import type { ActionType, FaderTarget, MediaKey, SetMode, Step, StepTextField } from "./types.ts"
 
@@ -7,29 +8,41 @@ export type ActionGroup = "OBS" | "This computer" | "On the deck" | "Other"
 
 export interface ActionMeta { label: string; group: ActionGroup; hint: string }
 
+/** An action's entry; its name and hint are read in the page's language when shown. */
+const actionMeta = (type: ActionType, group: ActionGroup): ActionMeta => ({
+  group,
+  get label() { return t(`shared.action.${type}.label`) },
+  get hint() { return t(`shared.action.${type}.hint`) }
+})
+
 export const ACTION_META: Readonly<Record<ActionType, ActionMeta>> = {
-  obs_scene: { label: "Switch scene", group: "OBS", hint: "Make an OBS scene the live program scene. The button lights up while that scene is live." },
-  obs_toggle_source: { label: "Show / hide source", group: "OBS", hint: "Toggle one source's visibility inside a scene. Lit while it is visible." },
-  obs_toggle_mute: { label: "Mute / unmute input", group: "OBS", hint: "Toggle mute on one OBS audio input. Lit while it is muted." },
-  obs_toggle_filter: { label: "Turn a filter on / off", group: "OBS", hint: "Switch one of a source's filters, such as a voice changer or a colour correction. Lit while it is on." },
-  obs_start_stop_stream: { label: "Start / stop stream", group: "OBS", hint: "Go live, or end the stream if it is already running. Lit while live." },
-  obs_toggle_record: { label: "Start / stop recording", group: "OBS", hint: "Begin recording, or stop and save the current take. Lit while recording." },
-  obs_toggle_virtualcam: { label: "Start / stop virtual camera", group: "OBS", hint: "OBS's output as a camera for Zoom, Meet or Discord. Lit while it runs." },
-  obs_save_replay: { label: "Save replay", group: "OBS", hint: "Saves the last moments from OBS's replay buffer. Lit while the buffer is running; start it in OBS (Start Replay Buffer)." },
-  obs_studio_transition: { label: "Studio Mode: send preview live", group: "OBS", hint: "In Studio Mode, puts the preview scene on air with the current transition." },
-  open_url: { label: "Open link on computer", group: "This computer", hint: "Opens in the default browser on the computer running Punchboard." },
-  launch_app: { label: "Launch an app", group: "This computer", hint: "Starts an application on the computer running Punchboard." },
-  play_sound: { label: "Play a sound", group: "This computer", hint: "Plays through the computer's speakers, not the device's. Press again to stop it." },
-  stop_sounds: { label: "Stop all sounds", group: "This computer", hint: "Silences every Punchboard sound that is playing." },
-  media_key: { label: "Music controls", group: "This computer", hint: "The play / pause and track keys, for whatever plays music on the computer: Spotify, Apple Music, YouTube in a browser." },
-  hotkey: { label: "Key combination", group: "This computer", hint: "Presses keys on this computer as if typed, for an OBS hotkey or any app's shortcut. They go to whatever is in front, so global hotkeys work best." },
-  go_to_deck: { label: "Go to another deck", group: "On the deck", hint: "Switches the device that pressed it to another deck, like a folder. Add a button there to come back." },
-  browser_tile: { label: "Open link on the device", group: "On the deck", hint: "Opens a site in the device's own browser, for chat or a dashboard." },
-  none: { label: "Do nothing", group: "Other", hint: "A spacer or a label-only tile." }
+  obs_scene: actionMeta("obs_scene", "OBS"),
+  obs_toggle_source: actionMeta("obs_toggle_source", "OBS"),
+  obs_toggle_mute: actionMeta("obs_toggle_mute", "OBS"),
+  obs_toggle_filter: actionMeta("obs_toggle_filter", "OBS"),
+  obs_start_stop_stream: actionMeta("obs_start_stop_stream", "OBS"),
+  obs_toggle_record: actionMeta("obs_toggle_record", "OBS"),
+  obs_toggle_virtualcam: actionMeta("obs_toggle_virtualcam", "OBS"),
+  obs_save_replay: actionMeta("obs_save_replay", "OBS"),
+  obs_studio_transition: actionMeta("obs_studio_transition", "OBS"),
+  open_url: actionMeta("open_url", "This computer"),
+  launch_app: actionMeta("launch_app", "This computer"),
+  play_sound: actionMeta("play_sound", "This computer"),
+  stop_sounds: actionMeta("stop_sounds", "This computer"),
+  media_key: actionMeta("media_key", "This computer"),
+  hotkey: actionMeta("hotkey", "This computer"),
+  go_to_deck: actionMeta("go_to_deck", "On the deck"),
+  browser_tile: actionMeta("browser_tile", "On the deck"),
+  none: actionMeta("none", "Other")
 }
 
 export const ACTION_TYPES = Object.keys(ACTION_META) as ActionType[]
 export const ACTION_GROUPS: readonly ActionGroup[] = ["OBS", "This computer", "On the deck", "Other"]
+
+const GROUP_KEYS: Readonly<Record<ActionGroup, string>> = { OBS: "obs", "This computer": "computer", "On the deck": "deck", Other: "other" }
+
+/** A group's name as the action picker shows it. */
+export const actionGroupLabel = (group: ActionGroup): string => t(`shared.actionGroup.${GROUP_KEYS[group]}`)
 
 export const isActionType = (value: unknown): value is ActionType => typeof value === "string" && Object.prototype.hasOwnProperty.call(ACTION_META, value)
 
@@ -39,14 +52,21 @@ export const STATEFUL_ACTIONS: readonly ActionType[] = [
   "obs_toggle_filter", "obs_toggle_virtualcam", "obs_save_replay"
 ]
 
+/** How each on/off action words its three modes, read in the page's language. */
+const setLabels = (type: ActionType): Readonly<Record<SetMode, string>> => ({
+  get toggle() { return t(`shared.setMode.${type}.toggle`) },
+  get on() { return t(`shared.setMode.${type}.on`) },
+  get off() { return t(`shared.setMode.${type}.off`) }
+})
+
 /** How each on/off action words its three modes. */
 export const SET_LABELS: Readonly<Partial<Record<ActionType, Readonly<Record<SetMode, string>>>>> = {
-  obs_toggle_mute: { toggle: "Mute / unmute", on: "Mute", off: "Unmute" },
-  obs_toggle_source: { toggle: "Show / hide", on: "Show source", off: "Hide source" },
-  obs_toggle_filter: { toggle: "Turn on / off", on: "Turn filter on", off: "Turn filter off" },
-  obs_start_stop_stream: { toggle: "Start / stop", on: "Start stream", off: "Stop stream" },
-  obs_toggle_record: { toggle: "Start / stop", on: "Start recording", off: "Stop recording" },
-  obs_toggle_virtualcam: { toggle: "Start / stop", on: "Start virtual camera", off: "Stop virtual camera" }
+  obs_toggle_mute: setLabels("obs_toggle_mute"),
+  obs_toggle_source: setLabels("obs_toggle_source"),
+  obs_toggle_filter: setLabels("obs_toggle_filter"),
+  obs_start_stop_stream: setLabels("obs_start_stop_stream"),
+  obs_toggle_record: setLabels("obs_toggle_record"),
+  obs_toggle_virtualcam: setLabels("obs_toggle_virtualcam")
 }
 export const SET_MODES: readonly SetMode[] = ["toggle", "on", "off"]
 export const isSetMode = (value: unknown): value is SetMode => value === "toggle" || value === "on" || value === "off"
@@ -57,7 +77,11 @@ export function setModeOf(step: Step): SetMode | null {
   return (step as { set?: SetMode }).set ?? "toggle"
 }
 
-export const MEDIA_KEYS: Readonly<Record<MediaKey, string>> = { play_pause: "Play / pause", next: "Next track", previous: "Previous track" }
+export const MEDIA_KEYS: Readonly<Record<MediaKey, string>> = {
+  get play_pause() { return t("shared.mediaKey.play_pause") },
+  get next() { return t("shared.mediaKey.next") },
+  get previous() { return t("shared.mediaKey.previous") }
+}
 export const isMediaKey = (value: unknown): value is MediaKey => typeof value === "string" && Object.prototype.hasOwnProperty.call(MEDIA_KEYS, value)
 
 /** Which list of names from OBS a field picks from (see ObsNames). */
@@ -65,19 +89,30 @@ export type ObsPick = "scene" | "sceneItem" | "audioInput" | "filterSource" | "f
 
 export interface FieldSpec { key: StepTextField; label: string; placeholder: string; pick?: ObsPick }
 
+/** A field of an action's editor; its label and placeholder are read in the page's language. */
+function field(type: ActionType, key: StepTextField, pick?: ObsPick): FieldSpec {
+  const spec: FieldSpec = {
+    key,
+    get label() { return t(`shared.field.${type}.${key}.label`) },
+    get placeholder() { return t(`shared.field.${type}.${key}.placeholder`) }
+  }
+  if (pick) spec.pick = pick
+  return spec
+}
+
 export const ACTION_FIELDS: Readonly<Partial<Record<ActionType, readonly FieldSpec[]>>> = {
-  obs_scene: [{ key: "sceneName", label: "Scene", placeholder: "Exact OBS scene name", pick: "scene" }],
+  obs_scene: [field("obs_scene", "sceneName", "scene")],
   obs_toggle_source: [
-    { key: "sceneName", label: "Scene", placeholder: "Exact OBS scene name", pick: "scene" },
-    { key: "sourceName", label: "Source", placeholder: "Exact OBS source name", pick: "sceneItem" }
+    field("obs_toggle_source", "sceneName", "scene"),
+    field("obs_toggle_source", "sourceName", "sceneItem")
   ],
-  obs_toggle_mute: [{ key: "sourceName", label: "Audio input", placeholder: "Exact OBS input name", pick: "audioInput" }],
+  obs_toggle_mute: [field("obs_toggle_mute", "sourceName", "audioInput")],
   obs_toggle_filter: [
-    { key: "sourceName", label: "Source", placeholder: "Exact OBS source or scene name", pick: "filterSource" },
-    { key: "filterName", label: "Filter", placeholder: "Exact filter name", pick: "filter" }
+    field("obs_toggle_filter", "sourceName", "filterSource"),
+    field("obs_toggle_filter", "filterName", "filter")
   ],
-  open_url: [{ key: "url", label: "Link", placeholder: "example.com" }],
-  browser_tile: [{ key: "url", label: "Link", placeholder: "example.com" }]
+  open_url: [field("open_url", "url")],
+  browser_tile: [field("browser_tile", "url")]
 }
 
 /** Reads a text field from any step; undefined when that step type has none. */
@@ -95,19 +130,19 @@ export function nameDecksWith(lookup: (profileId: string) => string | undefined)
 function stepDetail(step: Step): string {
   switch (step.type) {
     case "launch_app": return step.appName || step.appPath || ""
-    case "play_sound": return `Sound ${step.soundId ?? 1}`
+    case "play_sound": return t("shared.step.sound", { number: step.soundId ?? 1 })
     case "hotkey": return formatCombo(step.keys, isMacLike())
     case "media_key": return step.mediaKey ? MEDIA_KEYS[step.mediaKey] : ""
     case "go_to_deck": return (step.profileId && deckName(step.profileId)) || ""
     case "obs_toggle_source": return step.sourceName || step.sceneName || ""
-    case "obs_toggle_filter": return step.filterName ? `${step.filterName}${step.sourceName ? ` on ${step.sourceName}` : ""}` : step.sourceName || ""
+    case "obs_toggle_filter": return step.filterName ? (step.sourceName ? t("shared.step.filterOn", { filter: step.filterName, source: step.sourceName }) : step.filterName) : step.sourceName || ""
     default: return stepText(step, "sceneName") || stepText(step, "sourceName") || stepText(step, "url") || ""
   }
 }
 
 /** One-line description of a step, for collapsed step lists and screen readers. */
 export function stepSummary(step: Step | undefined): string {
-  if (!step) return "Empty step"
+  if (!step) return t("shared.step.empty")
   const detail = stepDetail(step)
   // "Mute · Mic" says more than "Mute / unmute input · Mic" once the mode is fixed.
   const mode = setModeOf(step)
@@ -117,11 +152,17 @@ export function stepSummary(step: Step | undefined): string {
 
 export interface FaderTargetMeta { label: string; hint: string }
 
+/** A fader target's entry, read in the page's language. */
+const faderTarget = (target: FaderTarget): FaderTargetMeta => ({
+  get label() { return t(`shared.fader.${target}.label`) },
+  get hint() { return t(`shared.fader.${target}.hint`) }
+})
+
 export const FADER_TARGETS: Readonly<Record<FaderTarget, FaderTargetMeta>> = {
-  obs_input: { label: "OBS input volume", hint: "The volume of one OBS audio source, on the same curve as OBS's own mixer." },
-  sounds: { label: "Punchboard sounds volume", hint: "How loud Play a sound buttons are on this computer." },
-  system: { label: "This computer's volume", hint: "The main output volume of the computer running Punchboard." },
-  app: { label: "App volume", hint: "The volume of one application on the computer running Punchboard." }
+  obs_input: faderTarget("obs_input"),
+  sounds: faderTarget("sounds"),
+  system: faderTarget("system"),
+  app: faderTarget("app")
 }
 
 export const isFaderTarget = (value: unknown): value is FaderTarget => typeof value === "string" && Object.prototype.hasOwnProperty.call(FADER_TARGETS, value)
