@@ -4,6 +4,7 @@
 //   node tests/security.test.mjs
 // "Remote" requests go to this machine's LAN address, which the server
 // treats like any tablet.
+import "./english.mjs"
 import crypto from "node:crypto"
 import fs from "node:fs"
 import http from "node:http"

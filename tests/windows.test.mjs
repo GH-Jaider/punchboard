@@ -8,6 +8,7 @@
 // (no volume is changed: that app cannot exist). Elsewhere it reports itself
 // skipped. Nothing is heard on CI.
 //   node tests/windows.test.mjs
+import "./english.mjs"
 import { spawn } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"

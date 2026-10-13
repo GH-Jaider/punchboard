@@ -4,6 +4,7 @@
 import { execFile } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
+import { UserError } from "./i18n.ts"
 
 /** A PowerShell single-quoted string literal holding `text` exactly.
     PowerShell takes the typographic quotes ‘ ’ ‚ ‛ (U+2018 to U+201B) for a
@@ -90,8 +91,9 @@ export function runPowerShell(body: string, timeoutMs = 15000): Promise<string> 
       if (!error) return resolve(stdout)
       // Without a message of its own, the error's text would be the whole
       // command line, encoded script included.
-      const fallback = error.killed ? "PowerShell did not finish in time." : `PowerShell stopped with code ${String(error.code)}.`
-      reject(new Error(cleanPowerShellError(stderr) || fallback))
+      const message = cleanPowerShellError(stderr)
+      if (message) return reject(new Error(message))
+      reject(error.killed ? new UserError("server.powershell.timeout") : new UserError("server.powershell.exitCode", { code: String(error.code) }))
     })
   })
 }

@@ -162,12 +162,15 @@ export function languageFor(req: { headers: Record<string, string | string[] | u
 
 /** This computer's own language, for what the companion makes before anyone
     asks (the starter decks of a fresh install). The desktop app passes the
-    system's in PUNCHBOARD_LOCALE; from a terminal, LANG and friends say it. */
+    system's in PUNCHBOARD_LOCALE (a comma-separated list, most wanted
+    first); from a terminal, LANG and friends say it. */
 export function systemLanguage(): string {
   const env = process.env
   const named = [env.PUNCHBOARD_LOCALE, env.LC_ALL, env.LC_MESSAGES, env.LANG]
     .filter((value): value is string => Boolean(value) && value !== "C" && value !== "POSIX")
-    .map((value) => value.split(".")[0]!)
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim().split(".")[0]!)
+    .filter(Boolean)
   let intl = ""
   try { intl = Intl.DateTimeFormat().resolvedOptions().locale } catch { /* no Intl */ }
   if (intl) named.push(intl)

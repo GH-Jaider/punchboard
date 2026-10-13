@@ -10,14 +10,17 @@ import fs from "node:fs"
 import type { ChildProcess } from "node:child_process"
 import { spawn as spawnApp } from "node:child_process"
 import type { PointerMessage } from "../shared/api.ts"
+import { say } from "./i18n.ts"
+import type { Text } from "./i18n.ts"
 import { powershellExe } from "./powershell.ts"
 
 export interface PointerOptions {
   /** helpers/mac-pointer.js */
   macHelper: string
   log: (message: string) => void
-  /** A problem worth showing on the deck, such as a missing permission. */
-  onProblem: (message: string) => void
+  /** A problem worth showing on the deck, such as a missing permission;
+      worded for each deck when it is sent. */
+  onProblem: (message: Text) => void
 }
 
 export type Pointer = ReturnType<typeof createPointer>
@@ -207,7 +210,7 @@ export function createPointer(options: PointerOptions & {
     if (Date.now() < retryAt) return null
     const child = options.spawn ? options.spawn() : spawnHelper(options.macHelper)
     if (!child) {
-      if (!reported) options.onProblem("The trackpad works on macOS and Windows only for now.")
+      if (!reported) options.onProblem(say("server.trackpad.unsupported"))
       reported = true
       return null
     }
@@ -226,8 +229,8 @@ export function createPointer(options: PointerOptions & {
         if (!problem) continue
         options.log(`Trackpad: ${problem}`)
         options.onProblem(/not allowed/i.test(problem)
-          ? "macOS needs permission first: System Settings › Privacy & Security › Accessibility, allow Punchboard (or Terminal when run from source)."
-          : `The computer refused the trackpad: ${problem}`)
+          ? say("server.trackpad.macPermission")
+          : say("server.trackpad.refused", { reason: problem }))
       }
     })
     const gone = (): void => {
@@ -247,7 +250,7 @@ export function createPointer(options: PointerOptions & {
       if (quickDeaths >= DEATHS_REPORTED && !reported) {
         reported = true
         options.log("The trackpad helper keeps stopping; trying again less often.")
-        options.onProblem("The trackpad helper on this computer keeps stopping. Restart Punchboard; if it goes on, check that nothing blocks osascript or PowerShell.")
+        options.onProblem(say("server.trackpad.keepsStopping"))
       }
     }
     child.on("error", (error) => {

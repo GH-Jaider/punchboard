@@ -13,6 +13,8 @@ import { isLibraryShape, normalizeLibrary } from "../shared/model.ts"
 import { starterLibrary } from "../shared/starter-decks.ts"
 import type { Button, FaderButton, Library } from "../shared/types.ts"
 import { errorText, HttpError } from "./http.ts"
+import { english, say, textOf } from "./i18n.ts"
+import type { Text } from "./i18n.ts"
 import { isObject, readJsonSafe, snapshotDaily, UnreadableFileError, writeJsonAtomic } from "./store.ts"
 
 export type LibraryStore = ReturnType<typeof createLibraryStore>
@@ -21,10 +23,10 @@ const emptyLibrary = (): Library => normalizeLibrary({ version: 1, activeProfile
 
 export function createLibraryStore(file: string, log: (message: string) => void) {
   /** Why saving is refused, when the file on disk must not be replaced. */
-  let readOnly: string | null = null
+  let readOnly: Text | null = null
   /** A problem found with the file at start-up, for the Control Center to
-      show. The next successful save clears it. */
-  let notice: string | null = null
+      show (worded for whoever loads the deck). The next successful save clears it. */
+  let notice: Text | null = null
 
   /** A path as the person finds it in the data folder, e.g. "decks/library.json.corrupt-…". */
   const shown = (target: string): string => path.join(path.basename(path.dirname(target)), path.basename(target))
@@ -54,18 +56,18 @@ export function createLibraryStore(file: string, log: (message: string) => void)
     const firstStart = !fs.existsSync(file) && !fs.existsSync(`${file}.bak`)
     const newer = newerVersion()
     if (newer !== null) {
-      readOnly = `Your decks file (${shown(file)}) was saved by a newer version of Punchboard (format ${newer}). It was left untouched; update Punchboard to use those decks. Until then, changes here cannot be saved.`
+      readOnly = say("server.library.newerVersion", { file: shown(file), format: newer })
       notice = readOnly
-      log(readOnly)
+      log(english(readOnly))
       return emptyLibrary()
     }
     try {
       const result = readJsonSafe(file, isLibraryShape)
       if (result.source === "backup") {
         notice = fs.existsSync(result.aside)
-          ? `Your decks file was damaged, so the previous save was restored. The damaged copy was set aside as ${shown(result.aside)}.`
-          : "Your decks file was missing, so the previous save was restored."
-        log(notice)
+          ? say("server.library.restoredDamaged", { file: shown(result.aside) })
+          : say("server.library.restoredMissing")
+        log(english(notice))
         // Put the recovered deck back on disk now, not at the next edit.
         try {
           writeJsonAtomic(file, result.data, { backup: false })
@@ -76,10 +78,8 @@ export function createLibraryStore(file: string, log: (message: string) => void)
       if (result.data) return normalizeLibrary(result.data)
     } catch (error) {
       const aside = error instanceof UnreadableFileError && fs.existsSync(error.aside) ? shown(error.aside) : null
-      notice = aside
-        ? `Your decks file was damaged and was set aside as ${aside}, so Punchboard started with an empty deck. Restore it from a file you saved with Back up, or from a daily snapshot in decks/backups.`
-        : "Your decks file could not be read, so Punchboard started with an empty deck. Restore it from a file you saved with Back up, or from a daily snapshot in decks/backups."
-      log(`${errorText(error)} ${notice}`)
+      notice = aside ? say("server.library.damaged", { file: aside }) : say("server.library.unreadable")
+      log(`${errorText(error)} ${english(notice)}`)
     }
     // A first start gets the starter decks, so a device does something the
     // moment it pairs. A file that was there but could not be read gets an
@@ -102,7 +102,7 @@ export function createLibraryStore(file: string, log: (message: string) => void)
     get: (): Library => library,
     revision: (): number => revision,
     /** A start-up problem with the deck file worth telling the person about, or null. */
-    notice: (): string | null => notice,
+    notice: (): Text | null => notice,
     /** Replaces the library. Returns the new revision. The file is written
         first, so a failed write leaves both memory and disk as they were. */
     save(next: Library): number {
@@ -110,7 +110,7 @@ export function createLibraryStore(file: string, log: (message: string) => void)
       try {
         write(next)
       } catch (error) {
-        throw new HttpError(500, `The decks could not be saved, so nothing changed: ${errorText(error)}`)
+        throw new HttpError(500, say("server.library.saveFailed", { reason: textOf(error) }))
       }
       library = next
       revision += 1

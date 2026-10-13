@@ -3,6 +3,7 @@
 // The companion writes pointer commands to a file here (PUNCHBOARD_POINTER_LOG),
 // so the mouse of the computer running the test never moves.
 //   node tests/trackpad.test.mjs
+import "./english.mjs"
 import { spawn } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"

@@ -7,6 +7,7 @@
 // and Music and Spotify are never started. On Windows the routes only meet an
 // app that does not exist, which changes nothing.
 //   node tests/app-volume.test.mjs
+import "./english.mjs"
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import os from "node:os"
@@ -16,6 +17,10 @@ import { latestWins, latestWinsPerKey } from "../src/server/latest-wins.ts"
 import { BRIDGE, parseAppList } from "../src/server/win-volume.ts"
 import { AppNotPlayingError, MAC_APPS, macVolumeScript } from "../src/server/app-volume.ts"
 import { createAppLevels } from "../src/server/app-levels.ts"
+import { english } from "../src/server/i18n.ts"
+
+/** A list's note in English (the companion words it for each request). */
+const noteOf = (list) => (list.note ? english(list.note) : "")
 import { createLive } from "../src/server/events.ts"
 import { findChrome, launchChrome } from "./chrome.mjs"
 import { checker, JSON_TYPE, LAN, startCompanion } from "./companion.mjs"
@@ -214,7 +219,7 @@ if (process.platform !== "win32") {
     check("Windows: a drag's levels are coalesced, newest last", sets.join("|") === "app-set 0.100 chrome|app-set 0.400 chrome" && JSON.parse(fs.readFileSync(winState, "utf8")).chrome.level === 0.4, `${sets.join("|")} answered ${writes.join(",")}`)
     writeWin({})
     const empty = await windows.list()
-    check("Windows: no app playing gives an empty list with a hint", empty.apps.length === 0 && /No app is playing/.test(empty.note ?? ""), JSON.stringify(empty))
+    check("Windows: no app playing gives an empty list with a hint", empty.apps.length === 0 && /No app is playing/.test(noteOf(empty)), JSON.stringify(empty))
     stopWindowsVolume()
 
     // --- macOS, through the stand-in osascript
@@ -225,7 +230,7 @@ if (process.platform !== "win32") {
     check("Mac: the list offers Music and Spotify, and which is running", JSON.stringify(macList.apps) === JSON.stringify([
       { key: "music", name: "Music", running: false, level: null },
       { key: "spotify", name: "Spotify", running: true, level: 0.3 }
-    ]) && /only Music and Spotify/.test(macList.note ?? ""), JSON.stringify(macList))
+    ]) && /only Music and Spotify/.test(noteOf(macList)), JSON.stringify(macList))
     check("Mac: a level set reads back", (await mac.write("spotify", "Spotify", 0.55)) === 0.55 && (await mac.read("spotify")) === 0.55, fs.readFileSync(macState, "utf8"))
     const closed = await failed(mac.write("music", "Music", 0.5))
     check("Mac: a write to a closed app says so, kindly", closed instanceof AppNotPlayingError && closed.message === "Music is not open on this computer right now. Open it first, then try again.", String(closed))
@@ -248,7 +253,7 @@ if (process.platform !== "win32") {
     // --- elsewhere
     const linux = appVolumeFor("linux")
     const linuxList = await linux.list()
-    check("Linux: an empty list with a note", linuxList.apps.length === 0 && /Windows and macOS only/.test(linuxList.note ?? ""), JSON.stringify(linuxList))
+    check("Linux: an empty list with a note", linuxList.apps.length === 0 && /Windows and macOS only/.test(noteOf(linuxList)), JSON.stringify(linuxList))
     check("Linux: a write is refused in words", /Windows and macOS only/.test(String(await failed(linux.write("x", "X", 0.5)))), "no refusal")
   }
   process.env.PATH = savedPath
@@ -265,7 +270,7 @@ if (process.platform !== "win32") {
   const player = { playing: () => [] }
   let appLevels = null
   const live = createLive({
-    accent: () => "#000000", theme: () => "studio", libraryRev: () => 1, build: () => "b", obs: () => "disconnected", obsIssue: () => null,
+    accent: () => "#000000", theme: () => "studio", language: () => "auto", libraryRev: () => 1, build: () => "b", obs: () => "disconnected", obsIssue: () => null,
     soundDuration: () => null, soundFile: () => "", devicesChanged: () => appLevels?.update()
   }, player, 1)
   let library = normalizeLibrary({ version: 1, activeProfileId: "p", profiles: [{ id: "p", name: "P", buttons: [

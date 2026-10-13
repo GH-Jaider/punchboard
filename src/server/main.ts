@@ -52,7 +52,7 @@ import { loadConfig, saveConfig } from "./config.ts"
 import { createLive } from "./events.ts"
 import { createGoogleIcons } from "./google-icons.ts"
 import { HttpError, JSON_LIMIT, SECURITY_HEADERS, errorText, jsonBody, rawBody, sendJson, staticFile } from "./http.ts"
-import { isLanguageSetting, languageCodes, languageFor, languages, LOCALES_DIR, render, say, textOf, useLanguageSetting } from "./i18n.ts"
+import { isLanguageSetting, languageCodes, languageFor, languages, LOCALES_DIR, render, say, systemLanguage, textOf, useLanguageSetting } from "./i18n.ts"
 import type { Request } from "./http.ts"
 import { createLibraryStore } from "./library.ts"
 import { getLocalIPv4, ownHostnames } from "./net.ts"
@@ -279,16 +279,16 @@ async function requireDeck(req: Request, url: URL, bodyLimit = JSON_LIMIT): Prom
     : { device: header(req, "x-punchboard-device"), time: header(req, "x-punchboard-time"), nonce: header(req, "x-punchboard-nonce"), signature: header(req, "x-punchboard-signature") }
   // A request that is not signed by a paired device is refused before its
   // body is read: nobody unpaired gets to make the companion take in a megabyte.
-  if (!signed.device || !auth.has(signed.device)) throw new HttpError(401, "This deck is not paired with the companion.", { code: "unpaired", serverTime: Date.now() })
+  if (!signed.device || !auth.has(signed.device)) throw new HttpError(401, say("server.auth.unpaired"), { code: "unpaired", serverTime: Date.now() })
   if (!/^\d{1,16}$/.test(signed.time ?? "") || !/^[0-9a-f]{16,64}$/.test(signed.nonce ?? "") || !/^[0-9a-f]{64}$/.test(signed.signature ?? "")) {
-    throw new HttpError(401, "The request is not signed.", { code: "bad_signature", serverTime: Date.now() })
+    throw new HttpError(401, say("server.auth.unsigned"), { code: "bad_signature", serverTime: Date.now() })
   }
   const method = req.method ?? "GET"
   const body = method === "GET" || method === "HEAD" ? "" : (await rawBody(req, bodyLimit)).toString("utf8")
   try {
     return auth.verify(signed, method, url.pathname, body, req.socket.remoteAddress)
   } catch (error) {
-    if (error instanceof AuthError) throw new HttpError(401, error.message, { code: error.code, serverTime: Date.now() })
+    if (error instanceof AuthError) throw new HttpError(401, error.text, { code: error.code, serverTime: Date.now() })
     throw error
   }
 }
@@ -300,13 +300,16 @@ const deckUrl = (): string => `http://${getLocalIPv4()}:${PORT}`
 // in a Referer.
 const pairUrl = (): string => `${deckUrl()}/deck#pair=${auth.currentCode().code}`
 
+/** A name for a device that did not give one, in the language of the
+    pairing request: it is stored as it is, like any name typed in. */
 function deviceName(req: Request): string {
   const agent = String(req.headers["user-agent"] ?? "")
-  if (/iPad|Macintosh.*Mobile/.test(agent)) return "iPad"
-  if (/iPhone/.test(agent)) return "iPhone"
-  if (/Android/.test(agent)) return /Mobile/.test(agent) ? "Android phone" : "Android tablet"
-  if (/Windows/.test(agent)) return "Windows browser"
-  return "Browser"
+  const name = (kind: string): string => render(say(`server.device.${kind}`), languageFor(req))
+  if (/iPad|Macintosh.*Mobile/.test(agent)) return name("ipad")
+  if (/iPhone/.test(agent)) return name("iphone")
+  if (/Android/.test(agent)) return /Mobile/.test(agent) ? name("androidPhone") : name("androidTablet")
+  if (/Windows/.test(agent)) return name("windows")
+  return name("browser")
 }
 
 const audioType = (value: string): AudioType | null => (value === "audio/wav" ? "audio/wav" : value === "audio/mpeg" || value === "audio/mp3" ? "audio/mpeg" : null)
@@ -358,7 +361,7 @@ const routes: Route[] = [
       if (!DESKTOP) log(`The next device pairs with code ${auth.currentCode().code}, or the QR at http://localhost:${PORT}/pair.`)
       return { device: { id: device.id, secret: device.secret, name: device.name }, serverTime: Date.now() }
     } catch (error) {
-      if (error instanceof AuthError) throw new HttpError(error.code === "locked" ? 429 : 400, error.message, { code: error.code })
+      if (error instanceof AuthError) throw new HttpError(error.code === "locked" ? 429 : 400, error.text, { code: error.code })
       throw error
     }
   }),
@@ -377,7 +380,7 @@ const routes: Route[] = [
   }),
   route<DevicesResponse>("DELETE", /^\/api\/devices\/(dev_[0-9a-f]+)$/, "local", ({ params }) => {
     const id = params[1] ?? ""
-    if (!auth.remove(id)) throw new HttpError(404, "That device is not paired.")
+    if (!auth.remove(id)) throw new HttpError(404, say("server.pair.noDevice"))
     live.disconnectDevice(id)
     for (const [ws, owner] of pointerSockets) if (owner === id) ws.close()
     return { ok: true, devices: auth.list() }
@@ -390,22 +393,22 @@ const routes: Route[] = [
   route<StatusResponse>("GET", "/api/status", "deck", () => ({ ok: true, ...live.snapshot() })),
 
   // --- the deck library
-  route<void>("GET", "/api/library", "deck", ({ res }) => {
+  route<void>("GET", "/api/library", "deck", ({ req, res }) => {
     const headers: Record<string, string> = { "X-Library-Rev": String(library.revision()) }
     // A damaged or too-new deck file, for the Control Center to explain once.
     const notice = library.notice()
-    if (notice) headers["X-Library-Notice"] = encodeURIComponent(notice)
+    if (notice) headers["X-Library-Notice"] = encodeURIComponent(render(notice, languageFor(req)))
     sendJson(res, 200, library.get(), headers)
   }),
   route<SaveLibraryResponse>("PUT", "/api/library", "local", async ({ req, url }) => {
     const data = await jsonBody(req, LIBRARY_LIMIT)
-    if (!isLibraryShape(data)) throw new HttpError(400, "That is not a valid deck library.")
+    if (!isLibraryShape(data)) throw new HttpError(400, say("server.library.invalid"))
     // Every save names the revision it was edited from; one without it could
     // silently overwrite another window's work.
     const baseRev = url.searchParams.get("rev")
-    if (!baseRev) throw new HttpError(428, "A deck save must say which version it was edited from (?rev=).")
+    if (!baseRev) throw new HttpError(428, say("server.library.noRev"))
     if (Number(baseRev) !== library.revision()) {
-      throw new HttpError(409, "This deck was changed in another window. Reloading the latest version.", { libraryRev: library.revision() })
+      throw new HttpError(409, say("server.library.conflict"), { libraryRev: library.revision() })
     }
     const libraryRev = library.save(normalizeLibrary(data))
     live.broadcast()
@@ -437,7 +440,7 @@ const routes: Route[] = [
     // (and does not stop Punchboard following OBS's own settings).
     const obsAddress = typeof data.obsAddress === "string" ? data.obsAddress.trim() : null
     if (obsAddress && (obsAddress.length >= 160 || !/^wss?:\/\/[^\s/]+/i.test(obsAddress))) {
-      throw new HttpError(400, "The OBS address starts with ws:// (or wss://) and the computer running OBS, like ws://192.168.1.20:4455.")
+      throw new HttpError(400, say("server.settings.badObsAddress"))
     }
     if (isHexColor(data.accent)) config.theme.accent = data.accent
     if (isThemeId(data.theme)) config.theme.name = data.theme
@@ -447,7 +450,10 @@ const routes: Route[] = [
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
     if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
     if (data.supportShown === true) config.supportShown = true
-    if (isLanguageSetting(data.language)) config.language = data.language
+    if (isLanguageSetting(data.language) && data.language !== config.language) {
+      config.language = data.language
+      desktopLanguage()
+    }
     writeConfig()
     live.broadcast()
     return { ok: true, accent: config.theme.accent, theme: config.theme.name, language: config.language }
@@ -457,15 +463,15 @@ const routes: Route[] = [
   route<PressResponse>("POST", "/api/press", "deck", async ({ req }) => {
     const data = await jsonBody(req)
     const button = library.findButton(data.profileId, data.buttonId)
-    if (!button) throw new HttpError(404, "That button no longer exists. The deck will refresh.")
-    if (button.control === "fader") throw new HttpError(400, "That is a fader; drag it instead.")
+    if (!button) throw new HttpError(404, say("server.press.noButton"))
+    if (button.control === "fader") throw new HttpError(400, say("server.press.isFader"))
     // A two-state macro runs its first list when off and its second when on.
     const stateKey = buttonStateKey(button)
     // Its state is read now and flipped only when the list has run, so a
     // second press while the first runs (another device, another tab) would
     // read the same state and run the same list again. It is refused instead.
     const busyKey = isSwitch(button) ? `${String(data.profileId)}\n${button.id}` : null
-    if (busyKey !== null && busySwitches.has(busyKey)) throw new HttpError(409, "This button is still running its last press. Try again when it finishes.")
+    if (busyKey !== null && busySwitches.has(busyKey)) throw new HttpError(409, say("server.press.busy"))
     const switchedOn = isSwitch(button) && stateKey !== null && live.toggleValue(stateKey)
     const steps = prepareSteps(switchedOn ? button.offSteps ?? [] : button.steps)
     let result
@@ -473,7 +479,7 @@ const routes: Route[] = [
     try {
       result = await runSteps(steps, { config, obs, onSound: live.toggleSound, stopSounds: live.stopAllSounds })
     } catch (error) {
-      throw new HttpError(400, errorText(error))
+      throw new HttpError(400, textOf(error))
     } finally {
       if (busyKey !== null) busySwitches.delete(busyKey)
     }
@@ -489,7 +495,7 @@ const routes: Route[] = [
     if (typeof result.active === "boolean") response.active = result.active
     // "Do nothing" steps (pauses) are not worth counting.
     const ran = steps.filter((step) => step.type !== "none").length
-    if (ran > 1) response.message = `Ran ${ran} steps`
+    if (ran > 1) response.message = render(say("server.press.ranSteps", { count: ran }), languageFor(req))
     return response
   }),
 
@@ -497,9 +503,9 @@ const routes: Route[] = [
   route<LevelsResponse>("POST", "/api/volume", "deck", async ({ req }) => {
     const data = await jsonBody(req)
     // Checked first: a missing or non-numeric level must never reach a fader as 0.
-    if (!isLevel(data.level)) throw new HttpError(400, "The level must be a number from 0 to 1.")
+    if (!isLevel(data.level)) throw new HttpError(400, say("server.volume.badLevel"))
     const button = library.findButton(data.profileId, data.buttonId)
-    if (!button || button.control !== "fader") throw new HttpError(404, "That fader no longer exists.")
+    if (!button || button.control !== "fader") throw new HttpError(404, say("server.volume.noFader"))
     const key = faderLevelKey(button.fader)
     if (button.fader.target === "app") appLevels.noteWrite(key)
     try {
@@ -507,7 +513,7 @@ const routes: Route[] = [
     } catch (error) {
       // A closed (or, on Windows, silent) app has no level any deck can show.
       if (error instanceof AppNotPlayingError) live.dropLevels([key])
-      throw new HttpError(400, errorText(error))
+      throw new HttpError(400, textOf(error))
     }
     live.broadcast()
     return { ok: true, levels: live.levels }
@@ -533,7 +539,7 @@ const routes: Route[] = [
   route<SoundsChanged>("PUT", /^\/api\/sounds\/([1-8])$/, "local", async ({ req, params }) => {
     const type = audioType(String(req.headers["content-type"] ?? "").split(";")[0] ?? "")
     const data = await rawBody(req, LIMITS.maxSoundBytes)
-    if (!type || !isAudio(data, type)) throw new HttpError(400, "That file is not a readable WAV or MP3.")
+    if (!type || !isAudio(data, type)) throw new HttpError(400, say("server.sounds.unreadable"))
     const slot = Number(params[1])
     // The old sound stops first: it would play on, let go of its file late
     // (Windows), and teach the new file its run time.
@@ -545,13 +551,13 @@ const routes: Route[] = [
   // Puts a slot back to the generated tone it shipped with.
   route<SoundsChanged>("DELETE", /^\/api\/sounds\/([1-8])$/, "local", async ({ params }) => {
     const slot = Number(params[1])
-    if (!sounds.isCustom(slot)) throw new HttpError(400, "That slot already holds the built-in tone.")
+    if (!sounds.isCustom(slot)) throw new HttpError(400, say("server.sounds.alreadyBuiltIn"))
     await player.stopAndWait(slot)
-    if (!sounds.revert(slot)) throw new HttpError(400, "That slot already holds the built-in tone.")
+    if (!sounds.revert(slot)) throw new HttpError(400, say("server.sounds.alreadyBuiltIn"))
     live.soundsChanged()
     return { ok: true, slots: sounds.slots() }
   }),
-  route<void>("GET", /^\/api\/sounds\/([1-8])\/file$/, "local", ({ res, params }) => staticFile(res, sounds.file(Number(params[1])).file)),
+  route<void>("GET", /^\/api\/sounds\/([1-8])\/file$/, "local", ({ req, res, params }) => staticFile(res, sounds.file(Number(params[1])).file, req)),
   // The audio tab reports a sound that finished on its own.
   // The Control Center learns an MP3's length when it plays it; WAVs are read from their header.
   // Previews play the same way a deck press does, through this computer's speakers.
@@ -566,12 +572,21 @@ const routes: Route[] = [
 
   route<AppsResponse>("GET", "/api/apps", "local", () => ({ apps: listApps() })),
   // The apps an App volume fader can control, for the Control Center's picker.
-  route<AudioAppsResponse>("GET", "/api/apps/audio", "local", async () => {
+  route<AudioAppsResponse>("GET", "/api/apps/audio", "local", async ({ req }) => {
+    let found
     try {
-      return await appVolume.list()
+      found = await appVolume.list()
     } catch (error) {
-      throw new HttpError(502, `Could not list the apps playing sound. (${errorText(error)})`)
+      throw new HttpError(502, say("server.apps.audioListFailed", { reason: textOf(error) }))
     }
+    const language = languageFor(req)
+    // Apple's Music is called what the Mac calls it in that language (Música).
+    const apps = found.platform === "darwin"
+      ? found.apps.map((app) => (app.key === "music" ? { ...app, name: render(say("server.apps.macMusic"), language) } : app))
+      : found.apps
+    const response: AudioAppsResponse = { platform: found.platform, apps }
+    if (found.note) response.note = render(found.note, language)
+    return response
   }),
 
   // The desktop app's window opens no new tabs: Open deck asks for the deck in
@@ -580,7 +595,7 @@ const routes: Route[] = [
     try {
       await open(`http://localhost:${PORT}/deck`)
     } catch (error) {
-      throw new HttpError(500, `Could not open the browser. (${errorText(error)})`)
+      throw new HttpError(500, say("server.open.browserFailed", { reason: textOf(error) }))
     }
     return { ok: true }
   }),
@@ -591,7 +606,7 @@ const routes: Route[] = [
     try {
       await open(SUPPORT_URL)
     } catch (error) {
-      throw new HttpError(500, `Could not open the browser. (${errorText(error)})`)
+      throw new HttpError(500, say("server.open.browserFailed", { reason: textOf(error) }))
     }
     return { ok: true }
   }),
@@ -602,7 +617,7 @@ const routes: Route[] = [
     try {
       return await readObsNames(await obs.connect())
     } catch (error) {
-      throw new HttpError(502, `Could not read the names from OBS. (${errorText(error)})`)
+      throw new HttpError(502, say("server.obs.namesFailed", { reason: textOf(error) }))
     }
   }),
 
@@ -618,7 +633,7 @@ const routes: Route[] = [
     try {
       return { icons: await googleIcons.loadCatalog() }
     } catch (error) {
-      throw new HttpError(502, errorText(error))
+      throw new HttpError(502, textOf(error))
     }
   }),
   route<GlyphResponse>("GET", "/api/icons/google/glyph", "local", async ({ url }) => {
@@ -626,7 +641,7 @@ const routes: Route[] = [
     try {
       return await googleIcons.loadGlyph(params.get("name") ?? "", params.get("style") ?? "outlined", params.get("fill") === "1")
     } catch (error) {
-      throw new HttpError(400, errorText(error))
+      throw new HttpError(400, textOf(error))
     }
   }),
 
@@ -637,7 +652,7 @@ const routes: Route[] = [
     const events = Array.isArray(data.events) ? data.events : []
     const wellFormed = frames.length > 0 && frames.length <= TRACE_LIMITS.frames && events.length <= TRACE_LIMITS.events
       && frames.every(isTouchFrame) && events.every(isTouchpadEvent)
-    if (!wellFormed) throw new HttpError(400, "That is not a trackpad trace.")
+    if (!wellFormed) throw new HttpError(400, say("server.trackpad.badTrace"))
     const trace: TouchpadTrace = {
       version: 1,
       recordedAt: new Date().toISOString(),
@@ -680,14 +695,14 @@ const PAGES: Record<string, string> = { "/": "deck.html", "/deck": "deck.html", 
 async function handle(req: Request, res: ServerResponse): Promise<void> {
   const url = new URL(req.url ?? "/", "http://localhost")
   const method = req.method ?? "GET"
-  if (!hostAllowed(req)) throw new HttpError(403, "Open Punchboard by this computer's address, as printed when the companion started.")
-  if (method !== "GET" && method !== "HEAD" && !originAllowed(req)) throw new HttpError(403, "Requests from other sites are refused.")
+  if (!hostAllowed(req)) throw new HttpError(403, say("server.request.wrongHost"))
+  if (method !== "GET" && method !== "HEAD" && !originAllowed(req)) throw new HttpError(403, say("server.request.otherSite"))
 
   if (url.pathname.startsWith("/api/")) {
     const found = matchRoute(method, url.pathname)
-    if (!found) throw new HttpError(404, "Not found")
+    if (!found) throw new HttpError(404, say("server.request.notFound"))
     if (found.route.access === "local" && !isLocal(req)) {
-      throw new HttpError(403, `That is only available on the computer running the companion, at http://localhost:${PORT}.`)
+      throw new HttpError(403, say("server.request.localOnly", { address: `http://localhost:${PORT}` }))
     }
     const device = found.route.access === "deck" ? await requireDeck(req, url, found.route.bodyLimit) : null
     const body = await found.route.handler({ req, res, url, params: found.params, device })
@@ -700,11 +715,11 @@ async function handle(req: Request, res: ServerResponse): Promise<void> {
   const locale = /^\/locales\/([^/]+\.json)$/.exec(url.pathname)
   if (locale) {
     const file = path.resolve(LOCALES_DIR, locale[1]!)
-    if (path.dirname(file) !== LOCALES_DIR) throw new HttpError(403, "Forbidden")
+    if (path.dirname(file) !== LOCALES_DIR) throw new HttpError(403, say("server.request.forbidden"))
     return staticFile(res, file, req)
   }
   const file = path.resolve(PUBLIC_DIR, PAGES[url.pathname] ?? url.pathname.replace(/^\/+/, ""))
-  if (!file.startsWith(PUBLIC_DIR + path.sep)) throw new HttpError(403, "Forbidden")
+  if (!file.startsWith(PUBLIC_DIR + path.sep)) throw new HttpError(403, say("server.request.forbidden"))
   staticFile(res, file, req)
 }
 
@@ -730,12 +745,17 @@ const server = http.createServer((req, res) => {
 // rules as every request.
 /** Open trackpads, each with its device id ("" for this computer). */
 const pointerSockets = new Map<WebSocket, string>()
+/** The language each trackpad asked in when it connected, for its notices. */
+const pointerLanguages = new Map<WebSocket, string>()
 const pointer = createPointer({
   macHelper: path.join(paths.helpers, "mac-pointer.js"),
   log,
   onProblem: (message) => {
-    const payload = JSON.stringify({ error: message } satisfies PointerNotice)
-    for (const socket of pointerSockets.keys()) if (socket.readyState === socket.OPEN) socket.send(payload)
+    for (const socket of pointerSockets.keys()) {
+      if (socket.readyState !== socket.OPEN) continue
+      const language = pointerLanguages.get(socket) ?? languageFor({ headers: {} })
+      socket.send(JSON.stringify({ error: render(message, language) } satisfies PointerNotice))
+    }
   }
 })
 const pointerServer = new WebSocketServer({ noServer: true, maxPayload: 1024 })
@@ -758,6 +778,7 @@ server.on("upgrade", (req: Request, socket, head) => {
       if (socket.destroyed) return
       pointerServer.handleUpgrade(req, socket, head, (ws) => {
         pointerSockets.set(ws, device?.id ?? "")
+        pointerLanguages.set(ws, languageFor(req))
         ws.on("message", (data) => {
           let message: unknown
           try { message = JSON.parse(String(data)) } catch { return }
@@ -771,6 +792,7 @@ server.on("upgrade", (req: Request, socket, head) => {
         })
         ws.on("close", () => {
           pointerSockets.delete(ws)
+          pointerLanguages.delete(ws)
           // Only what this trackpad holds: another deck may be mid-drag.
           pointer.release(ws)
         })
@@ -802,7 +824,13 @@ function openControlCenter(port: number): void {
 // The desktop app runs the companion as a child process: it reads the port
 // from this line and asks for a clean exit by writing "quit" to stdin.
 function desktopReady(port: number): void {
+  desktopLanguage()
   if (DESKTOP) console.log(`PUNCHBOARD_READY ${port}`)
+}
+// The app's menu speaks what the Control Center on this computer speaks:
+// the setting, or under "auto" this computer's own language.
+function desktopLanguage(): void {
+  if (DESKTOP) console.log(`PUNCHBOARD_LANGUAGE ${systemLanguage()}`)
 }
 if (DESKTOP) {
   let input = ""

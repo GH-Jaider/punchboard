@@ -13,6 +13,7 @@
 // program would be the wrong one, so those shortcuts are simply started.
 // Squirrel apps (Discord, Slack...) start through Update.exe --processStart
 // X.exe, where X.exe is the program to look for.
+import { textOf, UserError } from "./i18n.ts"
 import { psQuote, runPowerShell } from "./powershell.ts"
 
 let openModule: Promise<(target: string) => Promise<unknown>> | null = null
@@ -122,7 +123,7 @@ export async function launchApp(target: string): Promise<void> {
     try {
       await runPowerShell(windowsLaunchScript(target), 15000)
     } catch (error) {
-      throw new Error(`Could not open that app. (${error instanceof Error ? error.message : String(error)})`)
+      throw new UserError("server.launch.failed", { reason: textOf(error) })
     }
     return
   }

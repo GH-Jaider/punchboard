@@ -9,6 +9,7 @@
 import crypto from "node:crypto"
 import type { DeviceInfo, SignedFields } from "../shared/api.ts"
 import { canonical } from "../shared/sign.ts"
+import { UserError } from "./i18n.ts"
 import { isObject, readJsonSafe, writeJsonAtomic } from "./store.ts"
 
 const CODE_TTL_MS = 10 * 60 * 1000
@@ -21,10 +22,11 @@ const MAX_GUESSES_PER_CODE = 24
 
 export type AuthErrorCode = "unpaired" | "clock" | "replay" | "bad_signature" | "bad_code" | "locked"
 
-export class AuthError extends Error {
+/** A refused pairing or signature; `key` names its message (see UserError). */
+export class AuthError extends UserError {
   readonly code: AuthErrorCode
-  constructor(code: AuthErrorCode, message: string) {
-    super(message)
+  constructor(code: AuthErrorCode, key: string) {
+    super(key)
     this.code = code
   }
 }
@@ -108,7 +110,7 @@ export function createAuth({ file, log }: { file: string; log: (message: string)
     const at = Date.now()
     const who = claimant(ip)
     const record = failures.get(who)
-    if (record && at < record.lockedUntil) throw new AuthError("locked", "Too many wrong codes. Wait a minute, then try the code on the computer again.")
+    if (record && at < record.lockedUntil) throw new AuthError("locked", "server.auth.locked")
     const active = currentCode()
     const given = String(code)
     if (!/^\d{6}$/.test(given) || !sameText(given, active.code)) {
@@ -125,7 +127,7 @@ export function createAuth({ file, log }: { file: string; log: (message: string)
         newCode()
         log("The pairing code was replaced after repeated wrong codes.")
       }
-      throw new AuthError("bad_code", "That code is not right, or it has expired. Check the code on the computer.")
+      throw new AuthError("bad_code", "server.auth.badCode")
     }
     // A code pairs one device: the next one needs the code shown after it.
     newCode()
@@ -134,7 +136,8 @@ export function createAuth({ file, log }: { file: string; log: (message: string)
     const device: Device = {
       id: `dev_${crypto.randomBytes(6).toString("hex")}`,
       secret: crypto.randomBytes(32).toString("hex"),
-      name: name.replace(/[^\w .'()-]/g, "").slice(0, 40) || "Deck",
+      // Letters in any alphabet: a default name may be "Teléfono Android".
+      name: name.replace(/[^\p{L}\p{N}_ .'()-]/gu, "").slice(0, 40) || "Deck",
       createdAt: now,
       lastSeen: now
     }
@@ -148,17 +151,17 @@ export function createAuth({ file, log }: { file: string; log: (message: string)
   /** Returns the device that signed the request, or throws AuthError. */
   function verify(signed: Partial<SignedFields>, method: string, path: string, body: string, ip: string | undefined): Device {
     const device = devices.get(String(signed.device ?? ""))
-    if (!device) throw new AuthError("unpaired", "This deck is not paired with the companion.")
+    if (!device) throw new AuthError("unpaired", "server.auth.unpaired")
     const time = Number(signed.time)
-    if (!Number.isFinite(time) || Math.abs(Date.now() - time) > CLOCK_WINDOW_MS) throw new AuthError("clock", "The request is too old. Check the tablet's clock.")
+    if (!Number.isFinite(time) || Math.abs(Date.now() - time) > CLOCK_WINDOW_MS) throw new AuthError("clock", "server.auth.clock")
     const nonce = String(signed.nonce ?? "")
-    if (!/^[0-9a-f]{16,64}$/.test(nonce)) throw new AuthError("bad_signature", "The request is not signed.")
+    if (!/^[0-9a-f]{16,64}$/.test(nonce)) throw new AuthError("bad_signature", "server.auth.unsigned")
     const expected = crypto.createHmac("sha256", Buffer.from(device.secret, "utf8"))
       .update(canonical(method, path, time, nonce, body), "utf8")
       .digest("hex")
-    if (!sameText(expected, String(signed.signature ?? ""))) throw new AuthError("bad_signature", "The request signature does not match.")
+    if (!sameText(expected, String(signed.signature ?? ""))) throw new AuthError("bad_signature", "server.auth.badSignature")
     const key = `${device.id}:${nonce}`
-    if (nonces.has(key)) throw new AuthError("replay", "That request was already used.")
+    if (nonces.has(key)) throw new AuthError("replay", "server.auth.replay")
     nonces.set(key, time + CLOCK_WINDOW_MS * 2)
     if (nonces.size > 5000) for (const [entry, expiry] of nonces) if (expiry < Date.now()) nonces.delete(entry)
     device.lastSeen = new Date().toISOString()

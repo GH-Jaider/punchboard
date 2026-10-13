@@ -22,6 +22,7 @@
 // processes: Chrome plays from several.
 import { spawn } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
+import { say, UserError } from "./i18n.ts"
 import { powershellExe } from "./powershell.ts"
 
 export const BRIDGE = String.raw`
@@ -269,7 +270,7 @@ function failAll(error: Error): void {
 function startClock(id: number): void {
   const entry = waiting.get(id)
   if (!entry || entry.timer) return
-  entry.timer = setTimeout(() => settle(id)?.reject(new Error("Windows took too long to answer about the volume.")), ANSWER_MS)
+  entry.timer = setTimeout(() => settle(id)?.reject(new UserError("server.winVolume.slowAnswer")), ANSWER_MS)
 }
 
 /** Forgets the bridge and fails whatever was waiting on it. */
@@ -295,7 +296,7 @@ function onLine(line: string): void {
   const entry = settle(Number(match[1]))
   if (!entry) return
   if (match[2] === "ok") entry.resolve(match[3] ?? "")
-  else entry.reject(new Error(`${entry.failure}: ${match[3] ?? ""}`))
+  else entry.reject(new UserError("server.winVolume.failed", { what: say(entry.failure), reason: match[3] ?? "" }))
 }
 
 function start(): ChildProcess {
@@ -313,20 +314,21 @@ function start(): ChildProcess {
     buffered = lines.pop() ?? ""
     for (const line of lines) if (line.trim()) onLine(line.trim())
   })
-  const gone = (): void => drop(child, new Error("The volume helper stopped; try again."))
+  const gone = (): void => drop(child, new UserError("server.winVolume.helperStopped"))
   child.on("error", gone)
   child.on("exit", gone)
   clearTimeout(startTimer)
   startTimer = setTimeout(() => {
-    drop(child, new Error("Windows took too long to start the volume helper."))
+    drop(child, new UserError("server.winVolume.slowStart"))
     child.kill()
   }, START_MS)
   startTimer.unref()
   return child
 }
 
-/** Sends one command; resolves with what follows "ok" in its answer. */
-function ask(command: string, failure = "Windows would not change the volume"): Promise<string> {
+/** Sends one command; resolves with what follows "ok" in its answer.
+    `failure` is the message key that says what did not happen. */
+function ask(command: string, failure = "server.winVolume.noChange"): Promise<string> {
   const child = start()
   lastId += 1
   const id = lastId
@@ -347,20 +349,20 @@ export const readWindowsVolume = (): Promise<number> => ask("get").then(toLevel)
     playing through Windows right now. `key` is a normalised app key, which
     never holds a line break. */
 export const readWindowsAppVolume = (key: string): Promise<number | null> =>
-  ask(`app-get ${key}`, "Windows could not read the app's volume").then(toAppLevel)
+  ask(`app-get ${key}`, "server.winVolume.noAppRead").then(toAppLevel)
 
 /** Sets every session of the app; null when it has none. One at a time per
     app is the caller's business (see latestWinsPerKey in latest-wins.ts). */
 export const writeWindowsAppVolume = (key: string, level: number): Promise<number | null> =>
-  ask(`app-set ${level.toFixed(3)} ${key}`, "Windows would not change the app's volume").then(toAppLevel)
+  ask(`app-set ${level.toFixed(3)} ${key}`, "server.winVolume.noAppChange").then(toAppLevel)
 
 export interface WindowsAudioApp { key: string; name: string; level: number }
 
 /** The bridge's list, checked entry by entry: anything malformed is left out. */
 export function parseAppList(text: string): WindowsAudioApp[] {
   let raw: unknown
-  try { raw = JSON.parse(text) } catch { throw new Error("Windows sent a list of apps that could not be read.") }
-  if (!Array.isArray(raw)) throw new Error("Windows sent a list of apps that could not be read.")
+  try { raw = JSON.parse(text) } catch { throw new UserError("server.winVolume.badList") }
+  if (!Array.isArray(raw)) throw new UserError("server.winVolume.badList")
   const apps: WindowsAudioApp[] = []
   for (const item of raw as unknown[]) {
     if (typeof item !== "object" || item === null) continue
@@ -374,7 +376,7 @@ export function parseAppList(text: string): WindowsAudioApp[] {
 
 /** Every app with an audio session, without the companion's own processes. */
 export const listWindowsAudioApps = (): Promise<WindowsAudioApp[]> =>
-  ask(`list ${process.pid}`, "Windows could not list the apps playing sound").then(parseAppList)
+  ask(`list ${process.pid}`, "server.winVolume.noList").then(parseAppList)
 
 // While a drag is in flight only the newest level matters: one set at a time,
 // and whatever arrived meanwhile is sent next.
@@ -404,5 +406,5 @@ export function stopWindowsVolume(): void {
   const child = bridge
   if (!child) return
   child.stdin?.end()
-  drop(child, new Error("The volume helper stopped."))
+  drop(child, new UserError("server.winVolume.stopped"))
 }

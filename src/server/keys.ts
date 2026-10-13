@@ -15,6 +15,7 @@ import type { ChildProcess } from "node:child_process"
 import { MODIFIERS, parseCombo, unsendableReason } from "../shared/keys.ts"
 import type { KeyCombo, Modifier } from "../shared/keys.ts"
 import type { MediaKey } from "../shared/types.ts"
+import { textOf, UserError } from "./i18n.ts"
 import { cleanPowerShellError, powershellArgs, powershellExe, psQuote, wrapScript } from "./powershell.ts"
 
 // Virtual key codes for the physical keys, as macOS numbers them. F21 to F24
@@ -69,7 +70,7 @@ export interface ScanInput {
     Exposed for tests. */
 export function windowsInputs(combo: KeyCombo): ScanInput[] {
   const key = WIN_SCAN_CODES[combo.key]
-  if (key === undefined) throw new Error(`The ${combo.key.toUpperCase()} key cannot be sent on Windows.`)
+  if (key === undefined) throw new UserError("server.keys.cannotSendWindows", { key: combo.key.toUpperCase() })
   const modifiers = MODIFIERS.filter((modifier) => combo.modifiers.indexOf(modifier) !== -1).map((modifier) => WIN_MODIFIER_SCAN_CODES[modifier])
   const event = (code: number, up: boolean): ScanInput => ({
     scan: code & 0xff,
@@ -213,8 +214,8 @@ function startHelper(): ChildProcess {
   const gone = (): void => {
     if (helper !== child) return
     helper = null
-    const reason = cleanPowerShellError(errors) || "The key helper stopped; press again."
-    for (const entry of waiting.splice(0)) entry.reject(new Error(reason))
+    const reason = cleanPowerShellError(errors)
+    for (const entry of waiting.splice(0)) entry.reject(reason ? new Error(reason) : new UserError("server.keys.helperStopped"))
   }
   child.on("error", gone)
   child.on("exit", gone)
@@ -232,7 +233,7 @@ export function windowsKeyRequest(command: string, timeoutMs = 20000): Promise<s
     const timer = setTimeout(() => {
       const index = waiting.indexOf(entry)
       if (index !== -1) waiting.splice(index, 1)
-      reject(new Error("Windows took too long to take the keys."))
+      reject(new UserError("server.keys.windowsSlow"))
       child.kill()
     }, timeoutMs)
     const entry: Waiting = {
@@ -262,7 +263,11 @@ function run(file: string, args: string[]): Promise<string> {
 /** The AppleScript for one combination, exposed for tests. */
 export function macScript(combo: KeyCombo): string {
   const code = MAC_CODES[combo.key]
-  if (code === undefined) throw new Error(unsendableReason(combo.key, "mac") ?? `The ${combo.key.toUpperCase()} key cannot be sent on macOS.`)
+  if (code === undefined) {
+    // F21 to F24 get the same explanation the Control Center gives when one is recorded.
+    const key = combo.key.toUpperCase()
+    throw new UserError(unsendableReason(combo.key, "mac") ? "server.keys.noMacKeyCode" : "server.keys.cannotSendMac", { key })
+  }
   const using = combo.modifiers.map((modifier) => MAC_MODIFIERS[modifier]).join(", ")
   return `tell application "System Events" to key code ${code}${using ? ` using {${using}}` : ""}`
 }
@@ -273,9 +278,9 @@ async function sendMac(combo: KeyCombo): Promise<void> {
   } catch (error) {
     const text = error instanceof Error ? error.message : String(error)
     if (/not allowed|assistive|accessibility|1002/i.test(text)) {
-      throw new Error("macOS needs permission first: open System Settings › Privacy & Security › Accessibility, allow the app that runs Punchboard (Terminal), then press again.")
+      throw new UserError("server.keys.macPermissionTerminal")
     }
-    throw new Error(`Could not send the keys. (${text})`)
+    throw new UserError("server.keys.sendFailed", { reason: textOf(error) })
   }
 }
 
@@ -283,16 +288,16 @@ async function sendWindows(combo: KeyCombo): Promise<void> {
   try {
     await windowsKeyRequest(windowsKeyLine(combo))
   } catch (error) {
-    throw new Error(`Could not send the keys. (${error instanceof Error ? error.message : String(error)})`)
+    throw new UserError("server.keys.sendFailed", { reason: textOf(error) })
   }
 }
 
 export async function sendKeys(text: string | undefined): Promise<void> {
   const combo = parseCombo(text)
-  if (!combo) throw new Error("Record a key combination for this step first.")
+  if (!combo) throw new UserError("server.keys.noCombo")
   if (process.platform === "darwin") return sendMac(combo)
   if (process.platform === "win32") return sendWindows(combo)
-  throw new Error("Key combinations work on macOS and Windows only for now.")
+  throw new UserError("server.keys.unsupported")
 }
 
 // ------------------------------------------------------------- media keys
@@ -332,9 +337,9 @@ export async function sendMediaKey(key: MediaKey): Promise<void> {
     } catch (error) {
       const text = error instanceof Error ? error.message : String(error)
       if (/not allowed/i.test(text)) {
-        throw new Error("macOS needs permission first: open System Settings › Privacy & Security › Accessibility, allow Punchboard, then press again.")
+        throw new UserError("server.keys.macPermission")
       }
-      throw new Error(`Could not send the music key. (${text})`)
+      throw new UserError("server.keys.mediaFailed", { reason: textOf(error) })
     }
     return
   }
@@ -342,9 +347,9 @@ export async function sendMediaKey(key: MediaKey): Promise<void> {
     try {
       await windowsKeyRequest(windowsMediaLine(key))
     } catch (error) {
-      throw new Error(`Could not send the music key. (${error instanceof Error ? error.message : String(error)})`)
+      throw new UserError("server.keys.mediaFailed", { reason: textOf(error) })
     }
     return
   }
-  throw new Error("Music controls work on macOS and Windows only for now.")
+  throw new UserError("server.keys.mediaUnsupported")
 }

@@ -4,6 +4,7 @@
 // fader is at 0 before anything plays, and the computer's own volume is never
 // set: the "system" fader is only sent levels it must refuse.
 //   node tests/sounds.test.mjs
+import "./english.mjs"
 import { execFileSync } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"

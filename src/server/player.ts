@@ -9,6 +9,7 @@
 import { spawn } from "node:child_process"
 import type { ChildProcess } from "node:child_process"
 import { pathToFileURL } from "node:url"
+import { UserError } from "./i18n.ts"
 import { powershellExe, psQuote } from "./powershell.ts"
 
 export interface PlayerOptions {
@@ -210,7 +211,7 @@ export function createPlayer(options: PlayerOptions): Player {
   /** One process for one sound: afplay on macOS, the PowerShell script on Windows. */
   function spawnPlay(slot: number, file: string): Running {
     const spec = playCommand(file, options.volume())
-    if (!spec) throw new Error("Playing sounds works on macOS and Windows only for now.")
+    if (!spec) throw new UserError("server.sounds.unsupported")
     const windows = process.platform === "win32"
     // stdin stays open on Windows: the fader's new volumes reach a playing
     // sound there, and stdout says when the sound really started.

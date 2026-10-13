@@ -3,7 +3,7 @@ import fs from "node:fs"
 import type { IncomingMessage, ServerResponse } from "node:http"
 import path from "node:path"
 import type { ErrorResponse } from "../shared/api.ts"
-import { english, isText } from "./i18n.ts"
+import { english, isText, languageFor, render, say } from "./i18n.ts"
 import type { Said, Text } from "./i18n.ts"
 
 /** An error reply. Given a Text, it is worded in the asker's language when
@@ -59,8 +59,9 @@ const STATIC_TYPES: Record<string, string> = {
     request, a file they already hold is answered with a bodyless 304: every
     page load asks for its locale file, and it rarely changes. */
 export function staticFile(res: ServerResponse, file: string, req?: IncomingMessage): void {
+  const notFound = (): void => sendJson(res, 404, { error: render(say("server.request.notFound"), req ? languageFor(req) : "en") } satisfies ErrorResponse)
   fs.stat(file, (statError, stats) => {
-    if (statError || !stats.isFile()) return sendJson(res, 404, { error: "Not found" } satisfies ErrorResponse)
+    if (statError || !stats.isFile()) return notFound()
     const etag = `"${stats.size.toString(36)}-${Math.round(stats.mtimeMs).toString(36)}"`
     const type = STATIC_TYPES[path.extname(file).toLowerCase()] ?? "application/octet-stream"
     const headers = { ...SECURITY_HEADERS, "Content-Type": type, "Cache-Control": "no-cache", ETag: etag }
@@ -70,7 +71,7 @@ export function staticFile(res: ServerResponse, file: string, req?: IncomingMess
       return
     }
     fs.readFile(file, (error, data) => {
-      if (error) return sendJson(res, 404, { error: "Not found" } satisfies ErrorResponse)
+      if (error) return notFound()
       res.writeHead(200, { ...headers, "Content-Length": data.length })
       res.end(data)
     })
@@ -84,7 +85,7 @@ export function staticFile(res: ServerResponse, file: string, req?: IncomingMess
     is refused before a byte of the body is read. */
 export function rawBody(req: Request, limit: number): Promise<Buffer> {
   if (req.rawBody) return Promise.resolve(req.rawBody)
-  const tooLarge = (): HttpError => new HttpError(413, "That request is too large.")
+  const tooLarge = (): HttpError => new HttpError(413, say("server.request.tooLarge"))
   const declared = Number(req.headers["content-length"])
   if (Number.isFinite(declared) && declared > limit) return Promise.reject(tooLarge())
   return new Promise((resolve, reject) => {
@@ -117,16 +118,16 @@ export const JSON_LIMIT = 256 * 1024
     encodings, so this alone refuses forged form posts. The result is unknown
     and has to be validated by the caller. */
 export async function jsonBody(req: Request, limit = JSON_LIMIT): Promise<Record<string, unknown>> {
-  if (!/^application\/json\b/i.test(String(req.headers["content-type"] ?? ""))) throw new HttpError(415, "Send JSON with Content-Type: application/json.")
+  if (!/^application\/json\b/i.test(String(req.headers["content-type"] ?? ""))) throw new HttpError(415, say("server.request.notJsonType"))
   const raw = await rawBody(req, limit)
   if (!raw.length) return {}
   let parsed: unknown
   try {
     parsed = JSON.parse(raw.toString("utf8"))
   } catch {
-    throw new HttpError(400, "That request is not valid JSON.")
+    throw new HttpError(400, say("server.request.badJson"))
   }
-  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new HttpError(400, "That request is not a JSON object.")
+  if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) throw new HttpError(400, say("server.request.notObject"))
   return parsed as Record<string, unknown>
 }
 

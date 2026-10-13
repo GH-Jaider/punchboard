@@ -4,6 +4,7 @@ import { execFile } from "node:child_process"
 import type { Fader } from "../shared/types.ts"
 import { obsCall, type ObsLink } from "./obs.ts"
 import type { Config } from "./config.ts"
+import { UserError } from "./i18n.ts"
 import { faderPosition } from "./obs-state.ts"
 import { readWindowsVolume, writeWindowsVolume } from "./win-volume.ts"
 import { appDisplayName } from "../shared/model.ts"
@@ -35,7 +36,7 @@ function osascript(script: string): Promise<string> {
 async function readSystem(): Promise<number> {
   if (process.platform === "darwin") return clamp01(Number(await osascript("output volume of (get volume settings)")) / 100)
   if (process.platform === "win32") return readWindowsVolume()
-  throw new Error("The computer's volume can be controlled on macOS and Windows only.")
+  throw new UserError("server.volume.systemUnsupported")
 }
 
 const writeMacVolume = latestWins(async (level) => {
@@ -49,16 +50,16 @@ async function writeSystem(level: number): Promise<number> {
     return level
   }
   if (process.platform === "win32") return writeWindowsVolume(level)
-  throw new Error("The computer's volume can be controlled on macOS and Windows only.")
+  throw new UserError("server.volume.systemUnsupported")
 }
 
 function requireInput(fader: Fader): string {
-  if (!fader.inputName) throw new Error("Choose the OBS audio input first.")
+  if (!fader.inputName) throw new UserError("server.press.noAudioInput")
   return fader.inputName
 }
 
 function requireApp(fader: Fader): string {
-  if (!fader.app) throw new Error("Choose the app first.")
+  if (!fader.app) throw new UserError("server.volume.noApp")
   return fader.app
 }
 
@@ -86,7 +87,7 @@ export async function readLevel(fader: Fader, context: VolumeContext): Promise<n
 export const isLevel = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value)
 
 export async function writeLevel(fader: Fader, level: unknown, context: VolumeContext): Promise<number> {
-  if (!isLevel(level)) throw new Error("The level must be a number from 0 to 1.")
+  if (!isLevel(level)) throw new UserError("server.volume.badLevel")
   const value = clamp01(level)
   switch (fader.target) {
     case "app":

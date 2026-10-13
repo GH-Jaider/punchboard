@@ -9,7 +9,7 @@ import path from "node:path"
 import type { GoogleIconEntry } from "../shared/api.ts"
 import { safeGlyph } from "../shared/icons.ts"
 import type { Glyph, GlyphStyle } from "../shared/types.ts"
-import { errorText } from "./http.ts"
+import { textOf, UserError } from "./i18n.ts"
 import { isObject } from "./store.ts"
 
 const CATALOG_URL = "https://fonts.google.com/metadata/icons?incomplete=1&key=material_symbols"
@@ -59,25 +59,29 @@ export function createGoogleIcons(cacheDir: string) {
       return (catalog = icons)
     } catch (error) {
       if (cached) return (catalog = cached.icons)
-      throw new Error(`Could not reach Google Fonts to list icons. (${errorText(error)})`)
+      throw new UserError("server.icons.catalogFailed", { reason: textOf(error) })
     }
   }
 
   async function loadGlyph(name: string, style: string, fill: boolean): Promise<Glyph> {
-    if (!/^[a-z0-9_]{1,64}$/.test(name)) throw new Error("That is not a Google icon name.")
-    if (!isGlyphStyle(style)) throw new Error("Choose outlined, rounded or sharp.")
+    if (!/^[a-z0-9_]{1,64}$/.test(name)) throw new UserError("server.icons.badName")
+    if (!isGlyphStyle(style)) throw new UserError("server.icons.badStyle")
     const key = `${style}/${name}/${fill ? 1 : 0}`
     const known = glyphs.get(key)
     if (known) return known
 
     const url = SVG_URL.replace("{style}", style).replace("{name}", name).replace("{variant}", fill ? "fill1" : "default")
     const response = await fetch(url)
-    if (!response.ok) throw new Error(response.status === 404 ? `Google has no “${name}” icon in that style.` : `Google Fonts answered ${response.status}.`)
+    if (!response.ok) {
+      throw response.status === 404
+        ? new UserError("server.icons.noSuchIcon", { name })
+        : new UserError("server.icons.badAnswer", { status: response.status })
+    }
     const svg = await response.text()
     const viewBox = svg.match(/viewBox="([^"]+)"/)?.[1]
     const paths = [...svg.matchAll(/<path[^>]*\sd="([^"]+)"/g)].map((match) => match[1])
     const glyph = safeGlyph({ source: "google", name, style, fill, viewBox, paths })
-    if (!glyph) throw new Error("That icon came back in a shape this deck cannot draw.")
+    if (!glyph) throw new UserError("server.icons.badShape")
     glyphs.set(key, glyph)
     return glyph
   }

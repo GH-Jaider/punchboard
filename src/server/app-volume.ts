@@ -10,13 +10,23 @@
 // null, which the decks show as "–". Writes go one at a time per app, newest
 // level first, like the computer's own volume.
 import { execFile } from "node:child_process"
-import type { AudioApp, AudioAppsResponse } from "../shared/api.ts"
+import type { AudioApp } from "../shared/api.ts"
+import { say, UserError } from "./i18n.ts"
+import type { Text } from "./i18n.ts"
 import { latestWinsPerKey } from "./latest-wins.ts"
 import { listWindowsAudioApps, readWindowsAppVolume, writeWindowsAppVolume } from "./win-volume.ts"
 
 /** A write to an app that cannot take one right now: closed, or (Windows)
     not playing through the mixer. Its level is unknown from then on. */
-export class AppNotPlayingError extends Error {}
+export class AppNotPlayingError extends UserError {}
+
+/** The apps a fader can be pointed at, with a note for the picker that is
+    worded for whoever asks (main.ts renders it). */
+export interface AppList {
+  platform: string
+  apps: AudioApp[]
+  note?: Text
+}
 
 /** The Mac apps whose volume a script can set, by key. Scripts find them by
     bundle id: by name, AppleScript can settle on another app whose name is
@@ -26,8 +36,8 @@ export const MAC_APPS: Readonly<Record<string, { name: string; id: string }>> = 
   spotify: { name: "Spotify", id: "com.spotify.client" }
 }
 
-export const MAC_ONLY_NOTE = "macOS has no per-app volume, so only Music and Spotify can be controlled."
-const OTHER_NOTE = "App volume can be controlled on Windows and macOS only."
+export const MAC_ONLY_NOTE = say("server.apps.macOnly")
+const OTHER_NOTE = say("server.apps.otherUnsupported")
 
 /** Volumes read back from the system can be a hair off what was set (0.5 as
     0.50000006); three places are all a fader shows, and keep a poll from
@@ -72,10 +82,8 @@ function osascript(script: string): Promise<string> {
 /** What osascript's failure means to a person. */
 function macError(appName: string, error: unknown): Error {
   const text = error instanceof Error ? error.message : String(error)
-  if (/-1743|not authori[sz]ed/i.test(text)) {
-    return new Error(`macOS did not let Punchboard control ${appName}. Allow it in System Settings › Privacy & Security › Automation.`)
-  }
-  return new Error(`Could not reach ${appName}. (${text.replace(/\s+/g, " ").slice(0, 200)})`)
+  if (/-1743|not authori[sz]ed/i.test(text)) return new UserError("server.apps.macAutomation", { app: appName })
+  return new UserError("server.apps.unreachable", { app: appName, reason: text.replace(/\s+/g, " ").slice(0, 200) })
 }
 
 /** A Mac app's answer: its level 0..1, or null when it is not running. */
@@ -89,7 +97,7 @@ async function runMacScript(app: { name: string; id: string }, level: number | n
   if (answer === "closed") return null
   // An empty answer is not 0: Number("") would read it as silence.
   const value = answer === "" ? NaN : Number(answer)
-  if (!Number.isFinite(value)) throw new Error(`${app.name} answered with something that is not a volume.`)
+  if (!Number.isFinite(value)) throw new UserError("server.apps.notAVolume", { app: app.name })
   return roundLevel(value / 100)
 }
 
@@ -103,7 +111,7 @@ export interface AppVolume {
   /** Whether app volumes can change on their own here, so polling them is worth it. */
   live: boolean
   /** The apps a fader can be pointed at right now. */
-  list: () => Promise<AudioAppsResponse>
+  list: () => Promise<AppList>
   /** An app's level, or null while it cannot be read. */
   read: (key: string) => Promise<number | null>
   /** Sets an app's level and answers the level it now has. `name` is how the
@@ -118,8 +126,8 @@ function windowsAppVolume(): AppVolume {
     list: async () => {
       const apps: AudioApp[] = (await listWindowsAudioApps()).map((app) => ({ key: app.key, name: app.name, running: true, level: roundLevel(app.level) }))
       apps.sort((a, b) => a.name.localeCompare(b.name))
-      const response: AudioAppsResponse = { platform: "win32", apps }
-      if (!apps.length) response.note = "No app is playing sound right now. Open one and play something, then refresh."
+      const response: AppList = { platform: "win32", apps }
+      if (!apps.length) response.note = say("server.apps.nonePlaying")
       return response
     },
     read: async (key) => {
@@ -128,7 +136,7 @@ function windowsAppVolume(): AppVolume {
     },
     write: async (key, name, level) => {
       const now = await write(key, level)
-      if (now === null) throw new AppNotPlayingError(`${name} is not making any sound on this computer right now. Open it and play something first.`)
+      if (now === null) throw new AppNotPlayingError("server.apps.silent", { app: name })
       return answered(level)
     }
   }
@@ -137,7 +145,7 @@ function windowsAppVolume(): AppVolume {
 function macAppVolume(): AppVolume {
   const appOf = (key: string): { name: string; id: string } => {
     const app = Object.prototype.hasOwnProperty.call(MAC_APPS, key) ? MAC_APPS[key] : undefined
-    if (!app) throw new Error(MAC_ONLY_NOTE)
+    if (!app) throw new UserError(MAC_ONLY_NOTE.key)
     return app
   }
   const write = latestWinsPerKey((key, level) => runMacScript(appOf(key), level))
@@ -160,7 +168,7 @@ function macAppVolume(): AppVolume {
     read: (key) => runMacScript(appOf(key), null),
     write: async (key, name, level) => {
       const now = await write(key, level)
-      if (now === null) throw new AppNotPlayingError(`${name} is not open on this computer right now. Open it first, then try again.`)
+      if (now === null) throw new AppNotPlayingError("server.apps.closed", { app: name })
       return answered(level)
     }
   }
@@ -171,7 +179,7 @@ function otherAppVolume(platform: string): AppVolume {
     live: false,
     list: async () => ({ platform, apps: [], note: OTHER_NOTE }),
     read: async () => null,
-    write: async () => { throw new Error(OTHER_NOTE) }
+    write: async () => { throw new UserError(OTHER_NOTE.key) }
   }
 }
 

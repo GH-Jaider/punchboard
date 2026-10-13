@@ -5,7 +5,7 @@ import OBSWebSocket, { EventSubscription } from "obs-websocket-js"
 import type { OBSRequestTypes, OBSResponseTypes } from "obs-websocket-js"
 import type { ObsIssue, ObsLink as LinkStatus } from "../shared/api.ts"
 import type { Config } from "./config.ts"
-import { errorText } from "./http.ts"
+import { textOf, UserError } from "./i18n.ts"
 
 export interface ObsLinkOptions {
   config: Config
@@ -58,7 +58,7 @@ export function obsCall<Type extends keyof OBSRequestTypes>(
       // The link forgets the socket first, so the close is not reported as OBS's.
       onStuck.get(obs)?.(requestType)
       hardClose(obs)
-      reject(new Error(`OBS did not answer (${requestType}) within ${REQUEST_TIMEOUT_MS / 1000} seconds, so Punchboard is reconnecting to it. If OBS is frozen, restart it.`))
+      reject(new UserError("server.obs.requestTimeout", { request: requestType, seconds: REQUEST_TIMEOUT_MS / 1000 }))
     }, REQUEST_TIMEOUT_MS)
   })
   return Promise.race([obs.call(requestType, requestData), timeout]).finally(() => clearTimeout(timer))
@@ -162,16 +162,16 @@ export function createObsLink(options: ObsLinkOptions) {
   function connect(): Promise<OBSWebSocket> {
     if (client) return Promise.resolve(client)
     if (connecting) return connecting
-    if (stopped) return Promise.reject(new Error("Punchboard is closing."))
+    if (stopped) return Promise.reject(new UserError("server.obs.closing"))
     const address = options.config.obs.address
-    if (!address) return Promise.reject(new Error("Add the OBS WebSocket address in the Control Center first."))
+    if (!address) return Promise.reject(new UserError("server.obs.noAddress"))
     const socket = new OBSWebSocket()
     const mine = ++generation
     const current = (): boolean => generation === mine
     pending = socket
     let timer: NodeJS.Timeout | undefined
     const timedOut = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => reject(Object.assign(new Error(`OBS did not answer within ${CONNECT_TIMEOUT_MS / 1000} seconds`), { code: "timeout" })), CONNECT_TIMEOUT_MS)
+      timer = setTimeout(() => reject(Object.assign(new UserError("server.obs.connectTimeout", { seconds: CONNECT_TIMEOUT_MS / 1000 }), { code: "timeout" })), CONNECT_TIMEOUT_MS)
     })
     const handshake = socket.connect(address, options.config.obs.password || undefined, { eventSubscriptions: EventSubscription.All | EventSubscription.InputVolumeMeters })
     connecting = Promise.race([handshake, timedOut])
@@ -214,9 +214,9 @@ export function createObsLink(options: ObsLinkOptions) {
           options.log(`OBS is not reachable at ${address}; will keep trying quietly.`)
         }
         scheduleRetry()
-        throw new Error(issue === "wrong-password"
-          ? "OBS refused the password. Open OBS Studio in Punchboard and find OBS again, or paste the new password."
-          : `Could not reach OBS at ${address}. Start OBS and switch on its WebSocket server (Tools › WebSocket Server Settings). (${errorText(error)})`)
+        throw issue === "wrong-password"
+          ? new UserError("server.obs.wrongPassword")
+          : new UserError("server.obs.unreachable", { address, reason: textOf(error) })
       })
     return connecting
   }

@@ -2,11 +2,12 @@
 //
 // Every stateful action reports the state OBS actually ended up in, rather
 // than the companion guessing, so a lit tile always matches reality.
-import { ACTION_META, LIMITS } from "../shared/actions.ts"
+import { LIMITS } from "../shared/actions.ts"
 import { webAddress } from "../shared/links.ts"
 import type { SetMode, Step } from "../shared/types.ts"
 import type { Config } from "./config.ts"
 import { HttpError } from "./http.ts"
+import { say, textOf, UserError } from "./i18n.ts"
 import { sendKeys, sendMediaKey } from "./keys.ts"
 import { launchApp } from "./launch.ts"
 import { obsCall, type ObsLink } from "./obs.ts"
@@ -26,9 +27,9 @@ const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout
     two-state macro's second list. */
 export function prepareSteps(list: readonly Step[]): Step[] {
   const steps: Step[] = list.length ? [...list] : [{ id: "step", type: "none", delayMs: 0 }]
-  if (steps.length > LIMITS.maxSteps) throw new HttpError(400, `A macro can hold at most ${LIMITS.maxSteps} steps.`)
+  if (steps.length > LIMITS.maxSteps) throw new HttpError(400, say("server.press.tooManySteps", { count: LIMITS.maxSteps }))
   for (const step of steps) {
-    if (step.type === "browser_tile" && !webAddress(step.url)) throw new HttpError(400, "Add a web address for the device link first.")
+    if (step.type === "browser_tile" && !webAddress(step.url)) throw new HttpError(400, say("server.press.noDeviceLink"))
   }
   return steps
 }
@@ -55,27 +56,27 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
       return {}
 
     case "launch_app": {
-      if (!step.appPath) throw new Error("Choose an application, or enter its full path, first.")
+      if (!step.appPath) throw new UserError("server.press.noApp")
       await launchApp(step.appPath)
       return {}
     }
 
     case "open_url": {
       const address = webAddress(step.url)
-      if (!address) throw new Error("Add a web address for the link first.")
+      if (!address) throw new UserError("server.press.noLink")
       await (await loadOpen())(address)
       return {}
     }
 
     case "obs_scene": {
-      if (!step.sceneName) throw new Error("Choose the OBS scene first.")
+      if (!step.sceneName) throw new UserError("server.press.noScene")
       const obs = await context.obs.connect()
       await obsCall(obs, "SetCurrentProgramScene", { sceneName: step.sceneName })
       return { active: true }
     }
 
     case "obs_toggle_mute": {
-      if (!step.sourceName) throw new Error("Choose the OBS audio input first.")
+      if (!step.sourceName) throw new UserError("server.press.noAudioInput")
       const obs = await context.obs.connect()
       const { inputMuted } = await obsCall(obs, "GetInputMute", { inputName: step.sourceName })
       const muted = wanted(step.set, inputMuted)
@@ -85,7 +86,7 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     }
 
     case "obs_toggle_source": {
-      if (!step.sceneName || !step.sourceName) throw new Error("Choose the scene and the source first.")
+      if (!step.sceneName || !step.sourceName) throw new UserError("server.press.noSceneSource")
       const obs = await context.obs.connect()
       const { sceneItemId } = await obsCall(obs, "GetSceneItemId", { sceneName: step.sceneName, sourceName: step.sourceName })
       const { sceneItemEnabled } = await obsCall(obs, "GetSceneItemEnabled", { sceneName: step.sceneName, sceneItemId })
@@ -111,7 +112,7 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     }
 
     case "obs_toggle_filter": {
-      if (!step.sourceName || !step.filterName) throw new Error("Choose the source and the filter first.")
+      if (!step.sourceName || !step.filterName) throw new UserError("server.press.noSourceFilter")
       const obs = await context.obs.connect()
       const { filterEnabled } = await obsCall(obs, "GetSourceFilter", { sourceName: step.sourceName, filterName: step.filterName })
       const enabled = wanted(step.set, filterEnabled)
@@ -130,7 +131,7 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     case "obs_save_replay": {
       const obs = await context.obs.connect()
       const { outputActive } = await obsCall(obs, "GetReplayBufferStatus")
-      if (!outputActive) throw new Error("OBS's replay buffer is off. Start it in OBS (Start Replay Buffer, under Controls), then press again.")
+      if (!outputActive) throw new UserError("server.press.replayOff")
       await obsCall(obs, "SaveReplayBuffer")
       return { active: true }
     }
@@ -138,7 +139,7 @@ async function runAction(step: Step, context: ActionContext): Promise<ActionResu
     case "obs_studio_transition": {
       const obs = await context.obs.connect()
       const { studioModeEnabled } = await obsCall(obs, "GetStudioModeEnabled")
-      if (!studioModeEnabled) throw new Error("Studio Mode is off in OBS, so there is no preview to send live.")
+      if (!studioModeEnabled) throw new UserError("server.press.studioModeOff")
       await obsCall(obs, "TriggerStudioModeTransition")
       return {}
     }
@@ -207,8 +208,12 @@ export async function runSteps(steps: readonly Step[], context: ActionContext): 
       if (typeof result.active === "boolean") active = result.active
     } catch (error) {
       if (steps.length < 2) throw error
-      const reason = error instanceof Error ? error.message : String(error)
-      throw new Error(`Step ${index + 1} of ${steps.length} (${ACTION_META[step.type].label}) failed, so the rest did not run: ${reason}`)
+      throw new UserError("server.press.stepFailed", {
+        step: index + 1,
+        count: steps.length,
+        action: say(`shared.action.${step.type}.label`),
+        reason: textOf(error)
+      })
     }
   }
   return { active, tabletUrl, deckId }
