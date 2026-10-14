@@ -7,8 +7,11 @@
 //   node tests/i18n-literals.mjs [folder or file…]   lists what it finds
 import fs from "node:fs"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), "..")
+// fileURLToPath, not .pathname: on Windows the pathname is "/D:/…", which
+// path.resolve turns into "D:\D:\…".
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 
 /** Calls whose text is for the terminal or companion.log, which stay English. */
 const LOG_CALLS = /(?:^|[^\w.])(?:log|options\.log|console\.(?:log|error|warn|info)|note|warn|logLine)\s*\($/
@@ -246,7 +249,8 @@ const PAGES = ["public/deck.html", "public/designer.html", "public/pair.html"]
 function walk(folder) {
   const out = []
   for (const entry of fs.readdirSync(path.join(ROOT, folder), { withFileTypes: true })) {
-    const relative = path.join(folder, entry.name)
+    // Always "/": ALLOWED names files that way, and Windows would give "\\".
+    const relative = `${folder}/${entry.name}`
     if (entry.isDirectory()) out.push(...walk(relative))
     else if (/\.ts$/.test(entry.name)) out.push(relative)
   }
@@ -267,7 +271,7 @@ export function scan(targets = SOURCE_FOLDERS.concat(PAGES)) {
   return hits
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(fileURLToPath(import.meta.url))) {
   const targets = process.argv.slice(2)
   const hits = scan(targets.length ? targets : undefined)
   for (const hit of hits) console.log(`${hit.file}:${hit.line}  ${JSON.stringify(hit.text)}`)
