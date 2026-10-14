@@ -16,7 +16,8 @@ if (!findChrome()) {
 
 const { check, tally } = checker()
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const companion = startCompanion({ config: { obs: { address: "ws://127.0.0.1:1", password: "", source: "manual" } } })
+// The first-run tour has its own tests (tour.test.mjs); here it stays away.
+const companion = startCompanion({ config: { tourShown: true, obs: { address: "ws://127.0.0.1:1", password: "", source: "manual" } } })
 const { request } = companion
 const port = await companion.ready
 const chrome = await launchChrome({ width: 1440, height: 900 })

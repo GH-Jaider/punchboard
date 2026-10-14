@@ -107,7 +107,7 @@ const spanish = read(path.join(LOCALES, "es.json")).messages
 fs.writeFileSync(path.join(localesCopy, "eo.json"), JSON.stringify({ meta: { name: "Esperanto (test)", code: "eo" }, messages: { "server.settings.badTheme": "Tiu etoso ne ekzistas." } }))
 
 const OBS_OFF = { address: "ws://127.0.0.1:1", password: "", source: "manual" }
-const companion = startCompanion({ config: { supportShown: true, obs: OBS_OFF, language: "es" }, env: { PUNCHBOARD_LOCALES_DIR: localesCopy } })
+const companion = startCompanion({ config: { supportShown: true, tourShown: true, obs: OBS_OFF, language: "es" }, env: { PUNCHBOARD_LOCALES_DIR: localesCopy } })
 const { request } = companion
 const badTheme = (headers = {}) => request({ method: "PUT", path: "/api/settings", headers: { ...JSON_TYPE, ...headers }, body: JSON.stringify({ theme: "nope" }) })
 const setLanguage = (language) => request({ method: "PUT", path: "/api/settings", headers: JSON_TYPE, body: JSON.stringify({ language }) })
@@ -165,7 +165,7 @@ const KEY_LIKE = /\b(designer|deck|pair|common|server|shared)\.[a-z][A-Za-z0-9]*
 if (!findChrome()) {
   console.log("SKIP  pages in Spanish: Chrome is not installed (set CHROME_PATH)")
 } else {
-  const pages = startCompanion({ config: { supportShown: true, obs: OBS_OFF } })
+  const pages = startCompanion({ config: { supportShown: true, tourShown: true, obs: OBS_OFF } })
   let chrome = null
   try {
     const port = await pages.ready

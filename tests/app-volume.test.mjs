@@ -395,7 +395,8 @@ async function controlCenter(port) {
   }
 }
 
-const companion = startCompanion()
+// The first-run tour would cover the Control Center; it has its own tests.
+const companion = startCompanion({ config: { tourShown: true } })
 const request = companion.request
 const setLevel = (buttonId, level) => request({ method: "POST", path: "/api/volume", headers: JSON_TYPE, body: JSON.stringify(level === undefined ? { profileId: "main", buttonId } : { profileId: "main", buttonId, level }) })
 const macVolumes = () => JSON.parse(fs.readFileSync(macState, "utf8"))
