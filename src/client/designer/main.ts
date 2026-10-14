@@ -21,6 +21,7 @@ import { bindSoundOutput } from "./sound-output.ts"
 import { bindSounds, loadSounds } from "./sounds.ts"
 import { activeProfile, bindSaving, fetchLibrary, setSaveState, store } from "./state.ts"
 import { renderSteps } from "./steps.ts"
+import { afterFirstTour, bindTour, offerTour } from "./tour.ts"
 import { bindDialogChrome } from "./dialogs.ts"
 
 function renderAll(): void {
@@ -54,6 +55,7 @@ function bindAll(): void {
   openPairingFromHash()
   bindSession()
   bindSupport()
+  bindTour()
   bindSaving()
   bindDialogChrome()
   // A new language redraws what is on screen; dialogs draw their text as they open.
@@ -84,10 +86,12 @@ async function start(): Promise<void> {
     void showLanguage()
     showObsSettings(settings)
     showIntroIfNew()
-    showSupportNote(settings)
 
     setSaveState("", t("designer.save.inSync"))
     renderAll()
+    // First the tour, then the Ko-fi note, never both at once.
+    const touring = offerTour(settings)
+    showSupportNote(settings, touring ? afterFirstTour : undefined)
     void loadSounds()
     watchEvents()
   } catch (error) {

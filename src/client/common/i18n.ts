@@ -104,11 +104,17 @@ export function noteLanguages(value: string | undefined, codes?: string[]): void
 
 // ------------------------------------------------------------ the page's HTML
 
-/** Text with a little markup from a locale file: everything is escaped, then
-    only <strong>, <em>, <b>, <kbd> and <br> are let back in. */
+/** Puts text with a little markup from a locale file into an element:
+    everything is escaped, then only <strong>, <em>, <b>, <kbd> and <br> are
+    let back in. */
 export function richText(element: Element, text: string): void {
+  element.innerHTML = richHtml(text)
+}
+
+/** richText's markup as a string, for code that takes HTML (the tour's popovers). */
+export function richHtml(text: string): string {
   const escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;")
-  element.innerHTML = escaped.replace(/&lt;(\/?)(strong|em|b|kbd)&gt;/g, "<$1$2>").replace(/&lt;br\s*\/?&gt;/g, "<br>")
+  return escaped.replace(/&lt;(\/?)(strong|em|b|kbd)&gt;/g, "<$1$2>").replace(/&lt;br\s*\/?&gt;/g, "<br>")
 }
 
 const ATTRIBUTES: ReadonlyArray<{ data: string; target: string }> = [

@@ -194,6 +194,11 @@ html[data-theme="hardware"][data-mode="dark"] {
 
 [data-theme="hardware"] .tablet-frame { border-color: var(--hw-frame-edge); }
 [data-theme="hardware"] .qr-frame { background: var(--surface-input); }
+/* The tour's popover: a panel with a hard ink edge, its count in silkscreen. */
+[data-theme="hardware"] .pb-tour.driver-popover { border-color: var(--text); box-shadow: var(--shadow-pop); }
+[data-theme="hardware"] .pb-tour .driver-popover-progress-text { color: var(--text-muted); }
+[data-theme="hardware"] .pb-tour .driver-popover-close-btn { border-color: var(--border-strong); background: transparent; color: var(--text); }
+[data-theme="hardware"] .driver-active .driver-active-element { outline-color: var(--text); }
 [data-theme="hardware"] .toast { border: 0; background: var(--text); color: var(--surface-input); }
 [data-theme="hardware"] .toast.is-error { background: var(--toast-error-bg); color: var(--toast-error-text); }
 
@@ -375,6 +380,9 @@ html[data-theme="broadcast"] {
 [data-theme="broadcast"] .swatch { border-radius: 0; }
 [data-theme="broadcast"] .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent); }
 [data-theme="broadcast"] .qr-frame { background: #e8e8e8; }
+/* The tour's popover: condensed capitals like every other heading. */
+[data-theme="broadcast"] .pb-tour .driver-popover-title { font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; }
+[data-theme="broadcast"] .pb-tour.driver-popover { border-top: 3px solid var(--accent); }
 
 /* Switcher keys: the icon fills the face and the label sits on a coloured
    insert strip, like the engraved caps on a vision mixer. */

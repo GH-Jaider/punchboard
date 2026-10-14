@@ -26,6 +26,8 @@ After that it updates itself.
 2. **Build your deck.** Click an empty slot to add a button, pick what it does, and it appears on your devices right away.
 3. **Streaming? Connect OBS.** In OBS, open **Tools › WebSocket Server Settings** and tick **Enable WebSocket server**. Punchboard finds it by itself. Everything else works without OBS.
 
+The first time the Control Center opens, a short tour points these out; the **?** next to the version plays it again.
+
 On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add to Home Screen** for a full-screen deck.
 
 ## What buttons can do
@@ -82,4 +84,4 @@ Punchboard is free. If it earns a place in your setup, you can buy its maker a c
 
 ## License
 
-[Apache License 2.0](LICENSE). Fonts under the SIL Open Font License; Google's Material Symbols under Apache 2.0.
+[Apache License 2.0](LICENSE). Fonts under the SIL Open Font License; Google's Material Symbols under Apache 2.0. The Control Center's tour uses [driver.js](https://driverjs.com) by Kamran Ahmed, under the MIT License, whose text heads the bundled `public/js/tour.js`.

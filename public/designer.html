@@ -6,6 +6,9 @@
   <meta name="theme-color" content="#0a0c0f">
   <title data-i18n="designer.page.title">Control Center | Punchboard</title>
   <link rel="icon" href="/punchboard.svg" type="image/svg+xml">
+  <!-- driver.js's styles, for the tour (src/client/vendor/driver.ts); first,
+       so the app's own styles, and the tour's in style.css, win over them. -->
+  <link rel="stylesheet" href="/js/tour.css">
   <link rel="stylesheet" href="/style.css">
   <link rel="stylesheet" href="/themes.css">
   <!-- Paints the last-used theme before first render; the server's setting
@@ -21,6 +24,8 @@
     </a>
     <span class="app-version" id="app-version" title="Punchboard's version" data-i18n-title="designer.page.appbar.version"></span>
     <a class="kofi-link" id="kofi-link" href="https://ko-fi.com/hit_here" target="_blank" rel="noopener" title="Support Punchboard on Ko-fi" aria-label="Support Punchboard on Ko-fi" data-i18n-title="designer.page.appbar.kofi" data-i18n-aria-label="designer.page.appbar.kofi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h13v6a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5V8Z"/><path d="M17 10h1.5a2.5 2.5 0 0 1 0 5H17"/><path d="M10.5 15.2s-2.5-1.4-2.5-3a1.3 1.3 0 0 1 2.5-.5 1.3 1.3 0 0 1 2.5.5c0 1.6-2.5 3-2.5 3Z" fill="currentColor" stroke="none"/></svg></a>
+    <!-- Plays the first-run tour again (tour.ts). -->
+    <button class="tour-link" id="tour-btn" type="button" title="Show the tour" aria-label="Show the tour" data-i18n-title="designer.page.appbar.tour" data-i18n-aria-label="designer.page.appbar.tour"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
     <span class="appbar-spacer"></span>
     <!-- Shown while a deck's sound plays through this computer. -->
     <button class="btn now-playing" id="now-playing" type="button" hidden>
@@ -44,13 +49,16 @@
 
     <aside class="rail" aria-label="Profiles and setup" data-i18n-aria-label="designer.page.rail.label">
       <div class="rail-scroll">
-        <div class="rail-head">
-          <h2 data-i18n="designer.page.rail.profiles">Profiles</h2>
-          <button class="icon-btn" id="new-profile" type="button" aria-label="Create a profile" data-i18n-aria-label="designer.page.rail.newProfile">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-          </button>
+        <!-- One box around the decks, for the tour to point at. -->
+        <div class="rail-decks" id="rail-decks">
+          <div class="rail-head">
+            <h2 data-i18n="designer.page.rail.profiles">Profiles</h2>
+            <button class="icon-btn" id="new-profile" type="button" aria-label="Create a profile" data-i18n-aria-label="designer.page.rail.newProfile">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            </button>
+          </div>
+          <div class="profile-list" id="profile-list"></div>
         </div>
-        <div class="profile-list" id="profile-list"></div>
       </div>
 
       <!-- Set once and left alone, so each opens in its own window. -->
@@ -296,6 +304,7 @@
       </div>
     </div>
   </aside>
+  <script src="/js/tour.js"></script>
   <script src="/js/designer.js"></script>
 </body>
 </html>
