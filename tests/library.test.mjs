@@ -152,6 +152,16 @@ async function main() {
     check("Once shown, the Ko-fi note is not offered again, and that is saved", after.supportNote === false && stored.supportShown === true, JSON.stringify({ after: after.supportNote, stored: stored.supportShown }))
   })
 
+  // --- the first-run tour: the same, remembered as tourShown
+  await withCompanion({ config: { supportShown: true } }, async (companion) => {
+    const first = (await companion.request({ path: "/api/settings" })).json
+    check("Someone who updates (no tourShown in config.json) still gets the tour once", first.tourNote === true && first.supportNote === false, JSON.stringify(first))
+    await companion.request({ method: "PUT", path: "/api/settings", headers: JSON_TYPE, body: JSON.stringify({ tourShown: true }) })
+    const after = (await companion.request({ path: "/api/settings" })).json
+    const stored = JSON.parse(fs.readFileSync(path.join(companion.dataDir, "config.json"), "utf8"))
+    check("Once started, the tour is not offered again, and that is saved", after.tourNote === false && stored.tourShown === true && stored.supportShown === true, JSON.stringify({ after: after.tourNote, stored }))
+  })
+
   // --- revisions, and a write that fails
   await withCompanion({}, async (companion) => {
     const r = await companion.request({ path: "/api/library" })

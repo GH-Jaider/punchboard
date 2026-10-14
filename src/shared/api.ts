@@ -234,6 +234,8 @@ export interface SettingsResponse {
   desktop: boolean
   /** The one-time Ko-fi note is still to be shown in the Control Center. */
   supportNote: boolean
+  /** The first-run tour is still to be shown in the Control Center. */
+  tourNote: boolean
   /** "auto" (each device's own language) or a locale file's code. */
   language: string
 }
@@ -245,6 +247,8 @@ export interface SettingsUpdate {
   obsPassword?: string
   /** The Ko-fi note was shown: it never comes back. */
   supportShown?: true
+  /** The tour was started: it does not start by itself again. */
+  tourShown?: true
   /** "auto" or the code of a file in public/locales. */
   language?: string
 }

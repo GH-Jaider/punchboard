@@ -12,6 +12,8 @@ export interface Config {
   obs: { address: string; password: string; source: "auto" | "manual" }
   /** The one-time Ko-fi note has been shown in the Control Center. */
   supportShown: boolean
+  /** The first-run tour of the Control Center has been started once. */
+  tourShown: boolean
   /** "auto" speaks each device's own language; a code ("es") one for all.
       Only the shape is checked here: a code with no file speaks as auto does. */
   language: string
@@ -23,6 +25,7 @@ const DEFAULTS: Config = {
   soundVolume: 1,
   obs: { address: "ws://127.0.0.1:4455", password: "", source: "auto" },
   supportShown: false,
+  tourShown: false,
   language: "auto"
 }
 
@@ -58,6 +61,9 @@ export function loadConfig(file: string, log: (message: string) => void): Config
       source: obs.source === "manual" || (obs.source !== "auto" && str(obs.password, "") !== "") ? "manual" : "auto"
     },
     supportShown: raw.supportShown === true,
+    // Missing from an older config.json, so someone who updates gets the
+    // tour once too, as with the Ko-fi note.
+    tourShown: raw.tourShown === true,
     language: isLanguageCode(raw.language) ? raw.language : DEFAULTS.language
   }
 }

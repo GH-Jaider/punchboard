@@ -112,7 +112,7 @@ const sounds = createSoundStore(paths.sounds)
 sounds.ensureDefaults()
 // The page bundles' modification times name the build. When they change
 // (an update, or a rebuild while developing) every open page finds out.
-const BUNDLES = ["deck.js", "designer.js", "pair.js"].map((name) => path.join(PUBLIC_DIR, "js", name))
+const BUNDLES = ["deck.js", "designer.js", "pair.js", "tour.js"].map((name) => path.join(PUBLIC_DIR, "js", name))
 function currentBuild(): string {
   return BUNDLES.map((file) => {
     try { return Math.round(fs.statSync(file).mtimeMs).toString(36) } catch { return "0" }
@@ -429,6 +429,7 @@ const routes: Route[] = [
     version: VERSION,
     desktop: DESKTOP,
     supportNote: !config.supportShown,
+    tourNote: !config.tourShown,
     language: config.language
   })),
   route<SettingsSaved>("PUT", "/api/settings", "local", async ({ req }) => {
@@ -450,6 +451,7 @@ const routes: Route[] = [
     if (typeof data.obsPassword === "string" && data.obsPassword.length < 500) config.obs.password = data.obsPassword
     if (`${config.obs.address}\n${config.obs.password}` !== obsBefore) obs.reset()
     if (data.supportShown === true) config.supportShown = true
+    if (data.tourShown === true) config.tourShown = true
     if (isLanguageSetting(data.language) && data.language !== config.language) {
       config.language = data.language
       desktopLanguage()
