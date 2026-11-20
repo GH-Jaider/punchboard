@@ -41,6 +41,10 @@ socket2 = "0.6"
 if-addrs = { version = "0.15", features = ["link-local"] }
 gethostname = "1"
 url = "2"
+rodio = { version = "0.23", default-features = false, features = ["playback", "wav", "mp3"] }
+unicode-properties = { version = "0.1", default-features = false, features = ["general-category"] }
+libm = "0.2"
+icu_collator = "2"
 
 [dev-dependencies]
 tempfile = "3"
@@ -52,3 +56,19 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "abort"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-audio = { version = "0.3", default-features = false, features = ["std", "AudioHardware"] }
+core-graphics = { version = "0.25", features = ["highsierra"] }
+objc2-foundation = { version = "0.3", default-features = false, features = ["std", "NSGeometry", "objc2-core-foundation", "NSString", "NSURL", "NSError"] }
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSEvent", "NSGraphicsContext", "objc2-core-graphics", "NSWorkspace", "NSRunningApplication", "block2"] }
+objc2 = "0.6"
+block2 = "0.6"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62", features = ["Win32_Foundation", "Win32_Media_Audio", "Win32_Media_Audio_Endpoints", "Win32_System_Com", "Win32_System_Com_StructuredStorage", "Win32_System_Variant", "Win32_System_Threading", "Win32_System_Diagnostics_ToolHelp", "Win32_Storage_FileSystem", "Win32_UI_Input_KeyboardAndMouse", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+pulseaudio = "0.3"
+x11rb = { version = "0.13", features = ["xtest"] }
+evdev = "0.13"
