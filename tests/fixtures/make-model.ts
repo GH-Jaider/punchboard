@@ -910,7 +910,7 @@ function starters(): void {
         decks.push({ input: { id, mac, words }, ids: made, output: inWords(words, () => starterDeck(id, mac)) })
       }
       const made = idsNow()
-      // What a first start saves (src/server/library.ts).
+      // What a first start saves (the companion's library store).
       whole.push({ input: { mac, words }, ids: made, output: inWords(words, () => {
         const library = starterLibrary(mac)
         return { library, normalized: normalizeLibrary({ version: 1, ...library }) }

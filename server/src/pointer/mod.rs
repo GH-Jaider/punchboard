@@ -1,5 +1,4 @@
 //! Moves this computer's mouse for trackpad decks.
-//! (src/server/pointer.ts and helpers/mac-pointer.js)
 //!
 //! The Node companion kept a helper process running (osascript on a Mac, a
 //! PowerShell loop on Windows) and wrote it one line per command: "m dx dy",

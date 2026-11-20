@@ -1,6 +1,5 @@
 //! Live state pushed to every connected page over server-sent events: button
 //! states from OBS, fader levels, revisions, sound playback, meters.
-//! (src/server/events.ts)
 
 use std::path::PathBuf;
 use std::pin::Pin;

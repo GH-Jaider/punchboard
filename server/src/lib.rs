@@ -1,7 +1,7 @@
 //! The Punchboard companion.
 //!
-//! One module per area; `PORTING.md` beside Cargo.toml says which TypeScript
-//! file each one replaces and the rules the port follows.
+//! One module per area; `README.md` beside Cargo.toml has the map, the
+//! process contract and the rules the crate keeps.
 
 pub mod config;
 pub mod http;

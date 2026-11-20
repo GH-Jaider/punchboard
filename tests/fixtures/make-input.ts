@@ -1,22 +1,19 @@
-// Writes tests/fixtures/input/*.json: what the TypeScript companion works out
-// before it touches the keyboard or the mouse (src/server/keys.ts,
-// src/server/pointer.ts) and how it reads a recorded trackpad trace
-// (src/shared/touchpad/trace.ts). The Rust companion (server/src/keys,
-// server/src/pointer, server/src/touch_trace.rs) reads these files in its
-// tests and must give the same answers.
-//   node tests/fixtures/make-input.ts
+// Writes the live files of tests/fixtures/input: trace-*.json, how the code
+// shared with the deck reads a recorded trackpad trace
+// (src/shared/touchpad/trace.ts). The Rust companion's copy
+// (server/src/touch_trace.rs) reads them in its tests and must give the same
+// answers. The folder's other files (keys-*.json, pointer-lines.json) are
+// frozen records of the Node companion (tests/fixtures/README.md) and are
+// left as they are.
+//   node tests/fixtures/make-input.ts       (npm run fixtures runs them all)
 //
-// Each file is a list of { input, output }. Nothing here presses a key or
-// moves the pointer, and running it twice writes the same files.
+// Each file is a list of { input, output }, and running it twice writes the
+// same files.
 import fs from "node:fs"
 import path from "node:path"
-import { MAC_CODES, WIN_MODIFIER_SCAN_CODES, WIN_SCAN_CODES, macMediaScript, macScript, windowsInputs, windowsMediaLine } from "../../src/server/keys.ts"
-import { pointerLine } from "../../src/server/pointer.ts"
-import { comboToString, KEY_NAMES, MODIFIERS } from "../../src/shared/keys.ts"
-import type { KeyCombo, Modifier } from "../../src/shared/keys.ts"
 import { isTouchFrame, isTouchpadEvent, summarize, TRACE_LIMITS } from "../../src/shared/touchpad/trace.ts"
 import type { TouchpadEvent } from "../../src/shared/touchpad/types.ts"
-import type { MediaKey } from "../../src/shared/types.ts"
+
 
 type Json = null | boolean | number | string | Json[] | { [key: string]: Json }
 interface Case { input: Json; output: unknown }
@@ -58,140 +55,6 @@ function sequence(seed: number): () => number {
 
 const isFields = (value: unknown): value is { [key: string]: unknown } => typeof value === "object" && value !== null && !Array.isArray(value)
 
-/** What an error said, as the key and values it was made with. */
-function thrown(error: unknown): unknown {
-  if (isFields(error) && isFields(error.text)) return error.text
-  throw error
-}
-
-// --------------------------------------------------------------------- keys
-
-/** Every set of modifiers, each in the fixed order. */
-function modifierSets(): Modifier[][] {
-  const sets: Modifier[][] = []
-  for (let bits = 0; bits < 1 << MODIFIERS.length; bits += 1) sets.push(MODIFIERS.filter((_, index) => (bits & (1 << index)) !== 0))
-  return sets
-}
-
-/** What System Events is asked for, read back out of the AppleScript. */
-const MAC_MODIFIER_WORDS: Record<string, Modifier> = { "control down": "ctrl", "option down": "alt", "shift down": "shift", "command down": "meta" }
-
-function macKey(combo: KeyCombo): { code: number; modifiers: Modifier[] } {
-  const script = macScript(combo)
-  const match = /^tell application "System Events" to key code (\d+)(?: using \{([^}]*)\})?$/.exec(script)
-  if (!match) throw new Error(`An AppleScript this generator cannot read: ${script}`)
-  const modifiers = (match[2] ?? "").split(", ").filter(Boolean).map((word) => {
-    const modifier = MAC_MODIFIER_WORDS[word]
-    if (!modifier) throw new Error(`A modifier this generator cannot read: ${word}`)
-    return modifier
-  })
-  return { code: Number(match[1]), modifiers }
-}
-
-/** The NX_KEYTYPE_* number in the JXA for one music key. */
-function macMediaCode(key: MediaKey): number {
-  const match = /\((\d+) << 16\)/.exec(macMediaScript(key))
-  if (!match) throw new Error(`No key type in the music key script for ${key}`)
-  return Number(match[1])
-}
-
-/** The virtual key in the key helper's command for one music key. */
-function windowsMediaCode(key: MediaKey): number {
-  const match = /^media (\d+)$/.exec(windowsMediaLine(key))
-  if (!match) throw new Error(`No virtual key in the music key command for ${key}`)
-  return Number(match[1])
-}
-
-const MEDIA: MediaKey[] = ["play_pause", "next", "previous"]
-
-function keys(): void {
-  const macMedia: Record<string, number> = {}
-  const windowsMedia: Record<string, number> = {}
-  for (const key of MEDIA) {
-    macMedia[key] = macMediaCode(key)
-    windowsMedia[key] = windowsMediaCode(key)
-  }
-  writeTable("keys-tables.json", { KEY_NAMES, MODIFIERS, MAC_CODES, WIN_SCAN_CODES, WIN_MODIFIER_SCAN_CODES, MAC_MEDIA: macMedia, WIN_MEDIA: windowsMedia })
-
-  const windows: Case[] = []
-  const mac: Case[] = []
-  for (const key of KEY_NAMES) {
-    for (const modifiers of modifierSets()) {
-      const combo: KeyCombo = { modifiers, key }
-      const input = comboToString(combo)
-      try {
-        windows.push({ input, output: { inputs: windowsInputs(combo) } })
-      } catch (error) {
-        windows.push({ input, output: { error: thrown(error) } })
-      }
-      try {
-        mac.push({ input, output: macKey(combo) })
-      } catch (error) {
-        mac.push({ input, output: { error: thrown(error) } })
-      }
-    }
-  }
-  write("keys-windows.json", windows)
-  write("keys-mac.json", mac)
-}
-
-// ------------------------------------------------------------------ pointer
-
-/** What a deck, or anything else that reaches the socket, can put in a message. */
-const NUMBERS: Json[] = [
-  0, 1, -1, 2, 3, 4, 5, 7, 12, -4, 30, 0.4, 0.5, -0.5, 0.49, -0.51, 1.5, 2.5, -2.5, 399.4, 399.5, 400, 400.5, 401, -400.5, 1999.5, 2000, 2000.5, -2001, 9999,
-  -9999, 1e21, -1e21, 1e-7, 5e-324, 0.05, -0.05, 0.03125, -0.03125, 0.09375, 0.46875, 0.00005, -0.00001, 0.12345, 0.123449, 0.49999, 0.5001, 0.6, -0.6
-]
-const WORDS: Json[] = [
-  "left", "right", "middle", "begin", "change", "end", "up", "down", "tap", "spread", "pinch", "app", "sideways", "toString", "constructor", "hasOwnProperty",
-  "__proto__", "", " ", "12", " 7 ", "-3.5", "0x10", "1e2", "1", "-1", "Infinity", "-Infinity", "NaN", "abc", "LEFT", "Begin"
-]
-const OTHERS: Json[] = [null, true, false, [], [5], ["3"], [1, 2], [[4]], {}, { valueOf: 1 }]
-const ANYTHING: Json[] = [...NUMBERS, ...WORDS, ...OTHERS]
-
-function pointer(): void {
-  const messages: Json[] = [
-    // What tests/trackpad.test.mjs sends, to begin with.
-    ["m", 12, -4], ["s", 0, 30], ["c", "left"], ["c", "right"], ["m", 9999, 0], ["x", 1], ["c", "middle"], "junk", ["d"], ["m", 3, 3],
-    ["p", "begin", 0], ["p", "change", 0.5], ["p", "change", 0.05], ["p", "end", 0], ["p", "sideways", 1], ["p", "change", "big"],
-    ["g", 3, "up"], ["z", 1], ["g", 5, "up"], ["g", 3, "sideways"], ["z", 7], ["u"],
-    // Not a list at all.
-    null, true, 0, 7, "", "m", {}, { 0: "m", 1: 1, 2: 2 }, [], [[]], [["m"], 1, 2], [null], [1, 2, 3], ["M", 1, 2], ["", 1, 2], [" m", 1, 2],
-    // Longer than it needs to be: the rest is not read.
-    ["m", 1, 2, 3], ["d", "left"], ["u", 1, 2], ["c", "left", "right"], ["z", -1, 5], ["g", 4, "left", "extra"]
-  ]
-  for (const kind of ["m", "s", "c", "d", "u", "z", "p", "g", "k", "q", "app", "pinch"]) {
-    messages.push([kind])
-    for (const a of ANYTHING) {
-      messages.push([kind, a])
-      // A second value only matters to these.
-      if (kind === "m" || kind === "s") {
-        for (const b of [0, 1, -7, 2.5, -2.5, 400.5, 2000.5, -9999, "8", "", "x", null, true, [], [6], {}] satisfies Json[]) messages.push([kind, a, b])
-      }
-    }
-  }
-  // Moves and scrolls with every second value too.
-  for (const b of ANYTHING) messages.push(["m", 5, b], ["s", -5, b])
-  // A pinch: every phase with every magnification.
-  for (const phase of ["begin", "change", "end", "cancel", 1, 2, 4, null] satisfies Json[]) {
-    for (const b of ANYTHING) messages.push(["p", phase, b])
-  }
-  // A gesture: every number of fingers with every name.
-  for (const fingers of [3, 4, 2, 5, 0, 3.5, "3", "4", null, true, [3]] satisfies Json[]) {
-    for (const name of [...WORDS, ...OTHERS, 3, 0]) messages.push(["g", fingers, name])
-  }
-  const random = sequence(20260930)
-  for (let i = 0; i < 300; i += 1) {
-    const dx = (random() - 0.5) * 1000
-    const dy = (random() - 0.5) * 5000
-    messages.push(["m", dx, dy], ["s", dx, dy], ["p", i % 2 ? "change" : "begin", (random() - 0.5) * 1.2])
-  }
-  const cases: Case[] = unique(messages).map((input) => ({
-    input,
-    output: { darwin: pointerLine(input, "darwin"), win32: pointerLine(input, "win32"), linux: pointerLine(input, "linux") }
-  }))
-  write("pointer-lines.json", cases)
-}
 
 // ------------------------------------------------------------------- traces
 
@@ -302,10 +165,7 @@ function traces(): void {
 
 // ---------------------------------------------------------------------- run
 
-fs.rmSync(OUT, { recursive: true, force: true })
 fs.mkdirSync(OUT, { recursive: true })
-keys()
-pointer()
 traces()
 
 for (const [name, count] of written) console.log(`${String(count).padStart(6)}  ${name}`)

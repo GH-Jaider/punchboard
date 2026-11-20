@@ -1,5 +1,5 @@
 //! The Punchboard companion, as a program. `server.rs` is what it does;
-//! PORTING.md lists the environment variables it reads and the lines the
+//! README.md lists the environment variables it reads and the lines the
 //! desktop app reads from it.
 
 use punchboard_server::{server, test_system};

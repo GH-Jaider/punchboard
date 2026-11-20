@@ -1,9 +1,9 @@
 //! The link to OBS Studio.
 //!
 //! - [`client`]: the obs-websocket v5 protocol (in place of obs-websocket-js).
-//! - [`link`]: the one connection, kept up, with its meters (src/server/obs.ts).
-//! - [`state`]: what OBS is doing, as the decks show it (src/server/obs-state.ts).
-//! - [`config`]: OBS's own settings on this computer (src/server/obs-config.ts).
+//! - [`link`]: the one connection, kept up, with its meters.
+//! - [`state`]: what OBS is doing, as the decks show it.
+//! - [`config`]: OBS's own settings on this computer.
 
 pub mod client;
 pub mod config;

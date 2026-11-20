@@ -1,6 +1,5 @@
 //! Punchboard companion: serves the Control Center to this computer and the
 //! deck to paired tablets, and runs their button presses.
-//! (src/server/main.ts)
 //!
 //! Who may call what:
 //!   public  pages, and claiming a pairing code
@@ -1524,11 +1523,8 @@ impl App {
                 )
             }
             Route::PairQr => {
-                let svg = pair_qr_svg(&self.pair_url()?).ok_or_else(|| {
-                    Failure::Other(Box::new(SystemFailure(
-                        "The pairing address does not fit a QR code.".to_string(),
-                    )))
-                })?;
+                let svg = pair_qr_svg(&self.pair_url()?)
+                    .ok_or_else(|| Failure::from(UserError::new(say("server.pair.qrTooLong"))))?;
                 let mut response = Response::new(Body::from(svg));
                 for (name, value) in SECURITY_HEADERS.into_iter().chain([
                     ("Content-Type", "image/svg+xml"),
@@ -2496,6 +2492,7 @@ async fn serve(
 ) -> Response {
     // On a task of its own: a page that goes away mid-request must not stop
     // a macro halfway, or a save between the file and the broadcast.
+    let language = crate::i18n::language_for(request.headers());
     let work = if wants_upgrade(request.headers()) {
         tokio::spawn(app.upgrade(remote, request))
     } else {
@@ -2505,7 +2502,8 @@ async fn serve(
         Ok(response) => response,
         Err(error) => {
             log(&format!("Request failed: {error}"));
-            send_json(500, &json!({ "error": "Something went wrong." }), &[])
+            let message = render(&say("server.request.failed").into(), &language);
+            send_json(500, &json!({ "error": message }), &[])
         }
     }
 }

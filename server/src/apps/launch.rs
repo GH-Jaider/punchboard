@@ -17,7 +17,6 @@
 //! Linux always starts the application: a program cannot bring another's
 //! window forward on Wayland, and on X11 only some window managers let it.
 //! Applications that keep one copy come forward themselves when started again.
-//! (src/server/launch.ts)
 //!
 //! Also here: opening a web address or a file with whatever the system uses
 //! for it, which the TypeScript left to the "open" package.

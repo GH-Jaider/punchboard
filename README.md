@@ -12,6 +12,7 @@ Download the latest version from **[Releases](https://github.com/GH-Jaider/punch
 
 - **Mac**: `Punchboard_…_apple-silicon.dmg` (M1 and newer) or `Punchboard_…_intel.dmg`. Open it and drag Punchboard to Applications.
 - **Windows**: `Punchboard_…_windows-x64-setup.exe`.
+- **Linux** (experimental): there is no installer yet; build it from source, as described under [For developers](#for-developers).
 
 Punchboard is not signed by Apple or Microsoft, so the first time you open it:
 
@@ -37,7 +38,7 @@ On an iPad, tap **Full screen** on the deck. On an iPhone, use **Share › Add t
 - **This computer**: press key combinations (any app's shortcuts), launch apps, open links, control music (play / pause, next, previous) and play sounds.
 - **OBS**: switch scenes, show or hide sources, mute inputs, turn filters on or off, start or stop the stream, recording and virtual camera, save a replay, and send the preview live in Studio Mode. Buttons light up with what OBS is doing, even when you change it in OBS itself.
 - **The deck**: go to another deck, or open a link on the device.
-- **Faders**: the computer's volume, one app's volume, Punchboard's sounds, or an OBS input. On Windows any app that plays sound (Chrome, Spotify, Discord, a game); on a Mac, which has no per-app volume, Music and Spotify.
+- **Faders**: the computer's volume, one app's volume, Punchboard's sounds, or an OBS input. On Windows and Linux any app that plays sound (Chrome, Spotify, Discord, a game); on a Mac, which has no per-app volume, Music and Spotify.
 - **Trackpad decks**: set a deck's type to *Trackpad* and the whole screen works like a laptop trackpad: tap, drag, two-finger scroll with momentum, pinch to zoom, and three- and four-finger swipes for Mission Control, desktops and the desktop.
 - **Macros**: several steps in a row, each with its own delay. A macro can also run a second list when pressed again, like a *Break* button that goes to BRB and mutes the mic, then comes back.
 
@@ -50,7 +51,7 @@ On a Mac, key combinations, music controls and the trackpad need a one-time perm
 ## Good to know
 
 - Only paired devices can press buttons, and only this computer can edit decks. Remove a device in **Pair a device** to cut it off.
-- Your decks, sounds and paired devices live in their own folder, so updates never touch them: `~/Library/Application Support/Punchboard` on Mac, `%APPDATA%\Punchboard` on Windows. **Back up** in the Control Center saves your decks (buttons, macros and layouts) to a file, and **Restore** brings them back; custom sounds, the theme and paired devices are not in it, so copy that folder to keep everything. Punchboard also keeps a daily copy of your decks in `decks/backups` inside it.
+- Your decks, sounds and paired devices live in their own folder, so updates never touch them: `~/Library/Application Support/Punchboard` on Mac, `%APPDATA%\Punchboard` on Windows, `~/.config/punchboard` on Linux. **Back up** in the Control Center saves your decks (buttons, macros and layouts) to a file, and **Restore** brings them back; custom sounds, the theme and paired devices are not in it, so copy that folder to keep everything. Punchboard also keeps a daily copy of your decks in `decks/backups` inside it.
 - **Lock the device to the deck**, so a swipe from the edge cannot leave it mid-stream: **Guided Access** on iPad and iPhone (Settings › Accessibility, then triple-click), **App pinning** on Android (Settings › Security). Full screen helps too.
 - **Keep the device's screen on yourself**: a page on your local wifi cannot do it. On iPad and iPhone set **Settings › Display & Brightness › Auto-Lock** to Never; on Android set **Settings › Display › Screen timeout** (or *Sleep*) to the longest.
 
@@ -58,23 +59,28 @@ On a Mac, key combinations, music controls and the trackpad need a one-time perm
 
 Punchboard speaks English and Spanish. **Appearance › Language** in the Control Center picks one for the Control Center and every device, or *Automatic*, where each device follows its own language (and English when Punchboard does not speak it).
 
-To add a language, copy `public/locales/en.json` to `public/locales/<code>.json` (`fr.json`, `pt-BR.json`), set `meta.name` to the language's own name (`Français`) and `meta.code` to the code, translate the values, keeping every `{placeholder}` as it is, and open a pull request. Nothing else needs to change: the new file shows up in the picker by itself, and the companion, the pages and the menu-bar menu all read it. `npm test` checks that every locale file has exactly English's keys, placeholders and plural forms (`one` / `other`, or whichever of CLDR's categories the language needs), so a missing or extra line is caught before it ships.
+To add a language, copy `public/locales/en.json` to `public/locales/<code>.json` (`fr.json`, `pt-BR.json`), set `meta.name` to the language's own name (`Français`) and `meta.code` to the code, translate the values, keeping every `{placeholder}` as it is, run `npm run fixtures`, and open a pull request. Nothing else needs to change: the new file shows up in the picker by itself, and the companion, the pages and the menu-bar menu all read it. `npm test` checks that every locale file has exactly English's keys, placeholders and plural forms (`one` / `other`, or whichever of CLDR's categories the language needs), so a missing or extra line is caught before it ships.
 
 ## For developers
 
-Punchboard is strict TypeScript: `src/server` (the companion, run by Node 22.18+ directly), `src/client` (Control Center and deck, bundled by esbuild), `src/shared` (the model and API types both use). The desktop app is a small Tauri shell in `src-tauri` that carries the companion as a program of its own: the Rust port in `server/` (`server/PORTING.md`), which answers exactly as the TypeScript one does.
+Punchboard is a companion in Rust and pages in strict TypeScript: `server/` (the companion, a crate of its own; `server/README.md` says how it is laid out and tested), `src/client` (Control Center and deck, bundled by esbuild) and `src/shared` (the model and API types the pages use, which the companion keeps a twin of in `server/src/model`). The desktop app is a small Tauri shell in `src-tauri` that carries the companion as a program of its own.
 
 ```sh
 npm install
 npm run check     # type-check and build the pages
-npm start         # run the companion from source (or start.command / start.bat)
-npm test          # security and OBS tests, against a fake OBS
+npm start         # build and run the companion from source (or start.command / start.bat)
+npm test          # build the companion and test it from outside, against a fake OBS
+npm run test:rust # the companion's own tests (cargo test in server/)
 npm run app:dev   # the desktop app
 ```
 
+Running from source needs Rust ([rustup.rs](https://rustup.rs)) and Node 22.18 or newer. On Linux, which is experimental and has no installer yet, it also needs the system libraries listed in `server/README.md`; after that, `npm install` and `npm start` build and run Punchboard there too.
+
+The companion's twin of the shared code is held to it by fixtures in `tests/fixtures`: after changing `src/shared` or a locale file, run `npm run fixtures` and commit what it changed (CI checks that nothing is left to regenerate).
+
 The deck runs on old tablets too (Safari 11, ES2015): keep newer JavaScript and CSS out of `src/client/deck` and the shared code.
 
-Interface text lives in `public/locales/en.json`, never in the code: pages call `t("deck.status.connected")` (`src/shared/i18n.ts`), the HTML marks its English with `data-i18n="…"` attributes, and the companion throws `UserError("server.…")` or `HttpError(status, say("server.…"))`, worded in the asker's language when sent. `tests/i18n-literals.mjs` lists English left in the code; its `ALLOWED` list says what rightly stays English (log lines, scripts sent to the system).
+Interface text lives in `public/locales/en.json`, never in the code: pages call `t("deck.status.connected")` (`src/shared/i18n.ts`), the HTML marks its English with `data-i18n="…"` attributes, and the companion returns `UserError::new(say("server.…"))` or `HttpError::new(status, say("server.…"))`, worded in the asker's language when sent. `tests/i18n-literals.mjs` lists English left in the code, TypeScript and Rust; its `ALLOWED` list says what rightly stays English (log lines, the system's own reasons).
 
 Pushing a tag like `v1.2.0` builds the Mac and Windows apps on GitHub Actions and drafts a release with them.
 

@@ -1,15 +1,17 @@
-// Fixtures for the Rust port of the companion's base (server/src/{i18n,http,
-// store,paths,config,port,net,latest_wins}.rs): the TypeScript is run over
-// many inputs and what it answers is written to tests/fixtures/base/*.json
-// as arrays of { input, output }. The Rust unit tests read them and must
-// answer the same. Nothing here depends on the clock or on chance, so a
-// second run writes the same files.
-//   node tests/fixtures/make-base.ts        (from the repository's root)
+// Writes the live files of tests/fixtures/base: what JavaScript itself and
+// the code shared with the browser (src/shared/i18n.ts) answer over many
+// inputs, as arrays of { input, output }: how numbers and JSON are printed
+// and read, dates, Accept-Language, matching and resolving a language,
+// plural categories, placeholders and the translators over the real locale
+// files. The Rust companion's copies (server/src/{model/js,store,i18n}.rs)
+// read them in their tests and must answer the same. The folder's other
+// files are frozen records of the Node companion (tests/fixtures/README.md)
+// and are left as they are. Nothing here depends on the clock or on chance,
+// so a second run writes the same files.
+//   node tests/fixtures/make-base.ts        (npm run fixtures runs them all)
 import fs from "node:fs"
-import type { ServerResponse } from "node:http"
-import os from "node:os"
 import path from "node:path"
-import { fileURLToPath, pathToFileURL } from "node:url"
+import { fileURLToPath } from "node:url"
 import {
   createTranslator, fill, matchLanguage, parseAcceptLanguage, placeholdersOf, pluralCategory, resolveLanguage
 } from "../../src/shared/i18n.ts"
@@ -22,17 +24,7 @@ const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, "../..")
 const OUT = path.join(HERE, "base")
 const LOCALES = path.join(ROOT, "public", "locales")
-const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-fixtures-"))
 
-// The companion's own modules read the environment when they load.
-process.env.PUNCHBOARD_LOCALES_DIR = LOCALES
-delete process.env.PUNCHBOARD_LOCALE
-type ServerI18n = typeof import("../../src/server/i18n.ts")
-const serverI18n: ServerI18n = await import("../../src/server/i18n.ts")
-const { staticFile } = await import("../../src/server/http.ts")
-const { writeJsonAtomic } = await import("../../src/server/store.ts")
-const { loadConfig, saveConfig } = await import("../../src/server/config.ts")
-const { latestWinsPerKey } = await import("../../src/server/latest-wins.ts")
 
 const counts: Record<string, number> = {}
 function write(name: string, cases: Case[]): void {
@@ -118,12 +110,6 @@ const english: Messages = locales.en ?? {}
     return { input: text, output: { compact: JSON.stringify(value), pretty: JSON.stringify(value, null, 2) } }
   }))
 
-  const dir = path.join(TMP, "written")
-  write("written-files.json", jsonTexts.map((text, index) => {
-    const file = path.join(dir, `nested-${index}`, "file.json")
-    writeJsonAtomic(file, JSON.parse(text) as unknown)
-    return { input: text, output: fs.readFileSync(file, "utf8") }
-  }))
 
   const moments: number[] = [
     0, 1, 999, 1000, 86399999, 86400000, 951782400000, 951868799999, 951868800000, 1078012800000, 1078099199999, 1700000000000, 1700000012345,
@@ -291,290 +277,5 @@ function varsFor(message: Message, count: number | string): Vars {
   write("translator-made-up.json", madeUp)
 }
 
-// ------------------------------------------------ the companion's languages
-
-type Text = import("../../src/server/i18n.ts").Text
-type Said = import("../../src/server/i18n.ts").Said
-
-/** A Text as plain data. */
-function textJson(said: Said): Json {
-  if (typeof said === "string") return said
-  if (!said.vars) return { key: said.key }
-  const vars: { [name: string]: Json } = {}
-  for (const name of Object.keys(said.vars)) {
-    const value = said.vars[name]!
-    vars[name] = typeof value === "object" ? textJson(value) : value
-  }
-  return { key: said.key, vars }
-}
-
-{
-  const { say, render, isLanguageSetting, languageFor, useLanguageSetting } = serverI18n
-  const keys = Object.keys(english)
-  const withPlaceholders = keys.filter((key) => placeholdersOf(english[key]!).length > 0)
-  const plain = keys.filter((key) => typeof english[key] === "string" && placeholdersOf(english[key]!).length === 0)
-  const saids: Said[] = ["", "plain text from OBS", "{not} a {placeholder}", say("nowhere.at.all"), say("nowhere.at.all", { count: 2 })]
-  withPlaceholders.forEach((key, index) => {
-    const message = english[key]!
-    const names = placeholdersOf(message)
-    const flat: Record<string, string | number | Text> = {}
-    const nested: Record<string, string | number | Text> = {}
-    names.forEach((name, at) => {
-      flat[name] = name === "count" ? (index % 4) + at : `«${name}»`
-      // A reason inside a sentence: another message, itself with a value in it.
-      const inner = withPlaceholders[(index * 3 + at + 1) % withPlaceholders.length]!
-      const innerVars: Record<string, string | number | Text> = {}
-      for (const innerName of placeholdersOf(english[inner]!)) innerVars[innerName] = innerName === "count" ? index % 3 : say(plain[(index + at) % plain.length]!)
-      nested[name] = name === "count" ? 1 : say(inner, innerVars)
-    })
-    saids.push(say(key), say(key, flat))
-    if (index % 2 === 0) saids.push(say(key, nested))
-  })
-  const rendered: Case[] = []
-  for (const said of saids) {
-    for (const code of ["en", "es", "eo", "es-CO"]) rendered.push({ input: { said: textJson(said), code }, output: render(said, code) })
-  }
-  write("render.json", rendered)
-
-  const candidates: Json[] = [
-    "auto", "en", "es", "EN", "Es", "es-CO", "es_CO", "fr", "", " ", "auto ", "AUTO", " en", "en ", "eo", "xx", "english",
-    null, 0, 1, 5, true, false, [], ["en"], {}, { code: "en" }, "meta", "messages"
-  ]
-  write("is-language-setting.json", candidates.map((value) => ({ input: value, output: isLanguageSetting(value) })))
-
-  const headers: Array<string | null> = [
-    null, "", "en", "es", "es-CO", "es-CO,es;q=0.9,en;q=0.8", "fr-FR", "en-US", "fr,es;q=0.5", "fr;q=0.9,en;q=0.1,es;q=0.5", "pt-BR,pt;q=0.9", "*", "ES", "es_MX", "de, es-AR;q=0.2", "en;q=0, es"
-  ]
-  const forRequests: Case[] = []
-  for (const setting of ["auto", "es", "en", "de", "", "es-CO", "ES"]) {
-    useLanguageSetting(() => setting)
-    for (const header of headers) {
-      const requestHeaders: Record<string, string | undefined> = header === null ? {} : { "accept-language": header }
-      forRequests.push({ input: { setting, header }, output: languageFor({ headers: requestHeaders }) })
-    }
-  }
-  useLanguageSetting(() => "auto")
-  write("language-for.json", forRequests)
-}
-
-{
-  // Each folder gets a module of its own: the folder is read when it loads.
-  const file = (name: string, code: string, messages: Messages = {}): string => JSON.stringify({ meta: { name, code }, messages })
-  const folders: Array<Record<string, string>> = [
-    {},
-    { "en.json": file("English", "en") },
-    { "es.json": file("Español", "es"), "en.json": file("English", "en"), "eo.json": file("Esperanto (test)", "eo") },
-    {
-      "zu.json": file("Zulu", "zu"), "en.json": file("English", "en"), "de.json": file("Deutsch", "de"), "da.json": file("Dansk", "da"), "es.json": file("Español", "es"),
-      "eo.json": file("Esperanto", "eo"), "fr.json": file("Français", "fr"), "it.json": file("italiano", "it"), "pt-BR.json": file("Português (Brasil)", "pt-BR"),
-      "pt.json": file("Português", "pt"), "nl.json": file("Nederlands", "nl"), "pl.json": file("Polski", "pl"), "tr.json": file("Türkçe", "tr")
-    },
-    {
-      "en.json": file("English", "wrong-code"), "broken.json": "{", "de.json": "{ not json", "fr.json": JSON.stringify({ meta: { name: "Français" }, messages: {} }),
-      "it.json": JSON.stringify({ meta: { name: "Italiano", code: "it" }, messages: [] }), "english.json": file("Too long a name", "english"), "x.json": file("Too short", "x"),
-      "pt-BR.json": file("Português (Brasil)", "pt"), "es_CO.json": file("Underscore", "es_CO"), "notes.txt": "hello", "nl.JSON": file("Upper ending", "nl"), "sv.json": file("Svenska", "sv")
-    },
-    { "es.json": file("Español", "es"), "fr.json": file("Français", "fr") },
-    { "en.json": file("Zzz English is first whatever its name", "en"), "aa.json": file("Aaa", "aa"), "ab.json": file("aab", "ab"), "ac.json": file("AAC", "ac") }
-  ]
-  const cases: Case[] = []
-  for (const [index, folder] of folders.entries()) {
-    const dir = path.join(TMP, `locales-${index}`)
-    fs.mkdirSync(dir, { recursive: true })
-    for (const name of Object.keys(folder)) fs.writeFileSync(path.join(dir, name), folder[name]!)
-    process.env.PUNCHBOARD_LOCALES_DIR = dir
-    const quiet = console.log
-    console.log = () => { /* "Skipped the language file…" is expected here */ }
-    try {
-      const fresh: unknown = await import(`${pathToFileURL(path.join(ROOT, "src/server/i18n.ts")).href}?folder=${index}`)
-      const module = fresh as ServerI18n
-      cases.push({ input: folder, output: { languages: module.languages().map((language) => ({ code: language.code, name: language.name })), codes: module.languageCodes() } })
-    } finally {
-      console.log = quiet
-    }
-  }
-  process.env.PUNCHBOARD_LOCALES_DIR = LOCALES
-  write("languages.json", cases)
-}
-
-// ------------------------------------------------------------------ ETags
-
-{
-  interface Reply { status: number; headers: Record<string, string | number> }
-  /** What staticFile answers for a file, through a stand-in for the response. */
-  const serve = (file: string): Promise<Reply> => new Promise((resolve) => {
-    const reply: Reply = { status: 0, headers: {} }
-    const stand = {
-      writeHead(status: number, headers: Record<string, string | number>): void {
-        reply.status = status
-        reply.headers = headers
-      },
-      end(): void { resolve(reply) }
-    }
-    staticFile(stand as unknown as ServerResponse, file)
-  })
-  const dir = path.join(TMP, "etags")
-  fs.mkdirSync(dir, { recursive: true })
-  const next = sequence(11)
-  const sizes = [0, 1, 2, 35, 36, 37, 1295, 1296, 4096, 46655, 46656, 100000]
-  const fractions = [0, 0.25, 0.5, 0.75, 0.499, 0.501, 0.001, 0.999]
-  const cases: Case[] = []
-  for (let i = 0; i < 72; i += 1) {
-    const size = sizes[i % sizes.length]! + (i >= sizes.length ? Math.floor(next() * 5000) : 0)
-    // Whole seconds, and moments inside a millisecond, since 2001.
-    const millis = 1000000000000 + Math.floor(next() * 800000000000) + (i % 9 === 0 ? 0 : fractions[i % fractions.length]!)
-    const file = path.join(dir, `file-${i}.bin`)
-    fs.writeFileSync(file, Buffer.alloc(size, 120))
-    fs.utimesSync(file, millis / 1000, i % 9 === 0 ? Math.floor(millis / 1000) : millis / 1000)
-    const stats = fs.statSync(file)
-    const reply = await serve(file)
-    cases.push({ input: { size: stats.size, mtimeMs: stats.mtimeMs }, output: String(reply.headers.ETag) })
-  }
-  write("etag.json", cases)
-}
-
-// ----------------------------------------------------------------- config
-
-{
-  const valid = {
-    port: 9100,
-    theme: { name: "hardware", accent: "#AB12ef", accentPreset: "teal" },
-    soundVolume: 0.35,
-    obs: { address: "ws://192.168.1.5:4455", password: "secret", source: "manual" },
-    supportShown: true,
-    tourShown: true,
-    language: "es"
-  }
-  type Raw = { [key: string]: Json }
-  const copy = (): Raw => JSON.parse(JSON.stringify(valid)) as Raw
-  const FIELDS: string[][] = [
-    ["port"], ["theme"], ["theme", "name"], ["theme", "accent"], ["theme", "accentPreset"], ["soundVolume"], ["obs"], ["obs", "address"], ["obs", "password"], ["obs", "source"],
-    ["supportShown"], ["tourShown"], ["language"]
-  ]
-  const WRONG: Json[] = [
-    null, true, false, 0, 1, -1, 0.5, 2, 65536, 1e21, 8080.5, "", " ", "x", "9000", " 9000 ", "0x1F", "1e3", "Infinity", "auto", "manual", "Auto",
-    "#ABCDEF", "#abcdeg", "#abc", "abcdef", "studio", "hardware-dark", "broadcast", "Studio", "pt-BR", "es_CO", "engl", "zh-Hant-TW", "  ws://host:1  ", "\u00a0ws://nbsp\ufeff",
-    [], [9001], ["9002"], [1, 2], {}, { name: "broadcast" }, { password: "typed long ago" }, { address: 5, password: 5, source: 5 }
-  ]
-  const texts: Array<string | null> = [
-    null, "", " ", "{", "{ this is not json", "[]", "[1]", "null", "5", "\"text\"", "true", "{}", JSON.stringify(valid), JSON.stringify(valid, null, 2),
-    JSON.stringify({ ...valid, extra: 1, nested: { more: [1, 2] } }), JSON.stringify({ unknown: true }), JSON.stringify({ obs: { password: "typed long ago" } }),
-    JSON.stringify({ obs: { password: "typed long ago", source: "auto" } }), JSON.stringify({ obs: { source: "manual" } }), JSON.stringify({ obs: { password: "", source: "other" } }),
-    JSON.stringify({ soundVolume: -0 }), "{\"soundVolume\": -0.0}", "{\"soundVolume\": 1.0000001}", "{\"soundVolume\": 0.30000000000000004}", "{\"port\": 8787.0}", "{\"port\": 1e3}",
-    "{\"port\": 9000, \"port\": 9001}", "{\"theme\": {\"name\": \"hardware\"}, \"theme\": {\"accent\": \"#000000\"}}", "\ufeff{}"
-  ]
-  const set = (raw: Raw, field: string[], value: Json | undefined): void => {
-    let target: Raw = raw
-    for (const name of field.slice(0, -1)) target = target[name] as Raw
-    const last = field[field.length - 1]!
-    if (value === undefined) delete target[last]
-    else target[last] = value
-  }
-  for (const field of FIELDS) {
-    const missing = copy()
-    set(missing, field, undefined)
-    texts.push(JSON.stringify(missing))
-    for (const wrong of WRONG) {
-      const raw = copy()
-      set(raw, field, wrong)
-      texts.push(JSON.stringify(raw))
-    }
-  }
-  const cases: Case[] = []
-  texts.forEach((text, index) => {
-    const dir = path.join(TMP, `config-${index}`)
-    fs.mkdirSync(dir, { recursive: true })
-    const file = path.join(dir, "config.json")
-    if (text !== null) fs.writeFileSync(file, text)
-    let logged = 0
-    const config = loadConfig(file, () => { logged += 1 })
-    const saved = path.join(dir, "saved.json")
-    saveConfig(saved, config)
-    // Through JSON, as it goes to disk: an endless port is written as null.
-    cases.push({ input: text, output: { config: JSON.parse(JSON.stringify(config)) as Json, logged, saved: fs.readFileSync(saved, "utf8") } })
-  })
-  write("config.json", cases)
-}
-
-// ------------------------------------------------------------ latest wins
-
-{
-  interface Call { at: number; key: string; level: number }
-  interface Scenario { durationMs: number; failLevels: number[]; calls: Call[] }
-  type Result = { ok: number } | { error: string }
-
-  /** Runs a scenario on a clock of its own: nothing waits for real time. */
-  async function play(scenario: Scenario): Promise<Json> {
-    let now = 0
-    const timers: Array<{ at: number; fire: () => void }> = []
-    const wait = (ms: number): Promise<void> => new Promise((resolve) => { timers.push({ at: now + ms, fire: resolve }) })
-    const settle = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
-    const writes: { [key: string]: string[] } = {}
-    const set = latestWinsPerKey(async (key: string, level: number): Promise<number> => {
-      const list = writes[key] ?? []
-      writes[key] = list
-      list.push(String(level))
-      await wait(scenario.durationMs)
-      if (scenario.failLevels.includes(level)) throw new Error(`fail ${level}`)
-      return level * 2
-    })
-    const results: Result[] = []
-    const pending = scenario.calls.map((call, index) => ({ call, index })).sort((a, b) => a.call.at - b.call.at)
-    while (pending.length || timers.length) {
-      timers.sort((a, b) => a.at - b.at)
-      const timerAt = timers.length ? timers[0]!.at : Infinity
-      const callAt = pending.length ? pending[0]!.call.at : Infinity
-      if (timerAt === callAt) throw new Error(`A write ends just as a call arrives at ${callAt}: which goes first would be chance.`)
-      if (timerAt < callAt) {
-        now = timerAt
-        timers.shift()!.fire()
-      } else {
-        now = callAt
-        const { call, index } = pending.shift()!
-        set(call.key, call.level).then(
-          (value) => { results[index] = { ok: value } },
-          (error: unknown) => { results[index] = { error: error instanceof Error ? error.message : String(error) } }
-        )
-      }
-      await settle()
-    }
-    return { writes, results }
-  }
-
-  const scenarios: Scenario[] = [
-    // tests/sounds.test.mjs and tests/app-volume.test.mjs, as data.
-    { durationMs: 37, failLevels: [], calls: [0.1, 0.2, 0.3, 0.4].map((level, i) => ({ at: i * 10, key: "volume", level })) },
-    {
-      durationMs: 37,
-      failLevels: [],
-      calls: [["chrome", 0.1], ["chrome", 0.2], ["spotify", 0.7], ["chrome", 0.3], ["chrome", 0.4], ["spotify", 0.8]].map((entry, i) => ({ at: i * 10, key: String(entry[0]), level: Number(entry[1]) }))
-    },
-    { durationMs: 7, failLevels: [], calls: [{ at: 0, key: "a", level: 0.25 }] },
-    { durationMs: 7, failLevels: [0.25], calls: [{ at: 0, key: "a", level: 0.25 }, { at: 10, key: "a", level: 0.5 }] },
-    { durationMs: 37, failLevels: [0.1], calls: [0.1, 0.2, 0.3].map((level, i) => ({ at: i * 10, key: "a", level })) },
-    { durationMs: 37, failLevels: [0.3], calls: [0.1, 0.2, 0.3, 0.4].map((level, i) => ({ at: i * 10, key: "a", level })) }
-  ]
-  const next = sequence(23)
-  const KEYS = ["chrome", "spotify", "music"]
-  for (let i = 0; i < 60; i += 1) {
-    const durationMs = [7, 13, 37, 53][i % 4]!
-    const callCount = 2 + Math.floor(next() * 7)
-    const keyCount = 1 + (i % 3)
-    const calls: Call[] = []
-    let at = 0
-    for (let c = 0; c < callCount; c += 1) {
-      // Calls land on tens; a write lasts an odd number, so none ends on one.
-      at += 10 * (1 + Math.floor(next() * (i % 5 === 0 ? 8 : 3)))
-      calls.push({ at, key: KEYS[Math.floor(next() * keyCount)]!, level: Math.round(next() * 100) / 100 })
-    }
-    const failLevels = i % 6 === 0 ? [calls[Math.floor(next() * calls.length)]!.level] : []
-    scenarios.push({ durationMs, failLevels, calls })
-  }
-  const cases: Case[] = []
-  for (const scenario of scenarios) cases.push({ input: scenario as unknown as Json, output: await play(scenario) })
-  write("latest-wins.json", cases)
-}
-
-fs.rmSync(TMP, { recursive: true, force: true })
 for (const name of Object.keys(counts).sort()) console.log(`${String(counts[name]).padStart(6)}  ${name}`)
 console.log(`${String(Object.values(counts).reduce((sum, count) => sum + count, 0)).padStart(6)}  cases in ${path.relative(ROOT, OUT)}`)

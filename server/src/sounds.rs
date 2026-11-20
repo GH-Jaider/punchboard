@@ -1,7 +1,7 @@
 //! The eight sound slots on disk: built-in tones generated on first run, and
 //! the WAV or MP3 files people upload to replace them.
 //!
-//! A port of `src/server/sounds.ts`: the same file names, the same
+//! A port of the Node companion's sound store: the same file names, the same
 //! `sounds.json`, the same tones byte for byte, and the same reading of a
 //! file's own structure to tell what it is and how long it lasts.
 

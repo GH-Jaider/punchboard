@@ -606,7 +606,7 @@ mod tests {
         let error = read_level(&system, &context).await.unwrap_err();
         assert_eq!(
             error.message(),
-            "The computer's volume can be controlled on macOS and Windows only."
+            "The computer's volume can be controlled on macOS, Windows and Linux only."
         );
         let error = write_level(&system, &Value::from(0.5), &context)
             .await

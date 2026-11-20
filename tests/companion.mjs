@@ -6,6 +6,24 @@ import fs from "node:fs"
 import http from "node:http"
 import os from "node:os"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
+
+const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
+
+/** The companion the tests start: the debug build of server/ (in Cargo's
+    target folder, CARGO_TARGET_DIR if that is set), or the one PUNCHBOARD_BIN
+    names (a release build, the one inside a built app). */
+function companionBinary() {
+  if (process.env.PUNCHBOARD_BIN) return path.resolve(process.env.PUNCHBOARD_BIN)
+  const targetDir = process.env.CARGO_TARGET_DIR ? path.resolve(ROOT, "server", process.env.CARGO_TARGET_DIR) : path.join(ROOT, "server", "target")
+  const binary = path.join(targetDir, "debug", `punchboard-server${process.platform === "win32" ? ".exe" : ""}`)
+  if (!fs.existsSync(binary)) {
+    // One sentence, not a stack: nothing is wrong with the test.
+    console.error(`There is no companion at ${path.relative(ROOT, binary)}: run "npm run build:companion:debug" first (npm test does it by itself).`)
+    process.exit(1)
+  }
+  return binary
+}
 
 export const LAN = Object.values(os.networkInterfaces()).flat().find((i) => i.family === "IPv4" && !i.internal)?.address
 
@@ -35,9 +53,8 @@ export function startCompanion({ config, files = {}, env = {} } = {}) {
   // Sounds, volumes, apps and links go to files too (server/src/test_system.rs
   // says which), so no test can be heard, change a volume or open anything.
   const testSystem = path.join(dataDir, "test-system")
-  // PUNCHBOARD_BIN runs the same tests against the Rust companion instead.
-  const [command, args] = process.env.PUNCHBOARD_BIN ? [path.resolve(process.env.PUNCHBOARD_BIN), []] : [process.execPath, ["src/server/main.ts"]]
-  const child = spawn(command, args, {
+  const child = spawn(companionBinary(), [], {
+    cwd: ROOT,
     env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1", PUNCHBOARD_POINTER_LOG: pointerLog, PUNCHBOARD_TEST_SYSTEM: testSystem, PUNCHBOARD_LOCALE: "en", ...env },
     stdio: ["pipe", "pipe", "inherit"]
   })

@@ -1,9 +1,11 @@
-// Finds English left behind in the code: string literals in src/client,
-// src/shared and src/server that read like interface text, and text in the
-// HTML pages that has no data-i18n key. Practical, not perfect: it looks
-// for sentences ("Choose the OBS scene first.") and for single words in
-// the places interface text goes (textContent, labels, toasts, titles).
-// What it rightly ignores is listed in ALLOWED below, with the reason.
+// Finds English left behind in the code: string literals in src/client and
+// src/shared (TypeScript) and in the companion, server/src (Rust), that read
+// like interface text, and text in the HTML pages that has no data-i18n key.
+// Practical, not perfect: it looks for sentences ("Choose the OBS scene
+// first.") and for single words in the places interface text goes
+// (textContent, labels, toasts, titles). In the companion, what a person is
+// shown is a locale key handed to say(); its tests (#[cfg(test)]) are not
+// read. What it rightly ignores is listed in ALLOWED below, with the reason.
 //   node tests/i18n-literals.mjs [folder or file…]   lists what it finds
 import fs from "node:fs"
 import path from "node:path"
@@ -16,6 +18,9 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..")
 /** Calls whose text is for the terminal or companion.log, which stay English. */
 const LOG_CALLS = /(?:^|[^\w.])(?:log|options\.log|console\.(?:log|error|warn|info)|note|warn|logLine)\s*\($/
 
+/** The companion's sources (Rust). */
+const COMPANION = "server/src"
+
 /** Literals that look like text but are not interface text, by file. Each
     entry is [file (relative, "*" for any), pattern, why]. */
 export const ALLOWED = [
@@ -24,22 +29,23 @@ export const ALLOWED = [
   ["*", /^#[0-9a-f]{6}$/i, "a colour value, such as the accent's hex code"],
   ["src/client/common/dom.ts", /^Missing #/, "a programming error: the page lacks an element the code needs"],
   ["src/client/designer/state.ts", /^The deck has not loaded yet\.$/, "a programming error, never shown: nothing renders before the deck loads"],
-  ["src/server/main.ts", /^\\n {2}Punchboard is ready|^ {2}(Control Center|Pair a device|Your data|Scan with|Punchboard is already|Opening it|Ports |Close one|Port |Paired tablets|Punchboard stopped|Punchboard could not)/, "the terminal banner at start-up stays English, like the log"],
-  ["src/server/main.ts", /^HTTP\/1\.1 /, "a raw HTTP status line"],
-  ["src/server/main.ts", /^(iPad|iPhone|Android phone|Android tablet|Windows browser|Browser)$/, "never: deviceName() is translated; kept here only if a test lists it"],
-  ["src/server/keys.ts", /System Events|key code|ArgumentException|not allowed to post events|Add-Type/, "AppleScript, JXA and C# sent to the system, not shown"],
-  ["src/server/pointer.ts", /Add-Type|\[PunchboardPointer\]|Exception/, "the PowerShell helper's own code"],
-  ["src/server/player.ts", /Add-Type|PresentationCore/, "the PowerShell player's own code"],
-  ["src/server/win-volume.ts", /Add-Type|Exception/, "the PowerShell volume helper's own code"],
-  ["src/server/launch.ts", /Add-Type|Start Menu/, "the PowerShell launcher's own code and a Windows folder name"],
-  ["src/server/apps.ts", /Start Menu|Programs/, "Windows folder names"],
-  ["src/server/google-icons.ts", /^HTTP \{x\}$/, "an HTTP status, wrapped in a translated message"],
-  ["src/server/actions.ts", /^Unknown action \{x\}$/, "a programming error: every action type is handled"],
-  ["src/server/obs.ts", /^OBS did not answer \{x\} in time; reconnecting\.$|^OBS closed the connection; will reconnect when it is back\.$/, "log lines: drop() passes them to options.log"],
-  ["src/server/store.ts", /could not be read \(\{x\}\)\. It was kept as/, "only reaches the log, when the decks or settings file is loaded"],
+  [`${COMPANION}/i18n.rs`, /^Could not read the languages folder |^Skipped the language file |^No text for "/, "log lines: warn_once() writes each to the log, once"],
+  [`${COMPANION}/obs/link.rs`, /^OBS did not answer \{x\} in time; reconnecting\.$|^OBS closed the connection; will reconnect when it is back\.$/, "log lines: drop_client() passes them to the log"],
+  [`${COMPANION}/store.rs`, /could not be read \(\{x\}\)\. It was kept as|^E(NOENT|ACCES): /, "only reaches the log, when the decks or settings file is loaded"],
+  [`${COMPANION}/pointer/mod.rs`, /^Trackpad: not /, "the log's half of a problem: the deck is told through a server.trackpad.* or server.pointer.* key"],
+  [`${COMPANION}/server.rs`, /^Space limit exceeded$|^Max payload size exceeded$/, "the socket library's own wording, matched, and a log line"],
+  [`${COMPANION}/server.rs`, /^Port \{x\} is not a port|^The server stopped\.$/, "start-up failures, printed in the terminal, which stays English like the log"],
+  [`${COMPANION}/port.rs`, /^Port \{x\} is not a port/, "a start-up failure, printed in the terminal, which stays English like the log"],
+  // The next six are reasons, not sentences of their own: each is shown in
+  // parentheses inside a translated message ("Could not set the volume.
+  // ({reason})") and written to the log, as the system's own error text is.
+  [`${COMPANION}/audio/system_linux.rs`, /^The sound server |^No sound server was found/, "a technical reason from the sound server's side, shown inside a translated message"],
+  [`${COMPANION}/audio/system_mac.rs`, /Core Audio error|^There is no (default )?output device|^The output's volume could not be|^Command failed: osascript/, "a technical reason from Core Audio or osascript, shown inside a translated message"],
+  [`${COMPANION}/keys/linux.rs`, /^The X server has no XTEST extension\.$|^X11 has no keycode for key \{x\}\.$/, "a technical reason from X11, shown inside a translated message"],
+  [`${COMPANION}/keys/mac.rs`, /music key event/, "a technical reason from Quartz, shown inside a translated message"],
+  [`${COMPANION}/obs/client.rs`, /^OBS answered without a request status$/, "a broken answer from OBS, shown as OBS's own errors are"],
+  [`${COMPANION}/obs/state.rs`, /^OBS sent no \{x\}$/, "a broken answer from OBS, shown as OBS's own errors are"],
   ["*", /^(\{x\}\s*)+$/, "nothing but values: a protocol line or a join, no words of its own"],
-  ["src/server/obs-config.ts", /Application Support/, "a folder name"],
-  ["src/server/powershell.ts", /At line|CategoryInfo/, "PowerShell's own wording, matched to be removed"],
   ["src/shared/touchpad/trace.ts", /.*/, "debug traces for the touchpad tests"],
   ["src/shared/actions.ts", /^(OBS|This computer|On the deck|Other)$/, "ActionGroup ids; people see them through actionGroupLabel()"],
   ["src/client/deck/trackpad.ts", /^\{x\} · \{x\}\{x\}$|^idle · none$/, "the touchpad engine's state, shown only in #trackpad-debug"]
@@ -155,16 +161,17 @@ function findClose(source, start) {
 
 const unescape = (text) => text.replace(/\\n/g, "\n").replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16))).replace(/\\(.)/g, "$1")
 
-/** Whether a literal reads as interface text in its place. */
-function looksLikeText(text, before) {
+/** Whether a literal reads as interface text in its place. `spot` says where
+    a single word is interface text (the TypeScript's places by default). */
+function looksLikeText(text, before, spot = TEXT_SPOT) {
   // "${name} is not open" reads as text too: a value stands in for a word.
   const plain = text.replace(/<[^>]+>/g, " ").replace(/&[a-z]+;/g, " ").replace(/\{x\}/g, "Xx").trim()
   if (!plain || plain.indexOf("\n") !== -1 && plain.split("\n").length > 3) return false
   // A key, a class list, a URL, a path, a selector, a CSS value.
   if (/^[a-z0-9_.:-]+$/.test(plain) || /^(https?:|\/|#|\.|\[)/.test(plain)) return false
-  if (SENTENCE.test(plain) && (plain.split(/\s+/).length >= 3 || ENDS_LIKE_TEXT.test(plain) || TEXT_SPOT.test(before))) return true
+  if (SENTENCE.test(plain) && (plain.split(/\s+/).length >= 3 || ENDS_LIKE_TEXT.test(plain) || spot.test(before))) return true
   // One capitalised word where text goes ("Pair", "Saved").
-  return TEXT_SPOT.test(before) && /^[A-Z][a-z]{2,}/.test(plain) && !/^[A-Z][a-zA-Z]+[A-Z]/.test(plain)
+  return spot.test(before) && /^[A-Z][a-z]{2,}/.test(plain) && !/^[A-Z][a-zA-Z]+[A-Z]/.test(plain)
 }
 
 /** The call a literal sits in, read backwards to its unclosed "(". */
@@ -187,6 +194,165 @@ export function scanSource(file, source) {
     const before = source.slice(Math.max(0, literal.start - 80), literal.start)
     if (!looksLikeText(literal.text, before)) continue
     if (LOG_CALLS.test(callBefore(source, literal.start))) continue
+    if (isAllowed(file, literal.text)) continue
+    const line = source.slice(0, literal.start).split("\n").length
+    hits.push({ file, line, text: literal.text })
+  }
+  return hits
+}
+
+// ------------------------------------------------------------------ Rust
+
+/** Calls whose text is for the terminal or companion.log, which stay English. */
+const RUST_LOG_CALLS = /(?:(?:^|[^\w])(?:log|note|warn|log_line|print_line)|\.log\)?|\b(?:println|eprintln|print|eprint)!)\s*\($/
+/** Calls whose text is for whoever reads the code: it is shown to nobody
+    unless the program is wrong (and then it is in the log, in English). */
+const RUST_PROGRAMMER_CALLS = /(?:\b(?:panic|unreachable|unimplemented|todo|assert|assert_eq|assert_ne|debug_assert|debug_assert_eq)!|\.expect(?:_err)?)\s*\($/
+/** Places a single word would be interface text in the companion: none.
+    What a person reads there is always a sentence. */
+const RUST_TEXT_SPOT = /(?!)/
+
+/** Every string literal in a Rust file outside its tests, with where it
+    starts. A format string's {…} parts become {x}. */
+export function rustLiterals(source) {
+  const found = []
+  const n = source.length
+  let i = 0
+  let depth = 0
+  // #[cfg(test)] was just read: the item it heads (a module, a function) is test code.
+  let testPending = false
+  // The brace depth outside the test item being skipped, or -1.
+  let testDepth = -1
+  const ident = /[A-Za-z0-9_]/
+  const formatParts = (text) => text.replace(/\{\{/g, "\u0001").replace(/\}\}/g, "\u0002").replace(/\{[^{}]*\}/g, "{x}").replace(/\u0001/g, "{").replace(/\u0002/g, "}")
+  const push = (start, text) => { if (testDepth === -1 && !testPending) found.push({ start, text: formatParts(text) }) }
+  /** The end of the plain string that opens at `at` (its closing quote), and its text. */
+  const readString = (at) => {
+    let j = at + 1
+    let text = ""
+    while (j < n && source[j] !== '"') {
+      if (source[j] === "\\") {
+        const next = source[j + 1]
+        if (next === "\n" || next === "\r") {
+          // A line ending after a backslash: it and the next line's indent are not in the text.
+          j += 1
+          while (j < n && /\s/.test(source[j])) j += 1
+          continue
+        }
+        if (next === "u" && source[j + 2] === "{") {
+          const close = source.indexOf("}", j)
+          text += String.fromCodePoint(parseInt(source.slice(j + 3, close), 16) || 0x20)
+          j = close + 1
+          continue
+        }
+        text += next === "n" ? "\n" : next === "t" ? "\t" : next === "r" ? "\r" : next === "0" ? "\0" : next ?? ""
+        j += 2
+        continue
+      }
+      text += source[j]
+      j += 1
+    }
+    return { end: j, text }
+  }
+  while (i < n) {
+    const c = source[i]
+    const next = source[i + 1]
+    if (c === "/" && next === "/") {
+      while (i < n && source[i] !== "\n") i += 1
+      continue
+    }
+    if (c === "/" && next === "*") {
+      // Block comments nest.
+      let open = 1
+      i += 2
+      while (i < n && open > 0) {
+        if (source[i] === "/" && source[i + 1] === "*") { open += 1; i += 2 } else if (source[i] === "*" && source[i + 1] === "/") { open -= 1; i += 2 } else i += 1
+      }
+      continue
+    }
+    if (c === "#" && (next === "[" || (next === "!" && source[i + 2] === "["))) {
+      // An attribute: its strings (#[ignore = "…"], #[cfg(target_os = "…")]) are not text.
+      let j = source.indexOf("[", i) + 1
+      let open = 1
+      const start = j
+      while (j < n && open > 0) {
+        if (source[j] === '"') j = readString(j).end
+        else if (source[j] === "[") open += 1
+        else if (source[j] === "]") open -= 1
+        j += 1
+      }
+      if (testDepth === -1 && /^cfg\((?:test|all\(test\b|any\(test\b)/.test(source.slice(start, j - 1).replace(/\s+/g, ""))) testPending = true
+      i = j
+      continue
+    }
+    if (c === "'") {
+      // A character ('a', '\n', '\u{1f39b}') or a lifetime ('a, 'static).
+      if (next === "\\") {
+        i = source.indexOf("'", i + 3) + 1 || n
+        continue
+      }
+      const close = source.indexOf("'", i + 1)
+      if (close !== -1 && close - i <= 3 && [...source.slice(i + 1, close)].length === 1) { i = close + 1; continue }
+      i += 1
+      continue
+    }
+    if (c === "r" && (next === '"' || next === "#") && !(i > 0 && ident.test(source[i - 1]) && source[i - 1] !== "b")) {
+      // A raw string: r"…", r#"…"#.
+      let j = i + 1
+      let hashes = 0
+      while (source[j] === "#") { hashes += 1; j += 1 }
+      if (source[j] === '"') {
+        const closing = `"${"#".repeat(hashes)}`
+        const end = source.indexOf(closing, j + 1)
+        push(i, source.slice(j + 1, end === -1 ? n : end))
+        i = end === -1 ? n : end + closing.length
+        continue
+      }
+    }
+    if (c === '"') {
+      const read = readString(i)
+      push(i, read.text)
+      i = read.end + 1
+      continue
+    }
+    if (c === "{") {
+      if (testPending) { testPending = false; testDepth = depth }
+      depth += 1
+    } else if (c === "}") {
+      depth -= 1
+      if (depth === testDepth) testDepth = -1
+    } else if (c === ";" && testPending) {
+      // #[cfg(test)] on a line of its own (mod testing; use …;): nothing to skip here.
+      testPending = false
+    }
+    i += 1
+  }
+  return found
+}
+
+/** The calls a literal sits in, innermost first: what precedes each unclosed "(". */
+function rustCallsBefore(source, start) {
+  const calls = []
+  let depth = 0
+  for (let i = start - 1; i >= 0 && start - i < 4000; i -= 1) {
+    const c = source[i]
+    if (c === ")" || c === "]" || c === "}") depth += 1
+    else if (c === "(" || c === "[" || c === "{") {
+      if (depth > 0) { depth -= 1; continue }
+      // A block or a list ends the search: the statement starts there.
+      if (c === "{") break
+      if (c === "(") calls.push(source.slice(Math.max(0, i - 40), i + 1))
+    } else if (c === ";" && depth === 0) break
+  }
+  return calls
+}
+
+export function scanRust(file, source) {
+  const hits = []
+  for (const literal of rustLiterals(source)) {
+    const before = source.slice(Math.max(0, literal.start - 80), literal.start)
+    if (!looksLikeText(literal.text, before, RUST_TEXT_SPOT)) continue
+    if (rustCallsBefore(source, literal.start).some((call) => RUST_LOG_CALLS.test(call) || RUST_PROGRAMMER_CALLS.test(call))) continue
     if (isAllowed(file, literal.text)) continue
     const line = source.slice(0, literal.start).split("\n").length
     hits.push({ file, line, text: literal.text })
@@ -243,16 +409,28 @@ export function scanHtml(file, html) {
 
 // ------------------------------------------------------------------ files
 
-const SOURCE_FOLDERS = ["src/client", "src/shared", "src/server"]
+const SOURCE_FOLDERS = ["src/client", "src/shared", COMPANION]
 const PAGES = ["public/deck.html", "public/designer.html", "public/pair.html"]
+
+/** The modules a Rust folder only builds for its tests (#[cfg(test)] mod testing;). */
+function testModules(folder) {
+  const names = new Set()
+  for (const file of ["mod.rs", "lib.rs", "main.rs"]) {
+    const full = path.join(ROOT, folder, file)
+    if (!fs.existsSync(full)) continue
+    for (const match of fs.readFileSync(full, "utf8").matchAll(/#\[cfg\(test\)\]\s*(?:pub(?:\([a-z]+\))?\s+)?mod\s+(\w+)\s*;/g)) names.add(match[1])
+  }
+  return names
+}
 
 function walk(folder) {
   const out = []
+  const testOnly = testModules(folder)
   for (const entry of fs.readdirSync(path.join(ROOT, folder), { withFileTypes: true })) {
     // Always "/": ALLOWED names files that way, and Windows would give "\\".
     const relative = `${folder}/${entry.name}`
-    if (entry.isDirectory()) out.push(...walk(relative))
-    else if (/\.ts$/.test(entry.name)) out.push(relative)
+    if (entry.isDirectory()) { if (!testOnly.has(entry.name)) out.push(...walk(relative)) } else if (/\.ts$/.test(entry.name)) out.push(relative)
+    else if (/\.rs$/.test(entry.name) && !testOnly.has(entry.name.slice(0, -3))) out.push(relative)
   }
   return out
 }
@@ -265,7 +443,7 @@ export function scan(targets = SOURCE_FOLDERS.concat(PAGES)) {
     const files = fs.statSync(full).isDirectory() ? walk(target) : [target]
     for (const file of files) {
       const text = fs.readFileSync(path.join(ROOT, file), "utf8")
-      hits.push(...(file.endsWith(".html") ? scanHtml(file, text) : scanSource(file, text)))
+      hits.push(...(file.endsWith(".html") ? scanHtml(file, text) : file.endsWith(".rs") ? scanRust(file, text) : scanSource(file, text)))
     }
   }
   return hits

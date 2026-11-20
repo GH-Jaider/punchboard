@@ -2,7 +2,7 @@
 # Runs a command in the Linux container, in server/, with the repository
 # mounted. Builds go to server/target/linux so they never mix with the host's.
 #   scripts/linux.sh cargo test
-#   scripts/linux.sh sh -c "cd .. && PUNCHBOARD_BIN=server/target/linux/debug/punchboard-server node tests/security.test.mjs"
+#   scripts/linux.sh sh -c "cd .. && node scripts/test.ts --except designer tour"
 set -e
 root="$(cd "$(dirname "$0")/.." && pwd)"
 docker image inspect punchboard-linux-dev >/dev/null 2>&1 || docker build -q -t punchboard-linux-dev -f "$root/scripts/linux-dev.Dockerfile" "$root/scripts"

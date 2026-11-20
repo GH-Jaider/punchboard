@@ -1,5 +1,5 @@
 //! Sends a key combination to whatever is focused on this computer, the way a
-//! hardware deck's hotkey button does. (src/server/keys.ts)
+//! hardware deck's hotkey button does.
 //!
 //! Two halves. Deciding is shared and pure: from a combination, the exact
 //! list of key events for one system ([`combo_events`], [`media_events`]),
@@ -478,8 +478,18 @@ pub enum KeyFailure {
     MacPermission,
     /// Linux: this account may not use /dev/uinput.
     LinuxPermission,
+    /// Windows took fewer key events than it was handed. It does not say
+    /// why, so the person is told the usual reasons, in their language.
+    WindowsRefused { taken: u32, wanted: u32 },
     /// Anything else, in the system's own words.
     Other(String),
+}
+
+/// What Windows taking only some of the events means to a person.
+fn windows_refused(taken: u32, wanted: u32) -> crate::i18n::Text {
+    say("server.keys.windowsRefused")
+        .with("taken", f64::from(taken))
+        .with("wanted", f64::from(wanted))
 }
 
 /// Where key events go: the system, a file, or a list in a test.
@@ -587,6 +597,9 @@ pub fn send_keys_with(
     sink.send(&events).map_err(|failure| match failure {
         KeyFailure::MacPermission => UserError::new(say("server.keys.macPermissionTerminal")),
         KeyFailure::LinuxPermission => UserError::new(say("server.keys.linuxPermission")),
+        KeyFailure::WindowsRefused { taken, wanted } => UserError::new(
+            say("server.keys.sendFailed").with("reason", windows_refused(taken, wanted)),
+        ),
         KeyFailure::Other(reason) => {
             UserError::new(say("server.keys.sendFailed").with("reason", reason))
         }
@@ -603,6 +616,9 @@ pub fn send_media_key_with(
         .map_err(|failure| match failure {
             KeyFailure::MacPermission => UserError::new(say("server.keys.macPermission")),
             KeyFailure::LinuxPermission => UserError::new(say("server.keys.linuxPermission")),
+            KeyFailure::WindowsRefused { taken, wanted } => UserError::new(
+                say("server.keys.mediaFailed").with("reason", windows_refused(taken, wanted)),
+            ),
             KeyFailure::Other(reason) => {
                 UserError::new(say("server.keys.mediaFailed").with("reason", reason))
             }
@@ -1387,6 +1403,23 @@ mod tests {
         assert_eq!(
             error.message(),
             "Could not send the keys. (Windows took 0 of 4 key events)"
+        );
+        // What Windows itself does not explain is explained in the person's language.
+        let error = fail(
+            KeyFailure::WindowsRefused {
+                taken: 2,
+                wanted: 4,
+            },
+            Platform::Windows,
+        );
+        assert_eq!(error.text.key, "server.keys.sendFailed");
+        assert_eq!(
+            error.message(),
+            "Could not send the keys. (Windows took 2 of 4 key events: is the screen locked, or an app running as administrator in front?)"
+        );
+        assert_eq!(
+            crate::i18n::render(&error.text.clone().into(), "es"),
+            "No se pudieron enviar las teclas. (Windows aceptó 2 de 4 eventos de teclado: ¿está bloqueada la pantalla, o hay delante una app abierta como administrador?)"
         );
 
         let media = |failure: KeyFailure| {

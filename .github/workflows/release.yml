@@ -47,8 +47,6 @@ jobs:
       # The Control Center test drives the built pages, so build them first.
       - run: npm run build
       - run: npm test
-      # What ships is the Rust companion: the same tests against it.
-      - run: npm run test:companion
       - run: node scripts/release-windows.mjs x86_64-pc-windows-msvc
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -92,8 +90,6 @@ jobs:
       - run: npm run build
       # The Mac-only paths (key presses, music, the trackpad) are tested here.
       - run: npm test
-      # What ships is the Rust companion: the same tests against it.
-      - run: npm run test:companion
       - run: node scripts/release-mac.mjs
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

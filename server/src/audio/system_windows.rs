@@ -445,3 +445,36 @@ impl AudioBackend for WindowsAudio {
         Ok(apps)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// tests/windows.test.mjs, "app volumes": the real Core Audio mixer. A
+    /// machine with no sound device (CI) may well list nothing, but the list
+    /// must come back without an error, with keys as faders store them. The
+    /// app asked about below cannot exist, so no session's volume is ever
+    /// set: "The volume bridge compiles and lists the apps playing sound",
+    /// "Punchboard's own processes are not offered", "An app that is not
+    /// there reads as unknown". (The friendly message a write to it ends in
+    /// is app_volume.rs's, tested there and by tests/app-volume.test.mjs.)
+    #[test]
+    fn the_real_mixer_lists_apps_and_leaves_alone_one_that_is_not_there() {
+        const NO_SUCH_APP: &str = "punchboard-test-no-such-app";
+        let mut audio = WindowsAudio::open().expect("Core Audio opens");
+        let apps = audio.list_apps().expect("the list of apps playing sound");
+        for app in &apps {
+            assert_eq!(app.key, app.key.to_lowercase(), "{}", app.key);
+            assert!(!app.key.ends_with(".exe"), "{}", app.key);
+            assert!(
+                (0.0..=1.0).contains(&app.level),
+                "{}: {}",
+                app.key,
+                app.level
+            );
+            assert!(!app.key.starts_with("punchboard"), "{}", app.key);
+        }
+        assert_eq!(audio.app_volume(NO_SUCH_APP), Ok(None));
+        assert_eq!(audio.set_app_volume(NO_SUCH_APP, 0.5), Ok(None));
+    }
+}

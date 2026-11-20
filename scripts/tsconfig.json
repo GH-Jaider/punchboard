@@ -1,7 +1,8 @@
 {
-  // The build and test tools written in TypeScript (scripts/*.ts and the
-  // sidecar smoke test). Node runs them directly (type stripping), so this
-  // config only type-checks. allowJs lets them import the tests' shared
+  // The build and test tools written in TypeScript (scripts/*.ts, the sidecar
+  // smoke test and the fixture generators), and through the generators the
+  // shared code as Node sees it. Node runs them directly (type stripping), so
+  // this config only type-checks. allowJs lets them import the tests' shared
   // helpers, which are still .mjs; those are read for their types, not checked.
   "extends": "../tsconfig.base.json",
   "compilerOptions": {
@@ -13,5 +14,5 @@
     "allowJs": true,
     "checkJs": false
   },
-  "include": ["./*.ts", "../tests/*.ts"]
+  "include": ["./*.ts", "../tests/*.ts", "../tests/fixtures/*.ts"]
 }

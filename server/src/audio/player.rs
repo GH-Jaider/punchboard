@@ -2,7 +2,7 @@
 //! browser tab has to be open, focused or clicked for a deck's sound button
 //! to work.
 //!
-//! A port of `src/server/player.ts`, without its helper processes (the JXA
+//! A port of the Node companion's player, without its helper processes (the JXA
 //! helper and afplay on macOS, PowerShell's MediaPlayer on Windows): sounds
 //! are decoded and mixed in this process (rodio), on macOS, Windows and Linux.
 //!
@@ -1310,6 +1310,29 @@ mod tests {
             let refused = output.play(2, &file, 0.0, Box::new(|| {}));
             assert_eq!(refused, Err(PlayFailure::Unreadable), "{name}");
         }
+        assert!(output.device.is_none() && output.voices.is_empty());
+        output.close();
+    }
+
+    /// "The Windows player is given a file URI with # and % escaped" and
+    /// "PowerShell quoting doubles straight and typographic quotes" guarded a
+    /// path on its way through a script. No script carries it now; what is
+    /// left of them: a file whose name (and folder) holds those characters
+    /// is found and read under that very name. A file that is found but is
+    /// not audio is "unreadable", one that is not there is "missing", and
+    /// neither opens a device.
+    #[test]
+    fn a_file_is_found_under_a_name_with_typographic_quotes_hash_and_percent() {
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("Bob’s “sounds” #2 50%");
+        std::fs::create_dir(&folder).unwrap();
+        let file = folder.join("it’s ‘odd’ ‚name‛ #1 100% 'x'.wav");
+        let mut output = RodioOutput::new(Arc::new(|_| {}));
+        let before = output.play(1, &file, 0.0, Box::new(|| {}));
+        assert_eq!(before, Err(PlayFailure::Missing));
+        std::fs::write(&file, b"found, and not audio").unwrap();
+        let found = output.play(1, &file, 0.0, Box::new(|| {}));
+        assert_eq!(found, Err(PlayFailure::Unreadable));
         assert!(output.device.is_none() && output.voices.is_empty());
         output.close();
     }

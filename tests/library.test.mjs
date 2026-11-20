@@ -5,13 +5,11 @@
 //   node tests/library.test.mjs
 import "./english.mjs"
 import fs from "node:fs"
-import os from "node:os"
 import path from "node:path"
 import { checker, JSON_TYPE, startCompanion } from "./companion.mjs"
 import { normalizeLibrary } from "../src/shared/model.ts"
 import { iconSvg, safeGlyph } from "../src/shared/icons.ts"
 import { webAddress } from "../src/shared/links.ts"
-import { writeJsonAtomic } from "../src/server/store.ts"
 
 const { check, tally } = checker()
 
@@ -89,15 +87,6 @@ function unitChecks() {
     const got = webAddress(typed)
     check(`Link "${typed}" -> ${expected}`, got === expected, String(got))
   }
-
-  // --- a failed write leaves no temp file behind
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-store-"))
-  const target = path.join(dir, "taken")
-  fs.mkdirSync(path.join(target, "inside"), { recursive: true })
-  let threw = false
-  try { writeJsonAtomic(target, { a: 1 }, { backup: false }) } catch { threw = true }
-  check("A write that cannot be renamed into place throws and removes its temp file", threw && fs.readdirSync(dir).join(",") === "taken", fs.readdirSync(dir).join(","))
-  fs.rmSync(dir, { recursive: true, force: true })
 }
 
 async function main() {

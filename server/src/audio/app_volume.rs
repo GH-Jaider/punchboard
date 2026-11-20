@@ -1244,9 +1244,9 @@ pub(crate) mod tests {
         let list = other.list().await.unwrap();
         assert!(list.apps.is_empty());
         assert_eq!(list.platform, "freebsd");
-        assert!(note_of(&list).contains("Windows and macOS only"));
+        assert!(note_of(&list).contains("Windows, macOS and Linux only"));
         let refused = other.write("x", "X", 0.5).await.unwrap_err();
-        assert!(refused.message().contains("Windows and macOS only"));
+        assert!(refused.message().contains("Windows, macOS and Linux only"));
         assert_eq!(other.read("x").await, Ok(None));
     }
 }

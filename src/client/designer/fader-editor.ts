@@ -83,6 +83,7 @@ function loadApps(force: boolean): Promise<AudioAppsResponse> {
 function platformHelp(platform: string): string | null {
   if (platform === "win32") return t("designer.fader.helpWindows")
   if (platform === "darwin") return t("designer.fader.helpMac")
+  if (platform === "linux") return t("designer.fader.helpLinux")
   return null
 }
 
@@ -147,8 +148,9 @@ function appField(button: FaderButton): HTMLElement {
     help.textContent = platformHelp(response.platform) ?? response.note ?? ""
     // A note that adds something, like "No app is playing sound right now."
     if (response.note && response.note !== help.textContent) help.textContent += ` ${response.note}`
-    typed.hidden = response.platform !== "win32"
-    select.disabled = response.platform !== "win32" && response.platform !== "darwin"
+    // Windows and Linux name an app by its program, which can be typed while it is silent.
+    typed.hidden = response.platform !== "win32" && response.platform !== "linux"
+    select.disabled = response.platform !== "win32" && response.platform !== "darwin" && response.platform !== "linux"
   }
 
   function load(force: boolean): void {

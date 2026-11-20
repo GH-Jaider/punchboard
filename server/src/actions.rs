@@ -2,7 +2,6 @@
 //!
 //! Every stateful action reports the state OBS actually ended up in, rather
 //! than the companion guessing, so a lit tile always matches reality.
-//! (src/server/actions.ts)
 
 use std::future::Future;
 use std::pin::Pin;

@@ -4,13 +4,11 @@
 // so the mouse of the computer running the test never moves.
 //   node tests/trackpad.test.mjs
 import "./english.mjs"
-import { spawn } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"
 import os from "node:os"
 import path from "node:path"
 import { WebSocket } from "ws"
-import { createPointer } from "../src/server/pointer.ts"
 import { signRequest } from "../src/shared/sign.ts"
 import { checker, JSON_TYPE, LAN, startCompanion } from "./companion.mjs"
 import { installPage } from "./fake-page.mjs"
@@ -150,34 +148,6 @@ async function main() {
   r = await connect(signedPath(device, "/api/pointer"))
   check("A removed device loses the trackpad", r.result === 401, r.result)
 
-  await dyingHelper()
-}
-
-/** The pointer module with a stand-in helper (plain Node, never the mouse)
-    that dies at once, while moves keep streaming in as fast as a finger sends
-    them. Writing to a dead helper must not crash, and it must not be started
-    again for every message. */
-async function dyingHelper() {
-  let spawned = 0
-  const problems = []
-  const pointer = createPointer({
-    macHelper: "",
-    log: () => {},
-    onProblem: (message) => problems.push(message),
-    ignoreTestLog: true,
-    spawn: () => {
-      spawned += 1
-      return spawn(process.execPath, ["-e", "setTimeout(() => process.exit(0), 30)"], { stdio: ["pipe", "pipe", "ignore"] })
-    }
-  })
-  const owner = {}
-  const stream = setInterval(() => { for (let i = 0; i < 20; i++) pointer.send(["m", 1, 1], owner) }, 2)
-  await wait(3000)
-  clearInterval(stream)
-  check("A helper that dies mid-stream does not crash the companion", true, "")
-  check("A helper that keeps dying is not restarted for every move", spawned >= 2 && spawned <= 5, `${spawned} starts`)
-  check("…and the deck is told once", problems.length === 1, JSON.stringify(problems))
-  pointer.dispose()
 }
 
 // --- the deck's own trackpad code, in a stand-in page, over a real socket

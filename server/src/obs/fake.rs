@@ -773,7 +773,7 @@ struct Desk {
 }
 
 /// A link and a state reader, wired to each other and to an owner that keeps
-/// what they report, the way the server does (src/server/main.ts).
+/// what they report, the way the server does (server.rs).
 pub struct Rig {
     pub link: ObsLink,
     pub state: ObsState,

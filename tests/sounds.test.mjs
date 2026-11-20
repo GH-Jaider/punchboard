@@ -1,23 +1,18 @@
-// Sounds and faders: reading a sound's length, checking uploads, names in any
-// script, replacing a slot while it plays, and faders that refuse a level
-// that is not a number. Only generated silent audio is used, the sounds
-// fader is at 0 before anything plays, and the computer's own volume is never
-// set: the "system" fader is only sent levels it must refuse.
+// Sounds and faders, through the companion: uploads are checked, a sound's
+// length is known at once, names keep the letters of any script, a slot is
+// replaced while it plays, and faders refuse a level that is not a number.
+// Only generated silent audio is used, the companion plays nothing here
+// (server/src/test_system.rs), and the computer's own volume is never set:
+// the "system" fader is only sent levels it must refuse. How lengths are
+// read, uploads judged and names cleaned, case by case, is tested in
+// server/src/sounds.rs.
 //   node tests/sounds.test.mjs
-import "./english.mjs"
-import { execFileSync } from "node:child_process"
 import crypto from "node:crypto"
 import fs from "node:fs"
-import os from "node:os"
 import path from "node:path"
-import { isAudio, mp3DurationMs, safeName, wavDurationMs } from "../src/server/sounds.ts"
-import { playCommand, psQuote } from "../src/server/player.ts"
-import { latestWins } from "../src/server/volume.ts"
 import { checker, JSON_TYPE, startCompanion } from "./companion.mjs"
 
 const { check, tally } = checker()
-const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-sounds-"))
 
 // ------------------------------------------------------------ silent audio
 
@@ -33,13 +28,6 @@ function silentWav(ms, { rate = 8000, before = null } = {}) {
   const riff = Buffer.alloc(8)
   riff.write("RIFF", 0); riff.writeUInt32LE(body.length, 4)
   return Buffer.concat([riff, body])
-}
-
-/** A chunk of `size` bytes: a LIST with album-art-like noise in it. */
-function chunk(id, size) {
-  const head = Buffer.alloc(8)
-  head.write(id, 0); head.writeUInt32LE(size, 4)
-  return Buffer.concat([head, crypto.randomBytes(size + (size % 2))])
 }
 
 /** Silent MPEG-1 Layer III frames, 128 kbps at 44.1 kHz (417 bytes, 26.1 ms
@@ -74,194 +62,10 @@ function id3(size, { footer = false } = {}) {
 }
 
 const near = (value, expected, slack = 30) => typeof value === "number" && Math.abs(value - expected) <= slack
-const write = (name, data) => {
-  const file = path.join(tmp, name)
-  fs.writeFileSync(file, data)
-  return file
-}
 const MP3_100 = 100 * 417 * 8 / 128 // ms in 100 frames at 128 kbps
-
-// ---------------------------------------------------------- reading lengths
-
-check("An MP3's length is read", near(mp3DurationMs(write("plain.mp3", silentMp3(100))), MP3_100), mp3DurationMs(path.join(tmp, "plain.mp3")))
-let file = write("art.mp3", Buffer.concat([id3(300 * 1024), silentMp3(100)]))
-check("An MP3 behind a 300 KB ID3 tag (album art) still has a length", near(mp3DurationMs(file), MP3_100), mp3DurationMs(file))
-file = write("footer.mp3", Buffer.concat([id3(70 * 1024, { footer: true }), silentMp3(100)]))
-check("An ID3v2.4 tag with a footer is skipped whole", near(mp3DurationMs(file), MP3_100), mp3DurationMs(file))
-file = write("two-tags.mp3", Buffer.concat([id3(5000), id3(80 * 1024), silentMp3(100)]))
-check("Two ID3 tags in a row are both skipped", near(mp3DurationMs(file), MP3_100), mp3DurationMs(file))
-file = write("vbr.mp3", Buffer.concat([id3(100 * 1024), silentMp3(200, { info: true })]))
-check("A frame count (Info header) past a big tag gives the length", near(mp3DurationMs(file), 199 * 1152 / 44.1, 2), mp3DurationMs(file))
-file = write("list.wav", silentWav(1500, { before: chunk("LIST", 100 * 1024) }))
-check("A WAV with a 100 KB chunk before its format still has a length", wavDurationMs(file) === 1500, wavDurationMs(file))
-
-// -------------------------------------------------------- checking uploads
 
 const adts = Buffer.concat([Buffer.from([0xff, 0xf1, 0x50, 0x80, 0x2e, 0x7f, 0xfc]), Buffer.alloc(4000)])
 const riffOnly = Buffer.concat([Buffer.from("RIFF"), Buffer.from([4, 0, 0, 0]), Buffer.from("WAVE")])
-const fmtOnly = silentWav(100).subarray(0, 36)
-const uploads = [
-  ["\"ID3\" and nothing else is not an MP3", Buffer.from("ID3"), "audio/mpeg", false],
-  ["An ID3 tag with no audio after it is not an MP3", id3(2000), "audio/mpeg", false],
-  ["An AAC (ADTS) stream is not an MP3", adts, "audio/mpeg", false],
-  ["Noise with a sync word in it is not an MP3", Buffer.concat([Buffer.from([0xff, 0xfb, 0x90, 0x64]), crypto.randomBytes(3000)]), "audio/mpeg", false],
-  ["A RIFF header with no chunks is not a WAV", riffOnly, "audio/wav", false],
-  ["A WAV with a format but no data is not a WAV", fmtOnly, "audio/wav", false],
-  ["Real MP3 frames are an MP3", silentMp3(20), "audio/mpeg", true],
-  ["An MP3 behind a big tag is an MP3", Buffer.concat([id3(200 * 1024), silentMp3(20)]), "audio/mpeg", true],
-  ["A WAV with its chunks is a WAV", silentWav(200, { before: chunk("LIST", 33) }), "audio/wav", true]
-]
-for (const [name, data, type, expected] of uploads) check(name, isAudio(data, type) === expected, `isAudio said ${!expected}`)
-
-// --------------------------------------------------------------- names
-
-check("Names keep letters of every script", safeName(encodeURIComponent("Café ñandú 日本 Ελλάδα (1) [x]-y.mp3")) === "Café ñandú 日本 Ελλάδα (1) [x]-y.mp3", safeName(encodeURIComponent("Café ñandú 日本 Ελλάδα (1) [x]-y.mp3")))
-check("A Mac's decomposed accent stays one letter", safeName(encodeURIComponent("Cafe\u0301")) === "Café", safeName(encodeURIComponent("Cafe\u0301")))
-check("Slashes, control characters and symbols still go", safeName(encodeURIComponent("../a\u0007/b<>%.wav")) === "..ab.wav", safeName(encodeURIComponent("../a\u0007/b<>%.wav")))
-check("A name that is not encoded is taken as is", safeName("100% done") === "100 done", safeName("100% done"))
-
-// ---------------------------------------------- the Windows player's script
-
-check("PowerShell quoting doubles straight and typographic quotes", psQuote("it’s ‘a’ ‚b‛ 'c'") === "'it’’s ‘‘a’’ ‚‚b‛‛ ''c'''", psQuote("it’s ‘a’ ‚b‛ 'c'"))
-const script = playCommand("C:\\Sounds\\it’s #1 50%.wav", 1, "win32").args.at(-1)
-check("The Windows player is given a file URI with # and % escaped", script.includes("[Uri]'file:///C:/Sounds/it%E2%80%99s%20%231%2050%25.wav'"), script.slice(0, 300))
-check("A sound whose length never shows exits instead of pretending to play", /'length unknown'.*exit 3/.test(script) && !/60000/.test(script), script)
-
-// ------------------------------------------------- one volume write at a time
-
-{
-  const order = []
-  let running = 0
-  let overlap = false
-  const set = latestWins(async (level) => {
-    running += 1
-    if (running > 1) overlap = true
-    order.push(level)
-    await wait(40)
-    running -= 1
-    return level
-  })
-  await Promise.all([0.1, 0.2, 0.3, 0.4].map((level) => set(level)))
-  await wait(120)
-  check("Volume writes never overlap, and the newest level is set last", !overlap && order.join(",") === "0.1,0.4", `${order.join(",")} overlap ${overlap}`)
-}
-
-// ------------------------------------ the Windows volume bridge, faked here
-
-if (process.platform !== "win32") {
-  // A stand-in "powershell" that speaks the bridge's protocol: slow to get
-  // ready (the first-time compile), answers out of order, hangs on request.
-  const bin = path.join(tmp, "bin")
-  fs.mkdirSync(bin)
-  fs.writeFileSync(path.join(bin, "powershell"), `#!${process.execPath}
-let gets = 0
-setTimeout(() => process.stdout.write("ready\\n"), Number(process.env.FAKE_READY_MS))
-let pending = ""
-process.stdin.on("data", (chunk) => {
-  pending += chunk
-  const lines = pending.split("\\n")
-  pending = lines.pop()
-  for (const line of lines) {
-    const [id, command] = line.split(" ")
-    if (command === "get") {
-      gets += 1
-      if (gets === 1) setTimeout(() => process.stdout.write(id + " ok 0.1\\n"), Number(process.env.FAKE_READY_MS) + 50)
-      else if (gets <= 4) { const answer = id + " ok 0." + gets + "\\n"; setTimeout(() => process.stdout.write(answer), (5 - gets) * 60) }
-      // later gets hang
-    } else {
-      process.stdout.write("77 ok 0.77\\n")
-      process.stdout.write(id + " ok " + command + "\\n")
-    }
-  }
-})
-`, { mode: 0o755 })
-  const savedPath = process.env.PATH
-  process.env.PATH = `${bin}${path.delimiter}${savedPath}`
-  // Ready only after 8.5 s: the 8 s answer timer used to run through it.
-  process.env.FAKE_READY_MS = "8500"
-  const { readWindowsVolume, writeWindowsVolume, stopWindowsVolume } = await import("../src/server/win-volume.ts")
-  const first = await readWindowsVolume().catch((error) => error)
-  check("Windows volume: a slow first start (the compile) does not time the request out", first === 0.1, String(first))
-  const answers = await Promise.all([readWindowsVolume(), readWindowsVolume(), readWindowsVolume()]).catch((error) => [String(error)])
-  check("Windows volume: answers that come back out of order reach the right request", answers.join(",") === "0.2,0.3,0.4", answers.join(","))
-  const written = await writeWindowsVolume(0.5).catch((error) => error)
-  check("Windows volume: an answer for nobody is not handed to the next request", written === 0.5, String(written))
-  const asked = Date.now()
-  const hung = readWindowsVolume().then(() => "answered", (error) => error.message)
-  await wait(50)
-  stopWindowsVolume()
-  const outcome = await hung
-  check("Windows volume: stopping fails a waiting request at once", /stopped/.test(outcome) && Date.now() - asked < 1000, `${outcome} after ${Date.now() - asked} ms`)
-  process.env.PATH = savedPath
-}
-
-// ------------------------------------------------ the Mac player, faked here
-
-if (process.platform === "darwin") {
-  // Stand-ins for osascript (the helper) and afplay, so nothing plays at all.
-  const bin = path.join(tmp, "mac-bin")
-  const calls = path.join(tmp, "calls.log")
-  fs.mkdirSync(bin)
-  fs.writeFileSync(path.join(bin, "osascript"), `#!${process.execPath}
-const fs = require("node:fs")
-fs.appendFileSync(${JSON.stringify(calls)}, "osascript\\n")
-if (process.env.FAKE_HELPER === "dies") process.exit(1)
-process.stdout.write(JSON.stringify({ event: "ready" }) + "\\n")
-let pending = ""
-process.stdin.on("data", (chunk) => {
-  pending += chunk
-  const lines = pending.split("\\n")
-  pending = lines.pop()
-  for (const line of lines) {
-    const command = JSON.parse(line)
-    if (command.cmd !== "play") continue
-    // Slow to start, as a cold audio device is; then 300 ms of sound.
-    setTimeout(() => process.stdout.write(JSON.stringify({ event: "started", slot: command.slot }) + "\\n"), 500)
-    setTimeout(() => process.stdout.write(JSON.stringify({ event: "ended", slot: command.slot }) + "\\n"), 800)
-  }
-})
-`, { mode: 0o755 })
-  fs.writeFileSync(path.join(bin, "afplay"), `#!${process.execPath}
-require("node:fs").appendFileSync(${JSON.stringify(calls)}, "afplay " + process.argv.slice(2).join(" ") + "\\n")
-setTimeout(() => process.exit(0), 300)
-`, { mode: 0o755 })
-  const savedPath = process.env.PATH
-  process.env.PATH = `${bin}${path.delimiter}${savedPath}`
-  const faked = execFileSync("/usr/bin/which", ["osascript", "afplay"], { encoding: "utf8" }).trim().split("\n")
-  if (faked.every((found) => found.startsWith(bin))) {
-    const { createPlayer } = await import("../src/server/player.ts")
-    const silent = write("silent.wav", silentWav(300))
-    const ended = []
-    const options = { helper: path.join(tmp, "no-helper.js"), volume: () => 0, log: () => {}, onEnded: (slot, ranMs) => ended.push({ slot, ranMs }) }
-
-    process.env.FAKE_HELPER = "plays"
-    const player = createPlayer(options)
-    player.play(1, silent)
-    await wait(1200)
-    const run = ended.find((item) => item.slot === 1)
-    check("Mac: a sound's run time counts from when the helper started it", run && run.ranMs !== null && run.ranMs < 600, JSON.stringify(run))
-    player.dispose()
-    await wait(400)
-
-    fs.writeFileSync(calls, "")
-    ended.length = 0
-    process.env.FAKE_HELPER = "dies"
-    const broken = createPlayer(options)
-    broken.play(2, silent)
-    await wait(1000)
-    check("Mac: a press sent to a helper that died at start still plays (through afplay)", /^afplay .*silent\.wav$/m.test(fs.readFileSync(calls, "utf8")) && ended.some((item) => item.slot === 2 && item.ranMs !== null), fs.readFileSync(calls, "utf8") + JSON.stringify(ended))
-    broken.play(3, silent)
-    broken.play(4, silent)
-    await wait(800)
-    const log = fs.readFileSync(calls, "utf8")
-    check("Mac: a helper that dies at start is not respawned on every press", log.split("osascript").length - 1 === 1 && (log.match(/^afplay/gm) || []).length === 3, log)
-    broken.dispose()
-  } else {
-    check("Mac player stand-ins are found first on PATH", false, faked.join(", "))
-  }
-  process.env.PATH = savedPath
-  delete process.env.FAKE_HELPER
-}
 
 // ------------------------------------------------- the companion's routes
 
@@ -355,7 +159,6 @@ try {
   await companion.stop()
 } finally {
   companion.cleanup()
-  fs.rmSync(tmp, { recursive: true, force: true })
 }
 
 console.log(`\n${tally.pass} passed, ${tally.fail} failed`)

@@ -1,9 +1,9 @@
 //! The applications on this computer: listing them for the "Launch an app"
 //! picker, starting one (or bringing it forward), and opening a web address
 //! or a file with whatever the system uses for it.
-//! (src/server/apps.ts, src/server/launch.ts; src/server/powershell.ts is
-//! gone with PowerShell, and what it did for people, turning a system's
-//! failure into a sentence, is `launch::clean_system_error`.)
+//! (The Node companion did the Windows half through PowerShell; what its
+//! PowerShell module did for people, turning a system's failure into a
+//! sentence, is `launch::clean_system_error`.)
 //!
 //! list.rs, launch.rs and desktop_entry.rs decide and are the same on every
 //! system; the files named after a system make its calls.

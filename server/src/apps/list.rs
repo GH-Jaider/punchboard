@@ -5,7 +5,6 @@
 //! .url ones that start an app (games from Steam or Epic) rather than open a
 //! web page. Linux: the desktop entries of the XDG data folders, Flatpak's and
 //! Snap's included, which is what the desktop's own launcher lists.
-//! (src/server/apps.ts)
 //!
 //! Everything here decides; reading the environment and asking the system for
 //! its language is in list_mac.rs, list_windows.rs and list_linux.rs.
@@ -1083,43 +1082,5 @@ mod tests {
             dirs(&[("XDG_DATA_HOME", "data"), ("XDG_DATA_DIRS", "")])[0],
             home.join(".local/share/applications")
         );
-    }
-
-    /// The list here is the list the TypeScript gives, entry by entry. Reads
-    /// this computer's real folders and runs Node, so it is run by hand:
-    ///   cargo test -- --ignored the_real_list
-    #[test]
-    #[ignore = "runs Node on this computer's real applications"]
-    fn the_real_list_is_the_typescripts() {
-        let repo = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
-        let module = repo.join("src/server/apps.ts");
-        let script = format!(
-            "import {{ listApps }} from {}; console.log(JSON.stringify(listApps()))",
-            json!(format!(
-                "file://{}",
-                module.canonicalize().unwrap().display()
-            ))
-        );
-        let output = std::process::Command::new("node")
-            .args(["--input-type=module", "-e", &script])
-            .current_dir(&repo)
-            .output()
-            .expect("node runs");
-        assert!(
-            output.status.success(),
-            "{}",
-            String::from_utf8_lossy(&output.stderr)
-        );
-        let theirs: Vec<AppEntry> = serde_json::from_slice(&output.stdout).expect("a list of apps");
-        let ours = installed_apps();
-        println!(
-            "rust lists {} applications, node {}",
-            ours.len(),
-            theirs.len()
-        );
-        for (place, (a, b)) in ours.iter().zip(&theirs).enumerate() {
-            assert_eq!(a, b, "place {place}");
-        }
-        assert_eq!(ours.len(), theirs.len());
     }
 }
