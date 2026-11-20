@@ -120,8 +120,12 @@ const bin = path.join(tmp, "bin")
 fs.mkdirSync(bin)
 const winState = path.join(tmp, "win-state.json")
 const winLog = path.join(tmp, "win.log")
-const macState = path.join(tmp, "mac-state.json")
-const macLog = path.join(tmp, "mac.log")
+// The Rust companion (PUNCHBOARD_BIN) runs no osascript: it answers Music and
+// Spotify from these two files in its test folder (server/src/test_system.rs),
+// which hold what the stand-in osascript below reads and writes.
+const RUST = Boolean(process.env.PUNCHBOARD_BIN)
+const macState = path.join(tmp, RUST ? "mac-apps.json" : "mac-state.json")
+const macLog = path.join(tmp, RUST ? "osascript.jsonl" : "mac.log")
 
 // A stand-in "powershell" speaking the bridge's protocol over a file of app
 // levels. Sets are slow (80 ms), so writes pile up behind one in flight.
@@ -396,7 +400,7 @@ async function controlCenter(port) {
 }
 
 // The first-run tour would cover the Control Center; it has its own tests.
-const companion = startCompanion({ config: { tourShown: true } })
+const companion = startCompanion({ config: { tourShown: true }, env: RUST ? { PUNCHBOARD_TEST_SYSTEM: tmp } : {} })
 const request = companion.request
 const setLevel = (buttonId, level) => request({ method: "POST", path: "/api/volume", headers: JSON_TYPE, body: JSON.stringify(level === undefined ? { profileId: "main", buttonId } : { profileId: "main", buttonId, level }) })
 const macVolumes = () => JSON.parse(fs.readFileSync(macState, "utf8"))

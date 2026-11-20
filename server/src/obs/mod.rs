@@ -12,7 +12,7 @@ pub mod link;
 pub mod state;
 
 #[cfg(test)]
-mod fake;
+pub(crate) mod fake;
 
 pub use client::{ObsClient, ObsError};
 pub use config::{read_local_obs, LocalObs, ObsDetected};

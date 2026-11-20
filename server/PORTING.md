@@ -15,6 +15,9 @@ what it did. On Linux, which the Node companion never drove, the same features w
   `PUNCHBOARD_NO_OPEN`, `PUNCHBOARD_DESKTOP`, `PUNCHBOARD_POINTER_LOG`, `PUNCHBOARD_LOCALE`,
   `PUNCHBOARD_LOCALES_DIR`, `PUNCHBOARD_APP_DIR`, `PUNCHBOARD_VERSION`), the same
   `PUNCHBOARD_READY <port>` and `PUNCHBOARD_LANGUAGE <code>` lines on stdout, `quit` on stdin.
+  Two more, for tests only: `PUNCHBOARD_KEYS_LOG=<file>` writes key events to a file
+  instead of pressing them (as `PUNCHBOARD_POINTER_LOG` does for the pointer), and
+  `PUNCHBOARD_TEST_SYSTEM=<folder>` replaces the rest of the computer (see below).
 - **HTTP**: every route, status code, header, JSON field and error text. The pages in
   `public/` and the bundles in `public/js` are served unchanged.
 - **Files on disk**: `config.json`, `devices.json`, `decks/library.json`, `sounds/`, `cache/`.
@@ -58,6 +61,27 @@ what it did. On Linux, which the Node companion never drove, the same features w
 - Every assertion in the existing tests that covers code you port must have a Rust
   equivalent, or still pass through the black-box run. List in your report any you dropped
   and why (for example: it asserted the text of a PowerShell script that no longer exists).
+
+### Tests never touch the real computer
+
+`tests/companion.mjs` starts every companion with `PUNCHBOARD_TEST_SYSTEM=<data folder>/test-system`.
+With it set, the Rust companion plays no sound, sets no volume, starts no application and
+opens no browser: it writes what it would have done into that folder, and reads the
+volumes it shows from there (`src/test_system.rs` is the code, and says the same):
+
+| File | What it holds |
+|---|---|
+| `sounds.jsonl` | What the sound output was asked, one JSON object a line: `{"play":{"id":3,"file":"…/sound-4.wav","gain":0.25}}`, `{"gain":0.5}`, `{"stop":3}`, `{"close":true}`. A sound "plays" until it is stopped; a missing file fails as on the real output. |
+| `opened.jsonl` | `{"launch":"/Applications/Notes.app"}`, `{"url":"https://twitch.tv/x"}`, `{"path":"/some/file"}` |
+| `volume.json` | The volumes the companion sees, read at every request and written when a fader sets one: `{"main":0.5,"apps":{"chrome":{"name":"Google Chrome","level":0.4}}}`. Missing: a main volume of 0.5 and no apps. An app that is not listed is not playing. (App faders on Windows and Linux; on macOS only `main` is used.) |
+| `volume.jsonl` | Every change asked: `{"main":0.3}`, `{"app":"chrome","level":0.2}` |
+| `mac-apps.json` | macOS only: Music and Spotify by bundle id, as the AppleScript would find them: `{"com.spotify.client":{"running":true,"volume":30}}` (`"refuse":true` refuses, as without the Automation permission). Missing file or app: closed. |
+| `osascript.jsonl` | macOS only: every script that would have run, one JSON string a line. None is run. |
+| `keys.log`, `pointer.log` | Key events and pointer commands, unless `PUNCHBOARD_KEYS_LOG` / `PUNCHBOARD_POINTER_LOG` name other files. |
+
+A test that needs the computer in some state writes these files (passing its own folder in
+`env: { PUNCHBOARD_TEST_SYSTEM }` if it must write before the companion starts), as
+`tests/app-volume.test.mjs` does for Music and Spotify.
 
 ## TypeScript and linting
 

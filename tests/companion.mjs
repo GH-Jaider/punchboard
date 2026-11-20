@@ -32,10 +32,13 @@ export function startCompanion({ config, files = {}, env = {} } = {}) {
   }
   // Pointer commands always go to a file, so no test can move the real mouse.
   const pointerLog = process.env.PUNCHBOARD_POINTER_LOG || path.join(dataDir, "pointer.log")
+  // Sounds, volumes, apps and links go to files too (server/src/test_system.rs
+  // says which), so no test can be heard, change a volume or open anything.
+  const testSystem = path.join(dataDir, "test-system")
   // PUNCHBOARD_BIN runs the same tests against the Rust companion instead.
   const [command, args] = process.env.PUNCHBOARD_BIN ? [path.resolve(process.env.PUNCHBOARD_BIN), []] : [process.execPath, ["src/server/main.ts"]]
   const child = spawn(command, args, {
-    env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1", PUNCHBOARD_POINTER_LOG: pointerLog, PUNCHBOARD_LOCALE: "en", ...env },
+    env: { ...process.env, PUNCHBOARD_DATA_DIR: dataDir, PUNCHBOARD_PORT: String(port), PUNCHBOARD_NO_OPEN: "1", PUNCHBOARD_DESKTOP: "1", PUNCHBOARD_POINTER_LOG: pointerLog, PUNCHBOARD_TEST_SYSTEM: testSystem, PUNCHBOARD_LOCALE: "en", ...env },
     stdio: ["pipe", "pipe", "inherit"]
   })
   let out = ""

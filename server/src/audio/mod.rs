@@ -588,6 +588,16 @@ impl Audio {
         }
     }
 
+    /// Volumes made elsewhere: a main output and the app volumes that go
+    /// with it (the stand-ins of `test_system`).
+    pub fn from_parts(audio: Arc<dyn SystemAudio>, apps: Arc<dyn AppVolume>) -> Audio {
+        Audio {
+            system: SystemVolume::new(Some(audio.clone())),
+            apps,
+            audio: Some(audio),
+        }
+    }
+
     /// For when the companion closes (`stopWindowsVolume` in the
     /// TypeScript): whatever waits fails at once, and a main-volume write
     /// still queued is dropped rather than opening the system again.

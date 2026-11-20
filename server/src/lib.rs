@@ -25,3 +25,8 @@ pub mod pointer;
 pub mod sign;
 pub mod sounds;
 pub mod touch_trace;
+
+pub mod actions;
+pub mod events;
+pub mod server;
+pub mod test_system;

@@ -7,6 +7,8 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 
 use crate::i18n::{is_code_shape, AUTO_LANGUAGE};
+use crate::model::colors::is_hex_color_value;
+use crate::model::themes::{is_theme_id, DEFAULT_THEME, THEMES};
 use crate::store::{is_object, js_trim, js_value_to_number, read_json_safe, write_json_atomic};
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -60,26 +62,12 @@ pub const DEFAULT_PORT: u16 = 8787;
 const DEFAULT_ACCENT: &str = "#5fd0d6";
 const DEFAULT_OBS_ADDRESS: &str = "ws://127.0.0.1:4455";
 
-// These two repeat checks that belong to the model (themes and colours),
-// which is being written elsewhere; they are to be replaced by the model's
-// own once it is in.
-
-/// `DEFAULT_THEME` of src/shared/themes.ts.
-const DEFAULT_THEME: &str = "studio";
-
-/// `isThemeId` of src/shared/themes.ts.
-fn is_theme_id(value: &Value) -> bool {
-    matches!(
-        value.as_str(),
-        Some("studio" | "hardware" | "broadcast" | "hardware-dark")
-    )
-}
-
-/// `isHexColor` of src/shared/colors.ts: "#" and six hex digits.
-fn is_hex_color(value: &Value) -> bool {
-    value.as_str().is_some_and(|text| {
-        text.len() == 7 && text.starts_with('#') && text[1..].bytes().all(|b| b.is_ascii_hexdigit())
-    })
+/// `DEFAULT_THEME` as config.json names it.
+fn default_theme() -> &'static str {
+    THEMES
+        .iter()
+        .find(|theme| theme.id == DEFAULT_THEME)
+        .map_or("studio", |theme| theme.name)
 }
 
 impl Default for Config {
@@ -87,7 +75,7 @@ impl Default for Config {
         Config {
             port: f64::from(DEFAULT_PORT),
             theme: Theme {
-                name: DEFAULT_THEME.to_string(),
+                name: default_theme().to_string(),
                 accent: DEFAULT_ACCENT.to_string(),
                 accent_preset: "custom".to_string(),
             },
@@ -158,7 +146,7 @@ pub fn config_from(raw: &Map<String, Value>) -> Config {
                 .to_string(),
             accent: theme
                 .get("accent")
-                .filter(|accent| is_hex_color(accent))
+                .filter(|accent| is_hex_color_value(accent))
                 .and_then(Value::as_str)
                 .unwrap_or(&defaults.theme.accent)
                 .to_string(),
