@@ -11,7 +11,7 @@
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc -p src/client/tsconfig.json && tsc -p scripts/tsconfig.json",
-    "check": "npm run typecheck && npm run build",
+    "check": "npm run typecheck && npm run lint && npm run build",
     "build:server": "node scripts/build-companion.ts && node scripts/notices.ts",
     "build:companion:debug": "cd server && cargo build --locked",
     "tauri": "tauri",

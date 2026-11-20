@@ -744,7 +744,7 @@
     "shared.key.space": "Espacio",
     "shared.key.tab": "Tab",
     "shared.keys.noMacKeyCode": "macOS no puede presionar {key}: no tiene código de tecla para F21 a F24. Elige otra tecla.",
-    "shared.keys.unsupportedPlatform": "Por ahora, las combinaciones de teclas solo funcionan en macOS y Windows.",
+    "shared.keys.unsupportedPlatform": "Por ahora, las combinaciones de teclas solo funcionan en macOS, Windows y Linux.",
     "shared.mediaKey.next": "Pista siguiente",
     "shared.mediaKey.play_pause": "Reproducir / pausar",
     "shared.mediaKey.previous": "Pista anterior",

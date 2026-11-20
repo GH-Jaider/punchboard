@@ -60,7 +60,7 @@ const idsNow = (): { now: number; counter: number } => ({ now: Date.now(), count
 type Words = "echo" | "en" | "es"
 
 /** A translator Rust can copy without any file: the key, then each value. */
-const echo: Translate = (key, vars) => key + Object.keys(vars ?? {}).map((name) => `|${name}=${String((vars ?? {})[name])}`).join("")
+const echo: Translate = (key, vars) => key + Object.keys(vars ?? {}).map((name) => `|${name}=${String(vars?.[name])}`).join("")
 
 function readMessages(code: string): Messages {
   const file: unknown = JSON.parse(fs.readFileSync(path.join(ROOT, "public/locales", `${code}.json`), "utf8"))
@@ -735,12 +735,13 @@ function keys(): void {
   const platforms = [
     "darwin", "Darwin", "DARWIN", "darwin ", "xdarwin", "MacIntel", "MacPPC", "macOS", "mac", "MAC", "iPhone", "iphone", "iPad", "IPAD", "iPod", "machine", "stomach", "Linux armv8l mac",
     "win32", "Win32", "WIN64", "Windows", "windows", "win", "wIn", "cygwin", "darwin32", " win32", "Linux x86_64", "linux", "Linux armv8l", "freebsd", "openbsd", "sunos", "aix", "android", "Android",
-    "", " ", "X11", "CrOS", "ｍａｃ", "K", "ıpad", "WİN", "ſ"
+    "", " ", "X11", "CrOS", "ｍａｃ", "K", "ıpad", "WİN", "ſ",
+    "Linux", "LINUX", "lInUx", "Linux aarch64", "Linux i686", "linux ", " linux", "xlinux", "GNU/Linux", "linu", "lınux", "LİNUX", "linux mac", "linuxwin", "winlinux"
   ]
   write("keys-keyPlatform.json", platforms.map((input) => ({ input, output: keyPlatform(input) })))
 
   const reasons: Array<{ key: string; platform: KeyPlatform }> = []
-  for (const platform of ["mac", "windows", "other"] as const) {
+  for (const platform of ["mac", "windows", "linux", "other"] as const) {
     for (const key of [...KEY_NAMES, "F21", "f25", "f2", "f210", " f21", "f21 ", "", "nope"]) reasons.push({ key, platform })
   }
   write("keys-unsendableReason.json", reasons.map((input) => {

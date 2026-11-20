@@ -515,6 +515,77 @@ impl KeySink for Recorder {
     }
 }
 
+/// One keyboard event as Windows's SendInput takes it: a virtual key or a
+/// scan code (the other is 0), with its KEYBDINPUT flags.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct WindowsInput {
+    pub vk: u16,
+    pub scan: u16,
+    pub flags: u32,
+}
+
+/// Where [`post_windows_events`] hands its batches: SendInput
+/// (keys/windows.rs), or a list in a test.
+pub trait WindowsPoster {
+    /// Hands Windows one batch, never an empty one, and says how many of
+    /// its events were taken.
+    fn post(&mut self, inputs: &[WindowsInput]) -> u32;
+    /// Nothing for this long.
+    fn wait(&mut self, ms: u64);
+}
+
+/// Sends planned events the way Windows wants them. The events up to a pause
+/// go in one call, the ones after it in another. Every batch is sent whatever
+/// happened to the one before, so a modifier is never left held down: when
+/// Windows refuses the presses, the releases are posted all the same, and
+/// only then is the refusal told.
+pub fn post_windows_events(
+    events: &[KeyEvent],
+    poster: &mut dyn WindowsPoster,
+) -> Result<(), KeyFailure> {
+    let mut batch: Vec<WindowsInput> = Vec::new();
+    // Scan codes are counted; a music key, like keybd_event before, is not.
+    let mut wanted: u32 = 0;
+    let mut taken: u32 = 0;
+    let mut flush = |batch: &mut Vec<WindowsInput>, poster: &mut dyn WindowsPoster| {
+        // A batch holds scan codes only, so all of it is counted.
+        if !batch.is_empty() {
+            taken += poster.post(batch);
+        }
+        batch.clear();
+    };
+    for event in events {
+        match *event {
+            KeyEvent::Scan { scan, flags } => {
+                batch.push(WindowsInput { vk: 0, scan, flags });
+                wanted += 1;
+            }
+            KeyEvent::Virtual { vk, flags } => {
+                // Each on its own, as two keybd_event calls were.
+                flush(&mut batch, poster);
+                poster.post(&[WindowsInput {
+                    vk: u16::from(vk),
+                    scan: 0,
+                    flags,
+                }]);
+            }
+            KeyEvent::Wait { ms } => {
+                flush(&mut batch, poster);
+                poster.wait(ms);
+            }
+            // Other systems' events are never planned for this one.
+            KeyEvent::Mac { .. } | KeyEvent::MacMedia { .. } | KeyEvent::Evdev { .. } => {}
+        }
+    }
+    flush(&mut batch, poster);
+    if taken != wanted {
+        // SendInput does not say why it refused; a locked screen or an app run as
+        // administrator in front are the usual reasons.
+        return Err(KeyFailure::WindowsRefused { taken, wanted });
+    }
+    Ok(())
+}
+
 /// One event as a line of the key log (see [`LogSink`]).
 pub fn log_line(event: &KeyEvent) -> String {
     let way = |down: bool| if down { "down" } else { "up" };
@@ -1101,6 +1172,133 @@ mod tests {
         }
     }
 
+    /// What Windows was handed, call by call. `refuses` says which calls it
+    /// takes nothing of (0 is the first).
+    #[derive(Default)]
+    struct Posted {
+        calls: Vec<Vec<WindowsInput>>,
+        waits: Vec<(usize, u64)>,
+        refuses: Vec<usize>,
+    }
+
+    impl WindowsPoster for Posted {
+        fn post(&mut self, inputs: &[WindowsInput]) -> u32 {
+            assert!(!inputs.is_empty(), "an empty batch is not posted");
+            self.calls.push(inputs.to_vec());
+            if self.refuses.contains(&(self.calls.len() - 1)) {
+                0
+            } else {
+                inputs.len() as u32
+            }
+        }
+
+        fn wait(&mut self, ms: u64) {
+            self.waits.push((self.calls.len(), ms));
+        }
+    }
+
+    fn scan_input(input: &ScanInput) -> WindowsInput {
+        WindowsInput {
+            vk: 0,
+            scan: input.scan,
+            flags: input.flags,
+        }
+    }
+
+    // The C#'s Send(): the presses in one SendInput call, the hold, the
+    // releases in another.
+    #[test]
+    fn windows_is_handed_the_presses_then_after_the_hold_the_releases() {
+        let combo = combo("ctrl+shift+k");
+        let inputs: Vec<WindowsInput> = windows_inputs(&combo)
+            .expect("inputs")
+            .iter()
+            .map(scan_input)
+            .collect();
+        let events = combo_events(&combo, Platform::Windows).expect("planned");
+        let mut posted = Posted::default();
+        assert_eq!(post_windows_events(&events, &mut posted), Ok(()));
+        assert_eq!(posted.calls, [inputs[..3].to_vec(), inputs[3..].to_vec()]);
+        assert_eq!(posted.waits, [(1, HOLD_MS)]);
+    }
+
+    // tests/scripts.test.mjs, "The releases are sent in a finally": it read
+    // the C# for the word. Here Windows refuses the presses (a locked
+    // screen), and the releases are posted all the same, so no modifier is
+    // left held down; the refusal is told after them.
+    #[test]
+    fn the_releases_are_posted_even_when_windows_refused_the_presses() {
+        for name in ["ctrl+shift+k", "meta+f24", "a"] {
+            let combo = combo(name);
+            let inputs = windows_inputs(&combo).expect(name);
+            let downs = inputs.len() / 2;
+            let events = combo_events(&combo, Platform::Windows).expect(name);
+            let mut posted = Posted {
+                refuses: vec![0],
+                ..Posted::default()
+            };
+            assert_eq!(
+                post_windows_events(&events, &mut posted),
+                Err(KeyFailure::WindowsRefused {
+                    taken: downs as u32,
+                    wanted: inputs.len() as u32
+                }),
+                "{name}"
+            );
+            assert_eq!(posted.calls.len(), 2, "{name}");
+            let releases: Vec<WindowsInput> = inputs[downs..].iter().map(scan_input).collect();
+            assert_eq!(posted.calls[1], releases, "{name}");
+            assert!(
+                releases
+                    .iter()
+                    .all(|input| input.flags & KEYEVENTF_KEYUP != 0),
+                "{name}"
+            );
+            // Every key that was pressed is let go, the hold still between.
+            let scans = |call: &[WindowsInput]| -> Vec<u16> {
+                let mut scans: Vec<u16> = call.iter().map(|input| input.scan).collect();
+                scans.sort_unstable();
+                scans
+            };
+            assert_eq!(scans(&posted.calls[0]), scans(&posted.calls[1]), "{name}");
+            assert_eq!(posted.waits, [(1, HOLD_MS)], "{name}");
+        }
+        // Refused releases are told too, after everything was posted.
+        let events = combo_events(&combo("ctrl+k"), Platform::Windows).expect("planned");
+        let mut posted = Posted {
+            refuses: vec![0, 1],
+            ..Posted::default()
+        };
+        assert_eq!(
+            post_windows_events(&events, &mut posted),
+            Err(KeyFailure::WindowsRefused {
+                taken: 0,
+                wanted: 4
+            })
+        );
+        assert_eq!(posted.calls.len(), 2);
+    }
+
+    // A music key is two calls of its own (keybd_event before), and what
+    // Windows makes of them is not counted.
+    #[test]
+    fn a_music_key_is_posted_one_event_a_call_and_never_counted() {
+        let events = media_events(MediaKey::PlayPause, Platform::Windows);
+        let mut posted = Posted {
+            refuses: vec![0, 1],
+            ..Posted::default()
+        };
+        assert_eq!(post_windows_events(&events, &mut posted), Ok(()));
+        let key = |flags| WindowsInput {
+            vk: 179,
+            scan: 0,
+            flags,
+        };
+        assert_eq!(posted.calls, [vec![key(1)], vec![key(3)]]);
+        assert_eq!(post_windows_events(&[], &mut posted), Ok(()));
+        assert_eq!(posted.calls.len(), 2);
+    }
+
     #[test]
     fn win_and_f17_to_f24_are_not_refused_on_windows() {
         assert!(combo_events(&combo("meta+shift+s"), Platform::Windows).is_ok());
@@ -1153,6 +1351,40 @@ mod tests {
         )
         .is_none()));
         assert!(unsendable_reason("a", KeyPlatform::Other, &Keys).is_some());
+    }
+
+    /// The Control Center warns about no key on Linux, which is right only
+    /// while LINUX_CODES has a code for every one. A key that loses its code
+    /// fails here, and then needs its own warning in `unsendable_reason` (as
+    /// F21 to F24 have on macOS) before this passes again.
+    #[test]
+    fn the_recorder_flags_exactly_the_keys_linux_has_no_code_for() {
+        let unsendable: Vec<&str> = KEY_NAMES
+            .into_iter()
+            .filter(|name| unsendable_reason(name, KeyPlatform::Linux, &Keys).is_some())
+            .collect();
+        let missing: Vec<&str> = KEY_NAMES
+            .into_iter()
+            .filter(|name| linux_code(name).is_none())
+            .collect();
+        assert_eq!(unsendable, missing);
+        assert_eq!(missing, Vec::<&str>::new());
+    }
+
+    #[test]
+    fn linux_says_the_same_thing_at_press_time() {
+        let english = crate::i18n::translator("en");
+        for name in KEY_NAMES {
+            let combo = KeyCombo {
+                modifiers: vec![Modifier::Meta],
+                key: name.to_string(),
+            };
+            let reason = unsendable_reason(name, KeyPlatform::Linux, &english);
+            match combo_events(&combo, Platform::Linux) {
+                Ok(_) => assert_eq!(reason, None, "{name}"),
+                Err(error) => assert_eq!(Some(error.message().to_string()), reason, "{name}"),
+            }
+        }
     }
 
     #[test]

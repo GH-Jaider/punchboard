@@ -1,4 +1,4 @@
-# Type-checks and builds the pages, tests the companion (the Rust crate in
+# Type-checks, lints and builds the pages, tests the companion (the Rust crate in
 # server/) on its own and from outside (npm test starts it and talks to it),
 # then checks what only the desktop app uses: the sidecar and the shell.
 # Linux, where Punchboard is built from source, has a job of its own.

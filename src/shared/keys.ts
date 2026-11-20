@@ -118,13 +118,14 @@ export function formatCombo(text: string | undefined, mac: boolean): string {
 }
 
 /** The systems that send keys differently. */
-export type KeyPlatform = "mac" | "windows" | "other"
+export type KeyPlatform = "mac" | "windows" | "linux" | "other"
 
-/** Which of them a platform name is: Node's ("darwin", "win32") or the
-    browser's navigator.platform ("MacIntel", "Win32"). */
+/** Which of them a platform name is: Node's ("darwin", "win32", "linux") or
+    the browser's navigator.platform ("MacIntel", "Win32", "Linux x86_64"). */
 export function keyPlatform(name: string): KeyPlatform {
   if (/^darwin$|Mac|iPhone|iPad/i.test(name)) return "mac"
   if (/^win/i.test(name)) return "windows"
+  if (/^linux/i.test(name)) return "linux"
   return "other"
 }
 
@@ -135,7 +136,8 @@ export const currentKeyPlatform = (): KeyPlatform => keyPlatform(typeof navigato
 /** Why `key` cannot be pressed on `platform`, or null when it can. Said
     when the key is recorded, so nobody finds out mid-stream. macOS has no
     key codes for F21 to F24 (the server's MAC_CODES has none); Windows
-    sends every key here by its scan code. */
+    sends every key here by its scan code, and Linux by the kernel's code
+    (the server's LINUX_CODES has one for each, and its tests say so). */
 export function unsendableReason(key: string, platform: KeyPlatform): string | null {
   if (platform === "other") return t("shared.keys.unsupportedPlatform")
   if (platform === "mac" && /^f(2[1-4])$/.test(key)) return t("shared.keys.noMacKeyCode", { key: key.toUpperCase() })

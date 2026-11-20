@@ -6,7 +6,7 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
     SendInput, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYBD_EVENT_FLAGS, VIRTUAL_KEY,
 };
 
-use super::{KeyEvent, KeyFailure, KeySink};
+use super::{post_windows_events, KeyEvent, KeyFailure, KeySink, WindowsInput, WindowsPoster};
 
 /// One keyboard event as SendInput takes it. INPUT holds a union of the
 /// mouse, keyboard and hardware events, so its size is the real one whatever
@@ -35,53 +35,30 @@ pub(crate) fn post(inputs: &[INPUT]) -> u32 {
     unsafe { SendInput(inputs, std::mem::size_of::<INPUT>() as i32) }
 }
 
+/// Batches go to SendInput and a pause is slept through.
+struct SendInputPoster;
+
+impl WindowsPoster for SendInputPoster {
+    fn post(&mut self, inputs: &[WindowsInput]) -> u32 {
+        let inputs: Vec<INPUT> = inputs
+            .iter()
+            .map(|input| keyboard_input(input.vk, input.scan, input.flags))
+            .collect();
+        post(&inputs)
+    }
+
+    fn wait(&mut self, ms: u64) {
+        std::thread::sleep(Duration::from_millis(ms));
+    }
+}
+
 pub(crate) struct Sink;
 
 impl KeySink for Sink {
-    /// The events up to a pause go in one call, the ones after it in
-    /// another. Every batch is sent whatever happened to the one before, so
-    /// a modifier is never left held down.
+    /// What goes in which call, and that the releases are sent even when
+    /// the presses were refused, is decided in `keys/mod.rs`.
     fn send(&mut self, events: &[KeyEvent]) -> Result<(), KeyFailure> {
-        let mut batch: Vec<INPUT> = Vec::new();
-        // Scan codes are counted; a music key, like keybd_event before, is not.
-        let mut wanted: u32 = 0;
-        let mut taken: u32 = 0;
-        let mut counted = false;
-        let mut flush = |batch: &mut Vec<INPUT>, counted: &mut bool| {
-            let sent = post(batch);
-            if *counted {
-                taken += sent;
-            }
-            batch.clear();
-            *counted = false;
-        };
-        for event in events {
-            match *event {
-                KeyEvent::Scan { scan, flags } => {
-                    batch.push(keyboard_input(0, scan, flags));
-                    wanted += 1;
-                    counted = true;
-                }
-                KeyEvent::Virtual { vk, flags } => {
-                    // Each on its own, as two keybd_event calls were.
-                    flush(&mut batch, &mut counted);
-                    post(&[keyboard_input(u16::from(vk), 0, flags)]);
-                }
-                KeyEvent::Wait { ms } => {
-                    flush(&mut batch, &mut counted);
-                    std::thread::sleep(Duration::from_millis(ms));
-                }
-                // Other systems' events are never planned for this one.
-                KeyEvent::Mac { .. } | KeyEvent::MacMedia { .. } | KeyEvent::Evdev { .. } => {}
-            }
-        }
-        flush(&mut batch, &mut counted);
-        if taken != wanted {
-            // SendInput does not say why it refused; a locked screen or an app run as
-            // administrator in front are the usual reasons.
-            return Err(KeyFailure::WindowsRefused { taken, wanted });
-        }
-        Ok(())
+        post_windows_events(events, &mut SendInputPoster)
     }
 }
 

@@ -21,7 +21,7 @@ const LANGUAGE_KEY = "punchboard-language"
 /** The languages the browser asks for, most wanted first. */
 export function browserLanguages(): string[] {
   const nav = navigator as Navigator & { userLanguage?: string }
-  if (nav.languages && nav.languages.length) return Array.prototype.slice.call(nav.languages) as string[]
+  if (nav.languages?.length) return Array.prototype.slice.call(nav.languages) as string[]
   return [nav.language || nav.userLanguage || ""]
 }
 
@@ -99,7 +99,7 @@ export function loadLanguage(hello: Promise<Pick<HelloResponse, "language" | "la
 /** Records the companion's setting and list (from a hello, settings or a snapshot). */
 export function noteLanguages(value: string | undefined, codes?: string[]): void {
   if (typeof value === "string" && value) setting = value
-  if (codes && codes.length) available = codes
+  if (codes?.length) available = codes
 }
 
 // ------------------------------------------------------------ the page's HTML

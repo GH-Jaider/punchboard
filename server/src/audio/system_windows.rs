@@ -35,7 +35,10 @@ use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
-use super::app_volume::{friendly_name, own_processes, process_key, process_name};
+use super::app_volume::{
+    friendly_name, own_processes, process_name, session_app, set_every_session, SessionFacts,
+    SessionVolume,
+};
 use super::{float_as_printed, AudioBackend, AudioThread, MakeBackend, SystemApp, ThreadMessages};
 
 /// What each request says when it fails. A failed read of the main volume
@@ -93,6 +96,52 @@ struct Session {
     key: String,
     pid: u32,
     volume: ISimpleAudioVolume,
+}
+
+/// What `session_app` asks of a session, each a call into Core Audio.
+struct Facts<'a>(&'a IAudioSessionControl2);
+
+impl SessionFacts for Facts<'_> {
+    fn expired(&self) -> Option<bool> {
+        // SAFETY: a COM call on an object the audio thread owns.
+        unsafe { self.0.GetState() }
+            .ok()
+            .map(|state| state == AudioSessionStateExpired)
+    }
+
+    fn system_sounds(&self) -> bool {
+        // S_OK (0) says it is the system sounds session.
+        // SAFETY: a COM call on an object the audio thread owns.
+        unsafe { self.0.IsSystemSoundsSession() }.0 == 0
+    }
+
+    fn process(&self) -> Option<u32> {
+        // A session shared by several processes answers with a success
+        // code other than 0 and no one process: it belongs to no app
+        // key. The wrapper would call that a success, so the call is
+        // made through the table to see the code itself.
+        let mut pid = 0u32;
+        // SAFETY: the interface's own method, called with its own
+        // pointer and a writable u32, as the wrapper does.
+        let answered = unsafe {
+            (Interface::vtable(self.0).GetProcessId)(Interface::as_raw(self.0), &mut pid)
+        };
+        (answered.0 == 0).then_some(pid)
+    }
+}
+
+impl SessionVolume for Session {
+    fn set(&self, level: f32) -> Result<(), String> {
+        // SAFETY: a COM call on an object the audio thread owns; the
+        // context is a GUID that lives for the call.
+        unsafe { self.volume.SetMasterVolume(level, &GUID::zeroed()) }
+            .map_err(|error| error.message())
+    }
+
+    fn read(&self) -> Option<f32> {
+        // SAFETY: a COM call on an object the audio thread owns.
+        unsafe { self.volume.GetMasterVolume() }.ok()
+    }
 }
 
 /// The processes running now: each one's program file and its parent.
@@ -312,41 +361,14 @@ impl WindowsAudio {
                 let Ok(session) = control.cast::<IAudioSessionControl2>() else {
                     continue;
                 };
-                match unsafe { session.GetState() } {
-                    Ok(state) if state != AudioSessionStateExpired => {}
-                    _ => continue,
-                }
-                // S_OK (0) says it is the system sounds session.
-                if unsafe { session.IsSystemSoundsSession() }.0 == 0 {
-                    continue;
-                }
-                // A session shared by several processes answers with a success
-                // code other than 0 and no one process: it belongs to no app
-                // key. The wrapper would call that a success, so the call is
-                // made through the table to see the code itself.
-                let mut pid = 0u32;
-                // SAFETY: the interface's own method, called with its own
-                // pointer and a writable u32, as the wrapper does.
-                let answered = unsafe {
-                    (Interface::vtable(&session).GetProcessId)(
-                        Interface::as_raw(&session),
-                        &mut pid,
-                    )
-                };
-                if answered.0 != 0 || pid == 0 {
-                    continue;
-                }
-                let Some(file) = files.get(&pid) else {
+                // Which sessions are an app's is decided in app_volume.rs.
+                let Some((key, pid)) = session_app(&Facts(&session), files) else {
                     continue;
                 };
                 let Ok(volume) = session.cast::<ISimpleAudioVolume>() else {
                     continue;
                 };
-                found.push(Session {
-                    key: process_key(file),
-                    pid,
-                    volume,
-                });
+                found.push(Session { key, pid, volume });
             }
         }
         found
@@ -385,26 +407,18 @@ impl AudioBackend for WindowsAudio {
         Ok(None)
     }
 
-    /// Sets every session of every process named `key`.
+    /// Sets every session of every process named `key` (`set_every_session`
+    /// in app_volume.rs decides which, and what is answered).
     fn set_app_volume(&mut self, key: &str, wanted: f64) -> Result<Option<f64>, String> {
         let files = processes().map(|all| all.files).unwrap_or_default();
-        let mut now: Option<f32> = None;
-        for session in self.sessions(&files) {
-            if session.key != key {
-                continue;
-            }
-            // SAFETY: COM calls on an object this thread owns; the context
-            // is a GUID that lives for the call.
-            unsafe {
-                session
-                    .volume
-                    .SetMasterVolume(wanted as f32, &GUID::zeroed())
-                    .map_err(|error| error.message())?;
-                if now.is_none() {
-                    now = session.volume.GetMasterVolume().ok();
-                }
-            }
-        }
+        let sessions = self.sessions(&files);
+        let now = set_every_session(
+            sessions
+                .iter()
+                .map(|session| (session.key.as_str(), session)),
+            key,
+            wanted as f32,
+        )?;
         Ok(now.map(level))
     }
 

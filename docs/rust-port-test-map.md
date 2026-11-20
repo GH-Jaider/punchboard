@@ -22,19 +22,19 @@ Counted on macOS, where the thirteen files gave 629 passing checks before
 | File | Before | Kept | Removed | of those: a Rust test took over | the mechanism is gone |
 |---|---:|---:|---:|---:|---:|
 | `tests/actions.test.mjs` | 43 | 43 | 0 | 0 | 0 |
-| `tests/app-volume.test.mjs` | 92 | 37 | 55 | 40 | 15 |
+| `tests/app-volume.test.mjs` | 92 | 37 | 55 | 42 | 13 |
 | `tests/designer.test.mjs` | 41 | 41 | 0 | 0 | 0 |
 | `tests/i18n.test.mjs` | 55 | 55 | 0 | 0 | 0 |
 | `tests/library.test.mjs` | 51 | 50 | 1 | 1 | 0 |
 | `tests/obs.test.mjs` | 26 | 26 | 0 | 0 | 0 |
-| `tests/scripts.test.mjs` | 62 | 5 | 57 | 30 | 27 |
+| `tests/scripts.test.mjs` | 62 | 5 | 57 | 31 | 26 |
 | `tests/security.test.mjs` | 47 | 39 | 8 | 8 | 0 |
 | `tests/sounds.test.mjs` | 56 | 26 | 30 | 25 | 5 |
 | `tests/touchpad.test.mjs` | 85 | 85 | 0 | 0 | 0 |
 | `tests/tour.test.mjs` | 34 | 34 | 0 | 0 | 0 |
 | `tests/trackpad.test.mjs` | 37 | 34 | 3 | 3 | 0 |
 | `tests/windows.test.mjs` (deleted) | 0 | 0 | 0 | 0 | 0 |
-| **Total** | **629** | **475** | **154** | **107** | **47** |
+| **Total** | **629** | **475** | **154** | **110** | **44** |
 
 475 kept + 154 removed = 629.
 
@@ -45,11 +45,14 @@ calls the system's APIs in its own process, so there is no script whose text cou
 checked and no test could be written for it. Each such row says what took the
 mechanism's place and names the nearest Rust test of what the check was protecting.
 
-Three behaviours those checks protected are kept in the Rust code but sit in system
-calls that only run on Windows and have **no unit test** of their own. They are marked
-in the tables: the system sounds session is left out of the app list, a fader sets
-every audio session of its app, and key releases are posted even when Windows refused
-the presses.
+Three behaviours those checks protected sat at first inside system calls that only
+run on Windows, with no unit test of their own: the system sounds session is left out
+of the app list, a fader sets every audio session of its app, and key releases are
+posted even when Windows refused the presses. Each decision has since been moved out
+of the system call into a function the Windows code calls (`session_app` and
+`set_every_session` in audio/app_volume.rs, `post_windows_events` in keys/mod.rs), with
+a test that runs on every system. They are counted as taken over, and marked
+**written now** in the tables.
 
 ## Rust tests written for this
 
@@ -58,6 +61,9 @@ the presses.
 | `audio::player::tests::a_file_is_found_under_a_name_with_typographic_quotes_hash_and_percent` | "PowerShell quoting doubles straight and typographic quotes" and "The Windows player is given a file URI with # and % escaped" (`sounds`), and on Windows "A path with typographic quotes, # and % is found and plays" |
 | `keys::windows::tests::every_scan_code_is_that_physical_key_on_the_us_layout` (Windows only) | "Every key's scan code is that physical key (US layout), modifiers the left-hand ones" (`windows`) |
 | `audio::system_windows::tests::the_real_mixer_lists_apps_and_leaves_alone_one_that_is_not_there` (Windows only) | "The volume bridge compiles and lists the apps playing sound", "Punchboard's own processes are not offered", "An app that is not there reads as unknown" (`windows`) |
+| `audio::app_volume::tests::the_system_sounds_session_is_left_out_of_the_app_list` | "The bridge leaves out the system sounds session" (`app-volume`) |
+| `audio::app_volume::tests::a_fader_sets_every_session_of_its_app_not_just_the_first` | "The bridge sets every session of the app, not just the first" (`app-volume`) |
+| `keys::tests::the_releases_are_posted_even_when_windows_refused_the_presses` | "The releases are sent in a finally" (`scripts`) |
 
 The two Windows-only tests were compiled for Windows
 (`cargo clippy --all-targets --target x86_64-pc-windows-msvc`) and have not been run:
@@ -71,6 +77,7 @@ now also covers `KeyFailure::WindowsRefused`, whose words moved to the locale fi
 | File | Check | What changed |
 |---|---|---|
 | `tests/scripts.test.mjs` | "The recorder flags exactly the keys macOS has no code for (F21 to F24)" | It compared the shared `unsendableReason` with the Node companion's `MAC_CODES` table. It now compares it with the list itself (`f21 f22 f23 f24`); the companion's side is `keys::tests::the_recorder_flags_exactly_the_keys_macos_has_no_code_for`. |
+| `tests/scripts.test.mjs` | "Platform names are read from Node and from the browser", and a new "Nothing is flagged on Linux" (not in the 629) | Linux was "other", a system told key combinations do not work there. The companion sends keys on Linux, so the shared code has a `linux` platform: its names ("linux", "Linux x86_64") are read as that, and no key is flagged on it. The companion's side is `keys::tests::the_recorder_flags_exactly_the_keys_linux_has_no_code_for` (none: `LINUX_CODES` has every key) and `keys::tests::linux_says_the_same_thing_at_press_time`. |
 | `tests/i18n.test.mjs` | "no interface English left in src/ or the pages" | `tests/i18n-literals.mjs` reads `server/src/**/*.rs` (outside `#[cfg(test)]`) where it read `src/server/*.ts`. The client and the pages are scanned as before. |
 | `tests/app-volume.test.mjs` | "Routes (elsewhere): the list is empty, with a note", "Routes (elsewhere): a write is refused in words" | Linux only (not in the 629). They expected "Windows and macOS only"; Linux has a mixer now, so they became four "Routes (Linux)" checks against the stand-in mixer (`volume.json`): the refused levels never reached it, the apps playing are listed, a fader sets its app, a write to an app that is not playing fails with the friendly message and sets nothing. |
 | all | `tests/english.mjs` | Makes the shared `t()` speak English from `public/locales/en.json` through `src/shared/i18n.ts`, where it loaded the Node companion's i18n module to do the same. |
@@ -79,7 +86,7 @@ now also covers `KeyFailure::WindowsRefused`, whose words moved to the locale fi
 
 Rust tests are named as `cargo test` prints them; `a::b::tests::name` is in `server/src/a/b.rs` (or `a/b/mod.rs`).
 
-### `tests/app-volume.test.mjs`: 55 removed (40 taken over, 15 with the mechanism gone)
+### `tests/app-volume.test.mjs`: 55 removed (42 taken over, 13 with the mechanism gone)
 
 | Check | Now |
 |---|---|
@@ -126,8 +133,8 @@ Rust tests are named as `cargo test` prints them; `a::b::tests::name` is in `ser
 | The Windows bridge has app-set  | **retired with the mechanism**: text of the C# bridge that PowerShell compiled; Core Audio is now called directly (audio/system_windows.rs), so there is no script text to read. Nearest: `audio::app_volume::tests::windows_processes_are_named_and_owned_as_the_bridge_did`, `audio::system_windows::tests::the_real_mixer_lists_apps_and_leaves_alone_one_that_is_not_there` (**written now**, Windows only: compiled, not run here). |
 | The Windows bridge has list  | **retired with the mechanism**: text of the C# bridge that PowerShell compiled; Core Audio is now called directly (audio/system_windows.rs), so there is no script text to read. Nearest: `audio::app_volume::tests::windows_processes_are_named_and_owned_as_the_bridge_did`, `audio::system_windows::tests::the_real_mixer_lists_apps_and_leaves_alone_one_that_is_not_there` (**written now**, Windows only: compiled, not run here). |
 | The bridge leaves out Punchboard's own processes | `audio::app_volume::tests::windows_processes_are_named_and_owned_as_the_bridge_did` (`own_processes`) |
-| The bridge leaves out the system sounds session | **retired with the mechanism**: text of the C# bridge that PowerShell compiled; Core Audio is now called directly (audio/system_windows.rs), so there is no script text to read. The behaviour is kept in `WindowsAudio::sessions` (IsSystemSoundsSession), a system call with **no unit test**. |
-| The bridge sets every session of the app, not just the first | **retired with the mechanism**: text of the C# bridge that PowerShell compiled; Core Audio is now called directly (audio/system_windows.rs), so there is no script text to read. The behaviour is kept in `WindowsAudio::set_app_volume` (it loops over every session of the key), a system call with **no unit test**. |
+| The bridge leaves out the system sounds session | `audio::app_volume::tests::the_system_sounds_session_is_left_out_of_the_app_list` (**written now**). It read the C# for `IsSystemSoundsSession`; which sessions are an app's is now decided by `session_app`, which `WindowsAudio::sessions` calls for each one. |
+| The bridge sets every session of the app, not just the first | `audio::app_volume::tests::a_fader_sets_every_session_of_its_app_not_just_the_first` (**written now**). It read the C# for a loop without a `break`; the loop is now `set_every_session`, which `WindowsAudio::set_app_volume` calls. |
 | The bridge's list is plain ASCII JSON | **retired with the mechanism**: the list no longer crosses a pipe as JSON: it is a `Vec<SystemApp>` in the same process. Nearest: `audio::app_volume::tests::the_mixers_list_is_the_typescripts`. |
 | Two apps' writes do not wait for each other | `latest_wins::tests::each_key_goes_one_at_a_time_and_keys_do_not_wait_for_each_other` |
 | Windows: a drag's levels are coalesced, newest last | `audio::app_volume::tests::windows_a_drags_levels_are_coalesced_newest_last` |
@@ -174,7 +181,7 @@ Rust tests are named as `cargo test` prints them; `a::b::tests::name` is in `ser
 | Windows volume: answers that come back out of order reach the right request | `audio::tests::each_request_gets_its_own_answer` |
 | Windows volume: stopping fails a waiting request at once | `audio::tests::stopping_fails_a_waiting_request_at_once` |
 
-### `tests/scripts.test.mjs`: 57 removed (30 taken over, 27 with the mechanism gone)
+### `tests/scripts.test.mjs`: 57 removed (31 taken over, 26 with the mechanism gone)
 
 | Check | Now |
 |---|---|
@@ -219,7 +226,7 @@ Rust tests are named as `cargo test` prints them; `a::b::tests::name` is in `ser
 | The launcher knows every generic host | `apps::launch::tests::the_generic_hosts_are_the_typescripts`, `apps::launch::tests::a_generic_host_is_never_the_running_app` |
 | The launcher parses with a curly-quoted path | **retired with the mechanism**: lexing the launcher's PowerShell script; the path is now an argument, never script text. Nearest: `apps::launch_windows::tests::the_launcher_would_on_real_shortcuts` (Windows only). |
 | The modifiers are the left-hand Ctrl, Alt, Shift and Win | `keys::tests::the_modifiers_are_the_left_hand_ctrl_alt_shift_and_win` |
-| The releases are sent in a finally | **retired with the mechanism**: it read the C#'s `finally`. The behaviour is kept in `keys::windows::Sink::send` (every batch is posted whatever happened to the one before, so a modifier is never left down), a system call with **no unit test**; that releases are planned after presses: Nearest: `keys::tests::the_planned_events_for_every_key_are_its_inputs_presses_before_releases`. |
+| The releases are sent in a finally | `keys::tests::the_releases_are_posted_even_when_windows_refused_the_presses` (**written now**). It read the C#'s `finally`; what goes in which SendInput call is now decided by `post_windows_events`, which `keys::windows::Sink::send` calls, and every batch is posted whatever happened to the one before. |
 | The wrapper parses | **retired with the mechanism**: `wrapScript` / `powershellArgs`: nothing runs PowerShell. |
 | Top letter row: Q to ] are 0x10 to 0x1B | `keys::tests::the_scan_codes_follow_the_keyboard_rows` |
 | Win and F17 to F24 are no longer refused on Windows | `keys::tests::win_and_f17_to_f24_are_not_refused_on_windows` |

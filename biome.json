@@ -1,8 +1,8 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
-  "files": { "includes": ["src/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "!src/client/vendor", "!tests/fixtures/*/**"] },
+  "files": { "includes": ["src/**/*.ts", "scripts/**/*.ts", "tests/**/*.ts", "!src/client/vendor", "!tests/fixtures/*/"] },
   "formatter": { "enabled": false },
   "assist": { "enabled": false },
-  "linter": { "enabled": true, "rules": { "recommended": true } }
+  "linter": { "enabled": true, "rules": { "preset": "recommended" } }
 }

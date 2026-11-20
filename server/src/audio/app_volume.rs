@@ -11,7 +11,7 @@
 //! `None`, which the decks show as "–". Writes go one at a time per app,
 //! newest level first, like the computer's own volume.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
 use serde::Serialize;
@@ -315,6 +315,67 @@ pub fn friendly_name(description: Option<&str>, process_name: &str) -> String {
         Some(description) => description.to_string(),
         None => process_name.to_string(),
     }
+}
+
+/// What Windows is asked about one audio session to tell whether it is an
+/// app's. Each question is a system call (audio/system_windows.rs), so
+/// [`session_app`] asks them in this order and stops at the first that rules
+/// the session out.
+pub trait SessionFacts {
+    /// Whether the session has ended; `None` when it would not say.
+    fn expired(&self) -> Option<bool>;
+    /// Whether it is the one Windows plays its own sounds through.
+    fn system_sounds(&self) -> bool;
+    /// The one process it belongs to; `None` when it would not say, or is
+    /// shared by several processes and so belongs to none.
+    fn process(&self) -> Option<u32>;
+}
+
+/// The app an audio session is listed and set under, as its key and its
+/// process, or `None` for a session that is nobody's: one that has ended or
+/// would not say, the system sounds session, one with no single process, and
+/// one whose process is already gone (`files` is every running process's
+/// program file).
+pub fn session_app(
+    session: &impl SessionFacts,
+    files: &HashMap<u32, String>,
+) -> Option<(String, u32)> {
+    if session.expired() != Some(false) || session.system_sounds() {
+        return None;
+    }
+    let pid = session.process().filter(|pid| *pid != 0)?;
+    Some((process_key(files.get(&pid)?), pid))
+}
+
+/// One audio session's own volume, as Windows keeps it.
+pub trait SessionVolume {
+    fn set(&self, level: f32) -> Result<(), String>;
+    /// `None` when it could not be read.
+    fn read(&self) -> Option<f32>;
+}
+
+/// A fader's level, given to every session of the app `key` and not just the
+/// first: Chrome plays from several processes, and a game may have one
+/// session on the speakers and another on a headset. Sessions come with
+/// their app's key. The answer is what the first of them that can be read
+/// says afterwards, or `None` when the app has no session. A session that
+/// refuses ends it there, with the system's reason.
+pub fn set_every_session<'a, V: SessionVolume + 'a>(
+    sessions: impl IntoIterator<Item = (&'a str, &'a V)>,
+    key: &str,
+    wanted: f32,
+) -> Result<Option<f32>, String> {
+    let mut now: Option<f32> = None;
+    for (session_key, volume) in sessions {
+        if session_key != key {
+            continue;
+        }
+        volume.set(wanted)?;
+        if now.is_none() {
+            now = volume.read();
+        }
+    }
+    Ok(now)
 }
 
 /// The app key of a stream on a Linux sound server: the program that plays
@@ -1194,6 +1255,203 @@ pub(crate) mod tests {
         );
         assert_eq!(friendly_name(Some("   "), "foobar2000"), "foobar2000");
         assert_eq!(friendly_name(None, "Game"), "Game");
+    }
+
+    /// One audio session as Windows would describe it, and what was asked
+    /// of it.
+    struct FakeSession {
+        expired: Option<bool>,
+        system_sounds: bool,
+        process: Option<u32>,
+        asked: Mutex<Vec<&'static str>>,
+    }
+
+    impl FakeSession {
+        fn of(process: u32) -> FakeSession {
+            FakeSession {
+                expired: Some(false),
+                system_sounds: false,
+                process: Some(process),
+                asked: Mutex::new(Vec::new()),
+            }
+        }
+    }
+
+    impl SessionFacts for FakeSession {
+        fn expired(&self) -> Option<bool> {
+            lock(&self.asked).push("expired");
+            self.expired
+        }
+        fn system_sounds(&self) -> bool {
+            lock(&self.asked).push("system sounds");
+            self.system_sounds
+        }
+        fn process(&self) -> Option<u32> {
+            lock(&self.asked).push("process");
+            self.process
+        }
+    }
+
+    // tests/app-volume.test.mjs, "The bridge leaves out the system sounds
+    // session": it read the C# for IsSystemSoundsSession. Here the decision
+    // itself, with the others the bridge made in the same loop.
+    #[test]
+    fn the_system_sounds_session_is_left_out_of_the_app_list() {
+        let files = HashMap::from([
+            (100, "chrome.exe".to_string()),
+            (101, "Spotify.EXE".to_string()),
+            (102, "svchost.exe".to_string()),
+        ]);
+        let sessions = [
+            FakeSession::of(100),
+            // Windows's own sounds, which have a process like any other.
+            FakeSession {
+                system_sounds: true,
+                ..FakeSession::of(102)
+            },
+            FakeSession::of(101),
+            FakeSession {
+                expired: Some(true),
+                ..FakeSession::of(101)
+            },
+            FakeSession {
+                expired: None,
+                ..FakeSession::of(101)
+            },
+            // Shared by several processes, or the answer was an error.
+            FakeSession {
+                process: None,
+                ..FakeSession::of(0)
+            },
+            FakeSession::of(0),
+            // Its process ended between the two lists.
+            FakeSession::of(999),
+            FakeSession::of(100),
+        ];
+        let listed: Vec<Option<(String, u32)>> = sessions
+            .iter()
+            .map(|session| session_app(session, &files))
+            .collect();
+        let app = |key: &str, pid: u32| Some((key.to_string(), pid));
+        assert_eq!(
+            listed,
+            [
+                app("chrome", 100),
+                None,
+                app("spotify", 101),
+                None,
+                None,
+                None,
+                None,
+                None,
+                app("chrome", 100),
+            ]
+        );
+        // The questions are system calls: in the bridge's order, and none
+        // after the one that ruled the session out.
+        let asked = |index: usize| lock(&sessions[index].asked).clone();
+        assert_eq!(asked(0), ["expired", "system sounds", "process"]);
+        assert_eq!(asked(1), ["expired", "system sounds"]);
+        assert_eq!(asked(3), ["expired"]);
+        assert_eq!(asked(4), ["expired"]);
+    }
+
+    /// A session's volume, which can refuse to be set or to be read.
+    struct FakeVolume {
+        level: Mutex<f32>,
+        sets: Mutex<Vec<f32>>,
+        refuses: bool,
+        unreadable: bool,
+    }
+
+    impl FakeVolume {
+        fn at(level: f32) -> FakeVolume {
+            FakeVolume {
+                level: Mutex::new(level),
+                sets: Mutex::new(Vec::new()),
+                refuses: false,
+                unreadable: false,
+            }
+        }
+    }
+
+    impl SessionVolume for FakeVolume {
+        fn set(&self, level: f32) -> Result<(), String> {
+            if self.refuses {
+                return Err("Access is denied.".to_string());
+            }
+            lock(&self.sets).push(level);
+            *lock(&self.level) = level;
+            Ok(())
+        }
+        fn read(&self) -> Option<f32> {
+            (!self.unreadable).then(|| *lock(&self.level))
+        }
+    }
+
+    // tests/app-volume.test.mjs, "The bridge sets every session of the app,
+    // not just the first": it read the C# for a loop without a break.
+    #[test]
+    fn a_fader_sets_every_session_of_its_app_not_just_the_first() {
+        let volumes = [
+            FakeVolume::at(1.0),
+            FakeVolume::at(0.8),
+            FakeVolume::at(0.6),
+            FakeVolume::at(0.4),
+        ];
+        let keys = ["chrome", "spotify", "chrome", "chrome"];
+        let sessions = || keys.iter().copied().zip(volumes.iter());
+        let sets = |index: usize| lock(&volumes[index].sets).clone();
+
+        assert_eq!(
+            set_every_session(sessions(), "chrome", 0.25),
+            Ok(Some(0.25))
+        );
+        assert_eq!(sets(0), [0.25]);
+        assert_eq!(sets(2), [0.25]);
+        assert_eq!(sets(3), [0.25]);
+        // Another app's session is not touched.
+        assert_eq!(sets(1), Vec::<f32>::new());
+        assert_eq!(volumes[1].read(), Some(0.8));
+
+        // An app with no session: nothing is set and there is no level.
+        assert_eq!(set_every_session(sessions(), "discord", 0.5), Ok(None));
+        assert_eq!(sets(0), [0.25]);
+        assert_eq!(sets(1), Vec::<f32>::new());
+
+        // The level answered is the first session's that can be read; the
+        // ones after it are set all the same.
+        let volumes = [
+            FakeVolume {
+                unreadable: true,
+                ..FakeVolume::at(1.0)
+            },
+            FakeVolume::at(1.0),
+            FakeVolume::at(1.0),
+        ];
+        let all = || ["game"; 3].into_iter().zip(volumes.iter());
+        assert_eq!(set_every_session(all(), "game", 0.5), Ok(Some(0.5)));
+        for volume in &volumes {
+            assert_eq!(lock(&volume.sets).clone(), [0.5]);
+        }
+
+        // A session that refuses ends it with the system's reason, as the
+        // bridge's exception did: the ones before it stay set.
+        let volumes = [
+            FakeVolume::at(1.0),
+            FakeVolume {
+                refuses: true,
+                ..FakeVolume::at(1.0)
+            },
+            FakeVolume::at(1.0),
+        ];
+        let all = || ["game"; 3].into_iter().zip(volumes.iter());
+        assert_eq!(
+            set_every_session(all(), "game", 0.5),
+            Err("Access is denied.".to_string())
+        );
+        assert_eq!(lock(&volumes[0].sets).clone(), [0.5]);
+        assert_eq!(lock(&volumes[2].sets).clone(), Vec::<f32>::new());
     }
 
     #[test]

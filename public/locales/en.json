@@ -744,7 +744,7 @@
     "shared.key.space": "Space",
     "shared.key.tab": "Tab",
     "shared.keys.noMacKeyCode": "macOS cannot press {key}: it has no key code for F21 to F24. Pick another key.",
-    "shared.keys.unsupportedPlatform": "Key combinations work on macOS and Windows only for now.",
+    "shared.keys.unsupportedPlatform": "Key combinations work on macOS, Windows and Linux only for now.",
     "shared.mediaKey.next": "Next track",
     "shared.mediaKey.play_pause": "Play / pause",
     "shared.mediaKey.previous": "Previous track",

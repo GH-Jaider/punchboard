@@ -185,7 +185,7 @@ export function createTranslator(code: string, messages: Messages, fallback: Mes
     }
     const message = found.message
     if (typeof message === "string") return fill(message, vars)
-    const count = vars && typeof vars.count === "number" ? vars.count : Number(vars && vars.count)
+    const count = vars && typeof vars.count === "number" ? vars.count : Number(vars?.count)
     const category = pluralCategory(found.code, count)
     const text = hasOwn(message, category) ? message[category]! : message.other!
     return fill(text, vars)

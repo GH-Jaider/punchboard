@@ -91,6 +91,7 @@ export function normalizeAppKey(value: unknown): string | undefined {
 /** An app's display name: one line, no control characters, not too long. */
 function normalizeAppName(value: unknown): string | undefined {
   if (typeof value !== "string") return undefined
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this takes out of an app's name
   const name = value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, APP_NAME_MAX)
   return name || undefined
 }

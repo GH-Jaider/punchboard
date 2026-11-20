@@ -58,7 +58,7 @@ export const openedByButton = (profileId: string): boolean => viaButton === prof
 /** Shows one of the decks; false when there is no such deck. */
 export function showDeck(profileId: string, byButton = false): boolean {
   const library = state.library
-  if (!library || !library.profiles.some((profile) => profile.id === profileId)) return false
+  if (!library?.profiles.some((profile) => profile.id === profileId)) return false
   viaButton = byButton ? profileId : null
   state.activeId = profileId
   renderProfiles()
@@ -131,16 +131,16 @@ export function renderGrid(): void {
   // showing stays as it is, with the new settings, so fingers that are
   // dragging or scrolling on it are not dropped halfway; only another deck
   // takes it down.
-  if (profile && profile.trackpad && updateTrackpad(profile, gridEl)) return
+  if (profile?.trackpad && updateTrackpad(profile, gridEl)) return
   hideTrackpad()
   gridEl.innerHTML = ""
 
-  if (profile && profile.trackpad) {
+  if (profile?.trackpad) {
     showTrackpad(profile, gridEl)
     return
   }
 
-  if (!profile || !profile.buttons.length) {
+  if (!profile?.buttons.length) {
     const empty = el("div", "deck-empty")
     empty.innerHTML = EMPTY_DECK_ICON
     const words = el("div")

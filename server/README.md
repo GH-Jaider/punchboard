@@ -160,6 +160,11 @@ scripts/linux.sh sh -c "cargo clippy --all-targets -- -D warnings && cargo test"
 scripts/linux.sh sh -c "cd .. && node scripts/test.ts --except designer tour"
 ```
 
+The container's Rust is the newest stable, the one CI uses, and has the Windows
+target, so `scripts/linux.sh cargo clippy --all-targets --target x86_64-pc-windows-msvc -- -D warnings`
+checks the Windows code with CI's lints (a local toolchain may be older and miss some:
+that has happened).
+
 The container has no display, no sound server and no input devices: the Linux system
 calls are compiled and their deciding halves tested there, not exercised. It has no
 Chrome either, so the two test files that open the pages (`designer`, `tour`) are

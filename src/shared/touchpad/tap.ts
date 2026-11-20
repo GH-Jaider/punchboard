@@ -84,45 +84,70 @@ export function createTapMachine(): TapMachine {
 
   function idle(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("touch", time, TAP)
+      case "touch":
+        go("touch", time, TAP)
+        return
       case "release":
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
-      case "touch": return go("touch2", time, TAP)
+      case "touch":
+        go("touch2", time, TAP)
+        return
       case "release":
         // The press only: the release waits for the drag time, in case the
         // finger comes back to drag with it.
         button("left", true, out)
-        return go("tapped", time, DRAG)
+        go("tapped", time, DRAG)
+        return
       case "motion":
-      case "timeout": return go("hold", time, null)
-      default: return assertNever(input)
+      case "timeout":
+        go("hold", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function hold(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("touch2", time, TAP)
-      case "release": return go("idle", time, null)
+      case "touch":
+        go("touch2", time, TAP)
+        return
+      case "release":
+        go("idle", time, null)
+        return
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch2(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("touch3", time, TAP)
-      case "release": return go("touch2_release", time, TAP)
+      case "touch":
+        go("touch3", time, TAP)
+        return
+      case "release":
+        go("touch2_release", time, TAP)
+        return
       case "motion":
-      case "timeout": return go("touch2_hold", time, null)
-      default: return assertNever(input)
+      case "timeout":
+        go("touch2_hold", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
@@ -130,83 +155,131 @@ export function createTapMachine(): TapMachine {
     switch (input) {
       // Two fingers that are already scrolling or pinching are no tap, and a
       // third one brushing the glass does not make them one: it joins the hold.
-      case "touch": return go("touch3_hold", time, null)
-      case "release": return go("hold", time, null)
+      case "touch":
+        go("touch3_hold", time, null)
+        return
+      case "release":
+        go("hold", time, null)
+        return
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch2Release(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
-      case "touch": return go("touch2", time, TAP)
+      case "touch":
+        go("touch2", time, TAP)
+        return
       case "release":
         click("right", out)
-        return go("idle", time, null)
+        go("idle", time, null)
+        return
       case "motion":
-      case "timeout": return go("hold", time, null)
-      default: return assertNever(input)
+      case "timeout":
+        go("hold", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch3(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("dead", time, null)
-      case "release": return go("touch3_release", time, TAP)
+      case "touch":
+        go("dead", time, null)
+        return
+      case "release":
+        go("touch3_release", time, TAP)
+        return
       case "motion":
-      case "timeout": return go("touch3_hold", time, null)
-      default: return assertNever(input)
+      case "timeout":
+        go("touch3_hold", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch3Hold(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("dead", time, null)
-      case "release": return go("touch2_hold", time, null)
+      case "touch":
+        go("dead", time, null)
+        return
+      case "release":
+        go("touch2_hold", time, null)
+        return
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch3Release(input: TapInput, time: number): void {
     switch (input) {
-      case "touch": return go("touch3", time, TAP)
-      case "release": return go("touch3_release2", time, TAP)
+      case "touch":
+        go("touch3", time, TAP)
+        return
+      case "release":
+        go("touch3_release2", time, TAP)
+        return
       case "motion":
-      case "timeout": return go("touch2_hold", time, null)
-      default: return assertNever(input)
+      case "timeout":
+        go("touch2_hold", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function touch3Release2(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
-      case "touch": return go("touch3_release", time, TAP)
+      case "touch":
+        go("touch3_release", time, TAP)
+        return
       case "release":
         out.push({ type: "tap", fingers: 3 })
-        return go("idle", time, null)
+        go("idle", time, null)
+        return
       case "motion":
-      case "timeout": return go("hold", time, null)
-      default: return assertNever(input)
+      case "timeout":
+        go("hold", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
   /** The button is down and no finger is: a tap whose release is on its way. */
   function tapped(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
-      case "touch": return go("drag_or_tap", time, TAP)
+      case "touch":
+        go("drag_or_tap", time, TAP)
+        return
       case "timeout":
         // No finger came back: the tap was a click after all.
         button("left", false, out)
-        return go("idle", time, null)
+        go("idle", time, null)
+        return
       // No finger is down here, so these cannot happen; idle, with the
       // button let go, is the safe place.
       case "release":
       case "motion":
         button("left", false, out)
-        return go("idle", time, null)
-      default: return assertNever(input)
+        go("idle", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
@@ -216,29 +289,39 @@ export function createTapMachine(): TapMachine {
       case "touch":
         // Two fingers scroll rather than drag: the tap's click ends first.
         button("left", false, out)
-        return go("touch2", time, TAP)
+        go("touch2", time, TAP)
+        return
       case "release":
         // A second tap: the first click ends and the second is made at once.
         button("left", false, out)
         click("left", out)
-        return go("idle", time, null)
+        go("idle", time, null)
+        return
       case "motion":
       case "timeout":
         // The press the tap made carries on as the drag: nothing new is sent.
-        return go("dragging", time, null)
-      default: return assertNever(input)
+        go("dragging", time, null)
+        return
+      default:
+        assertNever(input)
+        return
     }
   }
 
   function dragging(input: TapInput, time: number, out: TouchpadEvent[]): void {
     switch (input) {
-      case "touch": return go("dragging2", time, null)
+      case "touch":
+        go("dragging2", time, null)
+        return
       case "release":
         button("left", false, out)
-        return go("idle", time, null)
+        go("idle", time, null)
+        return
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
@@ -246,11 +329,16 @@ export function createTapMachine(): TapMachine {
     switch (input) {
       case "touch":
         button("left", false, out)
-        return go("dead", time, null)
-      case "release": return go("dragging", time, null)
+        go("dead", time, null)
+        return
+      case "release":
+        go("dragging", time, null)
+        return
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
@@ -262,7 +350,9 @@ export function createTapMachine(): TapMachine {
       case "touch":
       case "motion":
       case "timeout": return
-      default: return assertNever(input)
+      default:
+        assertNever(input)
+        return
     }
   }
 
@@ -272,22 +362,54 @@ export function createTapMachine(): TapMachine {
     // A timeout that leaves the state alone must not fire again.
     else if (input === "timeout") deadline = null
     switch (state) {
-      case "idle": return idle(input, time)
-      case "touch": return touch(input, time, out)
-      case "hold": return hold(input, time)
-      case "touch2": return touch2(input, time)
-      case "touch2_hold": return touch2Hold(input, time)
-      case "touch2_release": return touch2Release(input, time, out)
-      case "touch3": return touch3(input, time)
-      case "touch3_hold": return touch3Hold(input, time)
-      case "touch3_release": return touch3Release(input, time)
-      case "touch3_release2": return touch3Release2(input, time, out)
-      case "tapped": return tapped(input, time, out)
-      case "drag_or_tap": return dragOrTap(input, time, out)
-      case "dragging": return dragging(input, time, out)
-      case "dragging2": return dragging2(input, time, out)
-      case "dead": return dead(input, time)
-      default: return assertNever(state)
+      case "idle":
+        idle(input, time)
+        return
+      case "touch":
+        touch(input, time, out)
+        return
+      case "hold":
+        hold(input, time)
+        return
+      case "touch2":
+        touch2(input, time)
+        return
+      case "touch2_hold":
+        touch2Hold(input, time)
+        return
+      case "touch2_release":
+        touch2Release(input, time, out)
+        return
+      case "touch3":
+        touch3(input, time)
+        return
+      case "touch3_hold":
+        touch3Hold(input, time)
+        return
+      case "touch3_release":
+        touch3Release(input, time)
+        return
+      case "touch3_release2":
+        touch3Release2(input, time, out)
+        return
+      case "tapped":
+        tapped(input, time, out)
+        return
+      case "drag_or_tap":
+        dragOrTap(input, time, out)
+        return
+      case "dragging":
+        dragging(input, time, out)
+        return
+      case "dragging2":
+        dragging2(input, time, out)
+        return
+      case "dead":
+        dead(input, time)
+        return
+      default:
+        assertNever(state)
+        return
     }
   }
 

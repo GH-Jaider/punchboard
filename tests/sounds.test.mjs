@@ -130,24 +130,20 @@ try {
   check("Its name keeps every letter", slot2?.name === name, JSON.stringify(slot2?.name))
 
   // --- replacing and restoring a slot that is playing (5 s of silence, fader at 0)
-  if (process.platform === "darwin" || process.platform === "win32") {
-    r = await upload(4, silentWav(5000), "audio/wav", "long")
-    check("A long silent sound uploads", r.status === 200, r.text.slice(0, 200))
-    await request({ method: "POST", path: "/api/sounds/4/preview", headers: JSON_TYPE })
-    check("The slot plays", (await status()).playing.includes(4), JSON.stringify((await status()).playing))
-    r = await upload(4, silentWav(800), "audio/wav", "short")
-    check("Replacing a playing slot works", r.status === 200, r.text.slice(0, 200))
-    check("Replacing a playing slot stops the old sound", !(await status()).playing.includes(4), JSON.stringify((await status()).playing))
-    check("The new file's length stands", (await request({ path: "/api/sounds" })).json.slots[3].durationMs === 800, JSON.stringify((await request({ path: "/api/sounds" })).json.slots[3]))
+  r = await upload(4, silentWav(5000), "audio/wav", "long")
+  check("A long silent sound uploads", r.status === 200, r.text.slice(0, 200))
+  await request({ method: "POST", path: "/api/sounds/4/preview", headers: JSON_TYPE })
+  check("The slot plays", (await status()).playing.includes(4), JSON.stringify((await status()).playing))
+  r = await upload(4, silentWav(800), "audio/wav", "short")
+  check("Replacing a playing slot works", r.status === 200, r.text.slice(0, 200))
+  check("Replacing a playing slot stops the old sound", !(await status()).playing.includes(4), JSON.stringify((await status()).playing))
+  check("The new file's length stands", (await request({ path: "/api/sounds" })).json.slots[3].durationMs === 800, JSON.stringify((await request({ path: "/api/sounds" })).json.slots[3]))
 
-    r = await upload(4, silentWav(5000), "audio/wav", "long again")
-    await request({ method: "POST", path: "/api/sounds/4/preview", headers: JSON_TYPE })
-    const playingBefore = (await status()).playing.includes(4)
-    r = await request({ method: "DELETE", path: "/api/sounds/4" })
-    check("Restoring a playing slot stops it", r.status === 200 && playingBefore && !(await status()).playing.includes(4), `${r.status} playing before: ${playingBefore}, after: ${JSON.stringify((await status()).playing)}`)
-  } else {
-    console.log("(sounds play on macOS and Windows only: the replace-while-playing checks are skipped)")
-  }
+  r = await upload(4, silentWav(5000), "audio/wav", "long again")
+  await request({ method: "POST", path: "/api/sounds/4/preview", headers: JSON_TYPE })
+  const playingBefore = (await status()).playing.includes(4)
+  r = await request({ method: "DELETE", path: "/api/sounds/4" })
+  check("Restoring a playing slot stops it", r.status === 200 && playingBefore && !(await status()).playing.includes(4), `${r.status} playing before: ${playingBefore}, after: ${JSON.stringify((await status()).playing)}`)
 
   // --- a fader move right before quitting is saved
   r = await setLevel("soundsFader", 0.25)

@@ -289,11 +289,12 @@ pub fn format_combo(text: Option<&str>, mac: bool, t: &dyn Translate) -> String 
 pub enum KeyPlatform {
     Mac,
     Windows,
+    Linux,
     Other,
 }
 
-/// Which of them a platform name is: Node's ("darwin", "win32") or the
-/// browser's navigator.platform ("MacIntel", "Win32").
+/// Which of them a platform name is: Node's ("darwin", "win32", "linux") or
+/// the browser's navigator.platform ("MacIntel", "Win32", "Linux x86_64").
 pub fn key_platform(name: &str) -> KeyPlatform {
     // The TypeScript's patterns ignore case, for ASCII letters only.
     let lowered = name.to_ascii_lowercase();
@@ -307,13 +308,17 @@ pub fn key_platform(name: &str) -> KeyPlatform {
     if lowered.starts_with("win") {
         return KeyPlatform::Windows;
     }
+    if lowered.starts_with("linux") {
+        return KeyPlatform::Linux;
+    }
     KeyPlatform::Other
 }
 
 /// Why `key` cannot be pressed on `platform`, or None when it can. Said
 /// when the key is recorded, so nobody finds out mid-stream. macOS has no
 /// key codes for F21 to F24 (the server's MAC_CODES has none); Windows
-/// sends every key here by its scan code.
+/// sends every key here by its scan code, and Linux by the kernel's code
+/// (LINUX_CODES has one for each, and the tests in `keys` say so).
 pub fn unsendable_reason(key: &str, platform: KeyPlatform, t: &dyn Translate) -> Option<String> {
     if platform == KeyPlatform::Other {
         return Some(t.t("shared.keys.unsupportedPlatform", &[]));
@@ -468,6 +473,13 @@ mod tests {
     }
 
     #[test]
+    fn nothing_is_flagged_on_linux() {
+        assert!(KEY_NAMES
+            .iter()
+            .all(|name| unsendable_reason(name, KeyPlatform::Linux, &Keys).is_none()));
+    }
+
+    #[test]
     fn other_systems_are_told_key_combinations_do_not_work_there() {
         assert!(unsendable_reason("a", KeyPlatform::Other, &Keys)
             .is_some_and(|reason| !reason.is_empty()));
@@ -480,8 +492,10 @@ mod tests {
         assert_eq!(key_platform("iPad"), KeyPlatform::Mac);
         assert_eq!(key_platform("win32"), KeyPlatform::Windows);
         assert_eq!(key_platform("Win32"), KeyPlatform::Windows);
-        assert_eq!(key_platform("Linux x86_64"), KeyPlatform::Other);
-        assert_eq!(key_platform("linux"), KeyPlatform::Other);
+        assert_eq!(key_platform("Linux x86_64"), KeyPlatform::Linux);
+        assert_eq!(key_platform("linux"), KeyPlatform::Linux);
+        assert_eq!(key_platform("freebsd"), KeyPlatform::Other);
+        assert_eq!(key_platform(""), KeyPlatform::Other);
     }
 
     #[test]

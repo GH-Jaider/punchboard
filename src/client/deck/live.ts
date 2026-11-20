@@ -37,14 +37,20 @@ let loadedBuild: string | null = null
 export function applyState(snapshot: Snapshot): void {
   if (snapshot.build) {
     if (loadedBuild === null) loadedBuild = snapshot.build
-    else if (snapshot.build !== loadedBuild) return location.reload()
+    else if (snapshot.build !== loadedBuild) {
+      location.reload()
+      return
+    }
   }
   // A new language setting that changes what this deck speaks reloads it:
   // like a new build, there is nothing on a deck to lose, and every text it
   // drew is drawn again.
   if (snapshot.language && snapshot.language !== languageSetting()) {
     noteLanguages(snapshot.language)
-    if (languageForSetting(snapshot.language) !== pageLanguage()) return location.reload()
+    if (languageForSetting(snapshot.language) !== pageLanguage()) {
+      location.reload()
+      return
+    }
   }
   if (snapshot.accent) applyAccent(snapshot.accent)
   if (snapshot.theme) applyTheme(snapshot.theme)
@@ -226,7 +232,7 @@ export function connect(): void {
     } catch {
       return
     }
-    if (meters && meters.levels) applyMeters(meters)
+    if (meters?.levels) applyMeters(meters)
   })
   stream.onerror = () => dropped(stream)
 }

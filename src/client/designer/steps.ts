@@ -94,7 +94,10 @@ export function stepsField(button: Button): HTMLElement {
     const offHost = el("div", "steps")
     offHost.id = OFF_HOST_ID
     field.appendChild(offHost)
-    field.appendChild(addStepButton(button, () => button.offSteps ?? (button.offSteps = []), t("designer.steps.addSecondStep")))
+    field.appendChild(addStepButton(button, () => {
+      if (!button.offSteps) button.offSteps = []
+      return button.offSteps
+    }, t("designer.steps.addSecondStep")))
   }
   return field
 }
@@ -103,12 +106,12 @@ export function renderSteps(button: Button): void {
   const host = document.getElementById(STEPS_HOST_ID)
   if (!host) return
   host.innerHTML = ""
-  button.steps.forEach((step, index) => host.appendChild(stepCard(button, button.steps, step, index)))
+  button.steps.forEach((step, index) => { host.appendChild(stepCard(button, button.steps, step, index)) })
   const offHost = document.getElementById(OFF_HOST_ID)
   const offSteps = button.offSteps
   if (offHost && offSteps) {
     offHost.innerHTML = ""
-    offSteps.forEach((step, index) => offHost.appendChild(stepCard(button, offSteps, step, index)))
+    offSteps.forEach((step, index) => { offHost.appendChild(stepCard(button, offSteps, step, index)) })
   }
   const row = document.getElementById(SWITCH_ROW_ID)
   if (row) row.hidden = !isSwitch(button) && button.steps.length < 2
