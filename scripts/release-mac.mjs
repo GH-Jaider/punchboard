@@ -35,7 +35,8 @@ for (const target of targets) {
   const platform = TARGETS[target]
   if (!platform) throw new Error(`Unknown target ${target}`)
   console.log(`\n=== ${target}`)
-  run("node", ["scripts/fetch-node.mjs", target])
+  // The companion for this target, where Tauri picks it up as the sidecar.
+  run("node", ["scripts/build-companion.ts", target])
 
   // Built without Tauri's own updater artifacts: they would pack the app
   // before it is signed. They are made below, after signing.

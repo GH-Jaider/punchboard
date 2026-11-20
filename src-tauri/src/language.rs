@@ -84,7 +84,7 @@ fn match_language(wanted: &[String], available: &[String]) -> Option<String> {
     None
 }
 
-/// The companion's data folder, found the way src/server/paths.ts finds it.
+/// The companion's data folder, found the way server/src/paths.rs finds it.
 fn data_dir(app: &AppHandle) -> Option<PathBuf> {
     if let Ok(dir) = std::env::var("PUNCHBOARD_DATA_DIR") {
         return Some(PathBuf::from(dir));

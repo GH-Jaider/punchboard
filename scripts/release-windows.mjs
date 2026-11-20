@@ -27,7 +27,8 @@ if (!process.env.TAURI_SIGNING_PRIVATE_KEY) {
   throw new Error("TAURI_SIGNING_PRIVATE_KEY is not set: the installer could not be signed for the updater.")
 }
 
-run("node", ["scripts/fetch-node.mjs", target])
+// The companion for this target, where Tauri picks it up as the sidecar.
+run("node", ["scripts/build-companion.ts", target])
 const nsisDir = path.join("src-tauri", "target", target, "release", "bundle", "nsis")
 // An installer or signature left by an earlier build of this version must not
 // be mistaken for this one's.

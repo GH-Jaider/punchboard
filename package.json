@@ -11,16 +11,19 @@
     "start": "node src/server/main.ts",
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "typecheck": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json && tsc -p scripts/tsconfig.json",
     "check": "npm run typecheck && npm run build",
-    "build:server": "node scripts/build-server.mjs",
+    "build:server": "node scripts/build-companion.ts && node scripts/notices.ts",
     "tauri": "tauri",
     "app:dev": "npm run build && npm run build:server && tauri dev",
-    "app:build": "node scripts/fetch-node.mjs && tauri build",
+    "app:build": "tauri build",
     "release:mac": "node scripts/release-mac.mjs && node scripts/latest-json.mjs",
     "release:windows": "node scripts/release-windows.mjs",
     "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/obs.test.mjs && node tests/sounds.test.mjs && node tests/app-volume.test.mjs && node tests/library.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/designer.test.mjs && node tests/tour.test.mjs && node tests/scripts.test.mjs && node tests/windows.test.mjs && node tests/i18n.test.mjs",
-    "test:bundle": "node tests/bundle.smoke.mjs"
+    "test:bundle": "node tests/companion.smoke.ts",
+    "test:rust": "cd server && cargo test --locked",
+    "test:companion": "node scripts/test-companion.ts",
+    "lint:rust": "cd server && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check && cd ../src-tauri && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check"
   },
   "dependencies": {
     "driver.js": "^1.8.0",

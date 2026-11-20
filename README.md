@@ -62,7 +62,7 @@ To add a language, copy `public/locales/en.json` to `public/locales/<code>.json`
 
 ## For developers
 
-Punchboard is strict TypeScript: `src/server` (the companion, run by Node 22.18+ directly), `src/client` (Control Center and deck, bundled by esbuild), `src/shared` (the model and API types both use). The desktop app is a small Tauri shell in `src-tauri` that carries its own Node.
+Punchboard is strict TypeScript: `src/server` (the companion, run by Node 22.18+ directly), `src/client` (Control Center and deck, bundled by esbuild), `src/shared` (the model and API types both use). The desktop app is a small Tauri shell in `src-tauri` that carries the companion as a program of its own: the Rust port in `server/` (`server/PORTING.md`), which answers exactly as the TypeScript one does.
 
 ```sh
 npm install

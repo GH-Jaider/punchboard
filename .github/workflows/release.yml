@@ -40,11 +40,15 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            server
+            src-tauri
       - run: npm ci
       # The Control Center test drives the built pages, so build them first.
       - run: npm run build
       - run: npm test
+      # What ships is the Rust companion: the same tests against it.
+      - run: npm run test:companion
       - run: node scripts/release-windows.mjs x86_64-pc-windows-msvc
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -69,7 +73,9 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            server
+            src-tauri
       - name: Install rcodesign
         run: |
           V=0.29.0
@@ -86,6 +92,8 @@ jobs:
       - run: npm run build
       # The Mac-only paths (key presses, music, the trackpad) are tested here.
       - run: npm test
+      # What ships is the Rust companion: the same tests against it.
+      - run: npm run test:companion
       - run: node scripts/release-mac.mjs
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
