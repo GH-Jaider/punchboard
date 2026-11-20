@@ -28,7 +28,7 @@ use futures_util::{FutureExt, Sink, SinkExt, Stream, StreamExt};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use tokio::io::{AsyncRead, AsyncWrite};
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot, watch};
 use tokio_tungstenite::tungstenite::client::IntoClientRequest;
 use tokio_tungstenite::tungstenite::http::HeaderValue;
 use tokio_tungstenite::tungstenite::{self, Message};
@@ -257,6 +257,8 @@ struct Inner {
     pending: Mutex<HashMap<String, oneshot::Sender<Value>>>,
     handlers: Mutex<Handlers>,
     stuck: Mutex<Option<StuckHandler>>,
+    /// True once the socket itself has been let go of.
+    gone: watch::Sender<bool>,
 }
 
 /// One identified connection to OBS. Cheap to clone; every clone is the
@@ -331,6 +333,7 @@ impl ObsClient {
             pending: Mutex::new(HashMap::new()),
             handlers: Mutex::new(Handlers::default()),
             stuck: Mutex::new(None),
+            gone: watch::Sender::new(false),
         });
         tokio::spawn(run(Arc::clone(&inner), wire, commands));
         Ok(ObsClient { inner })
@@ -432,6 +435,14 @@ impl ObsClient {
         let _ = self.inner.outgoing.send(Command::Close);
     }
 
+    /// Waits until the socket has really been let go of. `close` only asks
+    /// for it; whoever must not answer before OBS can see the link is gone
+    /// (a press that gave up on a request) waits here.
+    pub async fn gone(&self) {
+        let mut gone = self.inner.gone.subscribe();
+        let _ = gone.wait_for(|gone| *gone).await;
+    }
+
     /// Whether the socket is still up.
     pub fn is_open(&self) -> bool {
         self.inner.open.load(Ordering::SeqCst)
@@ -469,6 +480,7 @@ async fn run(inner: Arc<Inner>, mut wire: Wire, mut commands: mpsc::UnboundedRec
     };
     drop(wire);
     inner.open.store(false, Ordering::SeqCst);
+    inner.gone.send_replace(true);
     let hearers = {
         let mut handlers = lock(&inner.handlers);
         handlers.closed = Some(ended.clone());

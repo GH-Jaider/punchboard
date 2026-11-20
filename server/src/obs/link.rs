@@ -156,6 +156,10 @@ pub async fn obs_call(
             // The link forgets the socket first, so the close is not reported as OBS's.
             obs.stuck(request_type);
             obs.close();
+            // The answer waits for the socket to be gone, as it did when the
+            // disconnect was awaited: whoever is told the request failed can
+            // then see, on OBS's side too, that the link was dropped.
+            let _ = tokio::time::timeout(Duration::from_millis(500), obs.gone()).await;
             Err(ObsFailure::User(UserError::new(
                 say("server.obs.requestTimeout")
                     .with("request", request_type)
