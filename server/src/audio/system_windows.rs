@@ -189,12 +189,8 @@ fn version_value(data: &[u8], name: &str) -> Option<(*const u8, usize)> {
 fn units_at(data: &[u8], start: *const u8, count: usize) -> Option<Vec<u16>> {
     let offset = (start as usize).checked_sub(data.as_ptr() as usize)?;
     let bytes = data.get(offset..offset.checked_add(count.checked_mul(2)?)?)?;
-    Some(
-        bytes
-            .chunks_exact(2)
-            .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
-            .collect(),
-    )
+    let (pairs, _) = bytes.as_chunks::<2>();
+    Some(pairs.iter().map(|pair| u16::from_le_bytes(*pair)).collect())
 }
 
 /// The "File description" of a program, as Explorer's Details tab has it
