@@ -1,0 +1,10 @@
+[
+{"input":{"modifier":"ctrl","mac":false},"output":"Ctrl"},
+{"input":{"modifier":"ctrl","mac":true},"output":"⌃"},
+{"input":{"modifier":"alt","mac":false},"output":"Alt"},
+{"input":{"modifier":"alt","mac":true},"output":"⌥"},
+{"input":{"modifier":"shift","mac":false},"output":"Shift"},
+{"input":{"modifier":"shift","mac":true},"output":"⇧"},
+{"input":{"modifier":"meta","mac":false},"output":"Win"},
+{"input":{"modifier":"meta","mac":true},"output":"⌘"}
+]

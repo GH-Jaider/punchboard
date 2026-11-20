@@ -1,0 +1,3 @@
+[
+{"input":null,"output":{"DEFAULT_TRACKPAD":{"speed":1.5,"naturalScroll":true,"pinchZoom":"gesture"},"TRACKPAD_SPEED":{"min":0.5,"max":3},"APP_KEY_MAX":64}}
+]

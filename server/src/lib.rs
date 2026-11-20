@@ -13,3 +13,15 @@ pub mod paths;
 pub mod port;
 pub mod store;
 pub mod translate;
+
+pub mod apps;
+pub mod audio;
+pub mod auth;
+pub mod google_icons;
+pub mod keys;
+pub mod library;
+pub mod obs;
+pub mod pointer;
+pub mod sign;
+pub mod sounds;
+pub mod touch_trace;

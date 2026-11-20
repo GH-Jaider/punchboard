@@ -49,7 +49,7 @@ what it did. On Linux, which the Node companion never drove, the same features w
 
 - `cargo test` in `server/` — unit tests live beside the code (`#[cfg(test)]`).
 - **Fixtures**: where a TypeScript function has a Rust twin, a generator
-  `tests/fixtures/make-<area>.mjs` runs the TypeScript over many inputs and writes
+  `tests/fixtures/make-<area>.ts` runs the TypeScript over many inputs and writes
   `tests/fixtures/<area>/*.json` (committed). A Rust test reads them and must produce the
   same output. This is what proves "same as before", and it keeps catching drift later.
 - **Black box**: `tests/*.test.mjs` start a companion and talk to it over HTTP. With
@@ -59,12 +59,46 @@ what it did. On Linux, which the Node companion never drove, the same features w
   equivalent, or still pass through the black-box run. List in your report any you dropped
   and why (for example: it asserted the text of a PowerShell script that no longer exists).
 
+## TypeScript and linting
+
+Anything new that is not Rust is TypeScript (`.ts`, which Node runs directly): no new
+`.mjs` or `.js` files. Type it properly: no `any`, no `@ts-ignore`.
+Rust must pass `cargo clippy --all-targets -- -D warnings` for the files you own, and be
+formatted with `cargo fmt` (your own files only: `rustfmt path/to/file.rs`).
+
 ## Building without getting in each other's way
 
 Several agents work in this checkout at once. Use your own build folder:
 `CARGO_TARGET_DIR=target/<your-task-name> cargo test` (run from `server/`).
 Check Windows with `cargo check --target x86_64-pc-windows-msvc` in the same folder.
 Do not run `cargo fmt` or `cargo fix` on files you do not own. Do not commit.
+
+## What already exists (read these before writing)
+
+- `src/translate.rs`: `Translate` and `Var`. Code that needs words is handed a `&dyn Translate`.
+- `src/i18n.rs`: `say("key").with("name", value)` builds a `Text`; `UserError::new(text)` is the
+  error a person is shown; `render(&said, language)` turns it into a sentence. Errors that the
+  TypeScript throws as `UserError` (or a subclass) are `UserError` here, or an enum that
+  converts into one.
+- `src/store.rs`: `write_json_atomic`, `read_json_safe`, and `stringify` / `stringify_pretty`.
+  **All JSON that is saved or sent goes through these**, never `serde_json::to_string`: they
+  print numbers and order keys the way JavaScript does.
+- `src/http.rs`: `HttpError`, `send_json`, `json_body`, `raw_body`, `static_file`.
+- `src/latest_wins.rs`: `latest_wins`, `latest_wins_per_key`.
+- `src/model/`: the deck types (`Library`, `Profile`, `Button`, `Step`, `Action`, `Fader`…),
+  `normalize_*`, `LIMITS`, `model::keys::parse_combo`, `model::js` (JavaScript's own
+  `Number()`, `String()`, rounding) and `model::Ids`.
+- `src/paths.rs`, `src/config.rs`, `src/port.rs`, `src/net.rs`.
+
+## Linux
+
+`scripts/linux.sh <command>` runs a command in a Linux container, in `server/`, with the
+repository mounted (Docker is running). Use your own build folder there too:
+`CARGO_TARGET_DIR=/work/server/target/linux-<your-task-name> scripts/linux.sh cargo test <filter>`.
+The container has no display, no sound server and no input devices: Linux system calls
+can be compiled and their pure halves tested there, not exercised. Say so in your report.
+Prefer pure-Rust crates on Linux as well (for example `x11rb`, `evdev`); a crate that needs a
+system library is acceptable on Linux only, and you must name the package it needs.
 
 ## Where each file goes
 
