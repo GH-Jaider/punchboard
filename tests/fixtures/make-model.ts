@@ -452,7 +452,10 @@ const APP_VOLUME_FADERS: Fields[] = [
 /** tests/actions.test.mjs's deck, with ids that repeat instead of random ones. */
 function actionsTestLibrary(): Fields {
   let made = 0
-  const step = (type: ActionType, fields: Fields = {}): Fields => ({ id: `s_${type}_${(made += 1)}`, type, delayMs: 0, ...fields })
+  const step = (type: ActionType, fields: Fields = {}): Fields => {
+    made += 1
+    return { id: `s_${type}_${made}`, type, delayMs: 0, ...fields }
+  }
   const press = (id: string, pressSteps: Fields[], slot: number): Fields => ({ id, slot, label: id, icon: "bolt", color: "accent", control: "press", steps: pressSteps })
   return {
     version: 1,
@@ -542,7 +545,7 @@ function libraryInputs(): Json[] {
   for (const field of ["version", "activeProfileId", "profiles", "extra"]) inputs.push(...mutations(LIBRARY, field))
   for (const field of ["id", "name", "columns", "rows", "buttons", "updatedAt", "trackpad", "hidden", "extra"]) {
     // First in the library, then second, turn about.
-    mutations(PROFILE, field).forEach((changed, at) => inputs.push(at % 2 ? { version: 1, activeProfileId: "main", profiles: [SECOND, changed] } : { ...LIBRARY, profiles: [changed, SECOND] }))
+    mutations(PROFILE, field).forEach((changed, at) => { inputs.push(at % 2 ? { version: 1, activeProfileId: "main", profiles: [SECOND, changed] } : { ...LIBRARY, profiles: [changed, SECOND] }) })
   }
   // A button's own fields, inside a library: a smaller set of values, since normalizeButton has them all.
   const few = ODD.filter((_, at) => at % 4 === 0)

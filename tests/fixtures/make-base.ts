@@ -70,6 +70,7 @@ const english: Messages = locales.en ?? {}
     0, -0, 1, -1, 2, 10, 100, 1000, 8787, 0.1, 0.2, 0.3, 0.1 + 0.2, 0.5, 1.5, 0.35, 1 / 3, 2 / 3, 100 / 3,
     1e20, 1e21, 1e22, 1.5e21, 123456789012345680000, 1234567890123456800000, 999999999999999900000, 1e300, 1.7976931348623157e308,
     0.000001, 0.0000001, 0.00000123, 1.5e-7, 1e-10, 5e-324, 2.2250738585072014e-308, 123.456, 1e-6, 1.234e-6, 12345.6789,
+    // biome-ignore lint/correctness/noPrecisionLoss: numbers JavaScript cannot hold exactly are the point of this case
     9007199254740991, 9007199254740992, 9007199254740993, 4294967295, 4294967296, 1700000000000, 1700000000123.5,
     NaN, Infinity, -Infinity, -0.1, -1e21, -1e-7, -123.456, 0.30000000000000004, 0.7999999999999999, 4.35, 0.000035, 25e-8
   ]
@@ -510,7 +511,9 @@ function textJson(said: Said): Json {
     const settle = (): Promise<void> => new Promise((resolve) => { setImmediate(resolve) })
     const writes: { [key: string]: string[] } = {}
     const set = latestWinsPerKey(async (key: string, level: number): Promise<number> => {
-      (writes[key] ??= []).push(String(level))
+      const list = writes[key] ?? []
+      writes[key] = list
+      list.push(String(level))
       await wait(scenario.durationMs)
       if (scenario.failLevels.includes(level)) throw new Error(`fail ${level}`)
       return level * 2

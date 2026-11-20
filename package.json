@@ -23,7 +23,8 @@
     "test:bundle": "node tests/companion.smoke.ts",
     "test:rust": "cd server && cargo test --locked",
     "test:companion": "node scripts/test-companion.ts",
-    "lint:rust": "cd server && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check && cd ../src-tauri && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check"
+    "lint:rust": "cd server && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check && cd ../src-tauri && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check",
+    "lint": "biome lint"
   },
   "dependencies": {
     "driver.js": "^1.8.0",
@@ -37,6 +38,7 @@
     "node": ">=22.18"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
     "@msgpack/msgpack": "^2.8.0",
     "@tauri-apps/cli": "^2.12.0",
     "@types/node": "^24.19.0",
