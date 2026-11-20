@@ -173,6 +173,9 @@ fn js_cbrt(x: f64) -> f64 {
 /// cubic: a fader at 50% is 0.125 of full signal. Using the same curve keeps
 /// a deck fader and the OBS fader in line.
 pub fn obs_gain(level: f64) -> f64 {
+    // The system's pow, which is what JavaScript's `**` uses too: on each
+    // platform the result is the one Node gave there. Windows' differs from
+    // macOS's and Linux's in the last bit for some levels.
     level.powf(3.0)
 }
 
@@ -398,10 +401,15 @@ mod tests {
                 output["faderPosition"],
                 "faderPosition {what}"
             );
-            assert_eq!(
-                bits(obs_gain(clamp01(input))),
-                output["obsGain"],
-                "obsGain {what}"
+            // The fixture was made on a Mac; Windows' pow may land one step away.
+            let gain = obs_gain(clamp01(input));
+            let wanted = f64::from_bits(
+                u64::from_str_radix(output["obsGain"].as_str().expect("bits"), 16).expect("hex"),
+            );
+            let steps = (gain.to_bits() as i64 - wanted.to_bits() as i64).abs();
+            assert!(
+                steps <= i64::from(cfg!(windows)),
+                "obsGain {what}: {gain} is not {wanted}"
             );
             assert_eq!(
                 bits(super::super::fixed3(clamp01(input))),

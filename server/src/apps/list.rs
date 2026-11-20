@@ -804,6 +804,9 @@ mod tests {
         }
     }
 
+    // Builds a folder tree with symbolic links, which Windows makes and reads
+    // differently; the code under test only ever runs on a Mac.
+    #[cfg(not(windows))]
     #[test]
     fn mac_apps_are_listed_once_and_links_are_not_followed() {
         let root = tempfile::tempdir().unwrap();
@@ -1037,6 +1040,9 @@ mod tests {
         );
     }
 
+    // Compares paths joined with "/", which Windows joins with "\\"; the code
+    // under test only ever runs on Linux.
+    #[cfg(not(windows))]
     #[test]
     fn linux_looks_in_the_xdg_folders() {
         let home = Path::new("/home/ann");

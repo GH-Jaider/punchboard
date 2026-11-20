@@ -343,11 +343,16 @@ mod tests {
             assert!(file.exists(), "{name} is made");
             let read = Win32.shortcut(&file.to_string_lossy());
             assert_eq!(read.arguments, arguments, "{name}");
-            assert!(
-                read.target.eq_ignore_ascii_case(target),
-                "{name}: {}",
-                read.target
-            );
+            // The shell answers with the long form of a path the temp folder
+            // gives in its short one (RUNNER~1), so compare the files.
+            let same = match (
+                std::fs::canonicalize(&read.target),
+                std::fs::canonicalize(target),
+            ) {
+                (Ok(read), Ok(wanted)) => read == wanted,
+                _ => read.target.eq_ignore_ascii_case(target),
+            };
+            assert!(same, "{name}: {} is not {target}", read.target);
             let plan = windows_plan(&file.to_string_lossy(), |path| Win32.shortcut(path));
             assert_eq!(plan.to_string(), want, "{name}");
         }
