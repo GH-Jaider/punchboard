@@ -1,6 +1,6 @@
 [package]
 name = "punchboard-server"
-version = "0.0.0"
+version = "2.0.0"
 description = "The Punchboard companion: serves the decks and runs their buttons on this computer."
 edition = "2021"
 license = "Apache-2.0"
