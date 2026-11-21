@@ -3,8 +3,10 @@
   "configurations": [
     {
       "name": "punchboard",
-      "runtimeExecutable": "node",
-      "runtimeArgs": ["src/server/main.ts"],
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "start"
+      ],
       "port": 8787
     }
   ]

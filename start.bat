@@ -1,66 +1,40 @@
 @echo off
-rem Punchboard: one-click starter for Windows.
+rem Punchboard: one-click starter for Windows, from the source.
 rem
-rem Double-click this file. The first run downloads its own copy of Node.js
-rem into .\runtime (checked against the official checksums), installs
-rem dependencies, then starts the companion. Nothing is installed system-wide
-rem and no administrator rights are needed. Later runs start straight away.
+rem Double-click this file. It builds the companion (the Rust program in
+rem server\) and starts it, so it needs Rust; the first run also builds the
+rem pages, which needs Node.js. Nothing is installed system-wide and no
+rem administrator rights are needed. Most people do not need any of this: the
+rem app on the releases page is the same Punchboard, ready to open.
 setlocal
 cd /d "%~dp0"
 title Punchboard
 
-set "NODE_VERSION=24.15.0"
-set "NODE_ARCH=x64"
-if /i "%PROCESSOR_ARCHITECTURE%"=="ARM64" set "NODE_ARCH=arm64"
-if /i "%PROCESSOR_ARCHITEW6432%"=="ARM64" set "NODE_ARCH=arm64"
-set "NODE_HOME=%~dp0runtime\node-v%NODE_VERSION%-win-%NODE_ARCH%"
+set "RELEASES=https://github.com/GH-Jaider/punchboard/releases/latest"
 
 echo.
 echo   Punchboard
 echo   ==========
 echo.
 
-if exist "%NODE_HOME%\node.exe" goto have_node
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\get-node.ps1" -Version %NODE_VERSION% -Arch %NODE_ARCH% -Dest "%~dp0runtime"
-if exist "%NODE_HOME%\node.exe" goto have_node
+rem rustup installs here; it is on PATH only in windows opened afterwards.
+if exist "%USERPROFILE%\.cargo\bin\cargo.exe" set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
 
-rem Offline on the first run: fall back to a Node the PC already has.
-rem It must be 22.18 or newer, which runs TypeScript directly.
-where node >nul 2>nul
+where cargo >nul 2>nul
+if errorlevel 1 goto no_cargo
+
+rem The pages (public\js) are built from src\client, once, with Node.js.
+if exist "public\js\deck.js" goto run
+where npm >nul 2>nul
 if errorlevel 1 goto no_node
-node -e "const [a,b]=process.versions.node.split('.').map(Number);process.exit(a>22||(a===22&&b>=18)?0:1)"
-if errorlevel 1 goto no_node
-echo   Could not download Node.js, so the one already on this PC will be used.
-goto install
-
-:no_node
-echo.
-echo   Node.js could not be downloaded. Check the internet connection and
-echo   double-click this file again. This is only needed the first time.
-echo.
-pause
-exit /b 1
-
-:have_node
-set "PATH=%NODE_HOME%;%PATH%"
-
-:install
-rem A release zip ships the built pages in public\js; a source checkout does
-rem not, so it also needs the build tools and one build.
-set "INSTALL_FLAGS=--omit=dev"
-if not exist "public\js\deck.js" set "INSTALL_FLAGS="
-if exist "node_modules\.installed" if exist "public\js\deck.js" goto run
-echo   Installing Punchboard's parts, this only happens once...
-call npm ci %INSTALL_FLAGS% --no-audit --no-fund --loglevel=error
+echo   Building the pages, this only happens once...
+call npm ci --no-audit --no-fund --loglevel=error
 if errorlevel 1 (
   echo.
   echo   Something went wrong installing. Check the messages above.
   pause
   exit /b 1
 )
-type nul > "node_modules\.installed"
-if exist "public\js\deck.js" goto installed
-echo   Building the pages...
 call npm run --silent build
 if errorlevel 1 (
   echo.
@@ -68,11 +42,30 @@ if errorlevel 1 (
   pause
   exit /b 1
 )
-:installed
 echo.
 
 :run
-echo   Starting. Keep this window open while you stream;
+echo   Starting (the first time, building takes a few minutes).
+echo   Keep this window open while you stream;
 echo   close it to stop the deck.
-node src\server\main.ts
+set "PUNCHBOARD_APP_DIR=%~dp0."
+cargo run --release --locked --manifest-path server\Cargo.toml
 pause
+exit /b
+
+:no_cargo
+echo   Running Punchboard from the source needs Rust: install it from
+echo   https://rustup.rs and double-click this file again.
+echo   Most people should install the app instead:
+echo   %RELEASES%
+echo.
+pause
+exit /b 1
+
+:no_node
+echo   The pages have not been built yet, and building them needs Node.js:
+echo   install it from https://nodejs.org and double-click this file again.
+echo   Or install the app instead: %RELEASES%
+echo.
+pause
+exit /b 1

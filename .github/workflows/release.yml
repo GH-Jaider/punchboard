@@ -40,7 +40,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            server
+            src-tauri
       - run: npm ci
       # The Control Center test drives the built pages, so build them first.
       - run: npm run build
@@ -69,7 +71,9 @@ jobs:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: |
+            server
+            src-tauri
       - name: Install rcodesign
         run: |
           V=0.29.0

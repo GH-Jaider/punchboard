@@ -88,7 +88,7 @@ function addSlotNode(slot: number): HTMLButtonElement {
 }
 
 function clearDropTargets(): void {
-  gridEl.querySelectorAll(".drop-target").forEach((marked) => marked.classList.remove("drop-target"))
+  gridEl.querySelectorAll(".drop-target").forEach((marked) => { marked.classList.remove("drop-target") })
 }
 
 /** Moves a button to another slot; an occupied slot swaps, so nothing is overwritten. */
@@ -158,7 +158,10 @@ export function deleteButton(button: Button): void {
 export function duplicateButton(button: Button): void {
   const profile = activeProfile()
   const slot = freeSlot(profile, button.slot + 1)
-  if (slot === null) return toast(t("designer.grid.full"))
+  if (slot === null) {
+    toast(t("designer.grid.full"))
+    return
+  }
   const copy = JSON.parse(JSON.stringify(button, (key, value: unknown) => (key === "open" ? undefined : value))) as Button
   copy.id = nextId("btn")
   copy.slot = slot
@@ -307,7 +310,10 @@ export function layoutStage(): void {
 /** Refreshes one tile's visible bits, so typing a label never rebuilds the grid under the cursor. */
 export function refreshTile(button: Button): void {
   const tile = gridEl.querySelector<HTMLElement>(`.tile[data-slot="${button.slot}"]`)
-  if (!tile) return renderGrid()
+  if (!tile) {
+    renderGrid()
+    return
+  }
   applyTileColor(tile, button.color)
   tile.classList.toggle("unconfigured", !isConfigured(button))
   const icon = tile.querySelector(".tile-icon")
@@ -406,7 +412,7 @@ export function select(slot: number): void {
 export function deselect(): void {
   if (store.selectedSlot === null) return
   store.selectedSlot = null
-  gridEl.querySelectorAll<HTMLElement>(".tile.selected").forEach((tile) => tile.classList.remove("selected"))
+  gridEl.querySelectorAll<HTMLElement>(".tile.selected").forEach((tile) => { tile.classList.remove("selected") })
   view.renderInspector()
 }
 
@@ -417,7 +423,7 @@ const isMac = /Mac|iPhone|iPad/.test(navigator.platform)
 /** Whether a key press belongs to a text field or an open dialog, not the canvas. */
 function typingElsewhere(event: KeyboardEvent): boolean {
   const target = event.target instanceof Element ? event.target : null
-  if (target && target.closest("input, textarea, select, [contenteditable=\"true\"]")) return true
+  if (target?.closest("input, textarea, select, [contenteditable=\"true\"]")) return true
   return document.querySelector("dialog[open]") !== null
 }
 
@@ -438,18 +444,24 @@ function onKeyDown(event: KeyboardEvent): void {
 
   if (command && event.key.toLowerCase() === "z" && !event.shiftKey) {
     event.preventDefault()
-    return undoLast()
+    undoLast()
+    return
   }
   if (command && event.key.toLowerCase() === "d") {
     if (!selected) return
     event.preventDefault()
-    return duplicateButton(selected)
+    duplicateButton(selected)
+    return
   }
   if ((event.key === "Delete" || event.key === "Backspace") && selected && focusOnCanvas(event)) {
     event.preventDefault()
-    return deleteButton(selected)
+    deleteButton(selected)
+    return
   }
-  if (event.key === "Escape") return deselect()
+  if (event.key === "Escape") {
+    deselect()
+    return
+  }
 
   // Alt+Arrow moves the selected button, because drag and drop is mouse-only.
   // Only on the canvas: on a deck in the rail, Alt+arrows reorders decks.

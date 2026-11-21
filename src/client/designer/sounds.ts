@@ -88,6 +88,7 @@ const WAV_TYPES = ["audio/wav", "audio/x-wav", "audio/wave"]
     filtering), only control characters and slashes go here. */
 function soundNameHeader(name: string): string {
   try {
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: control characters are what this strips from a header value
     return encodeURIComponent(name.replace(/[\u0000-\u001f\u007f/\\]/g, ""))
   } catch {
     return "" // a broken character in the name: no name rather than no upload

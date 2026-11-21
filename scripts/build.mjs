@@ -27,7 +27,7 @@ const options = {
 // bundle may keep it, so Punchboard's own code still fails the build if it
 // slips any in. The Control Center runs on the computer, never an old tablet.
 // Its MIT licence heads the bundle, which the desktop app ships with the rest
-// of public/ (notices.mjs lists only what is bundled into the server).
+// of public/ (notices.ts lists the Rust crates, and says where this one is).
 const driverLicence = fs.readFileSync("node_modules/driver.js/license", "utf8").trim().replace(/\*\//g, "* /")
 const vendor = {
   ...options,

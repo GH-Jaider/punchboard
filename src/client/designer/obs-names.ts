@@ -49,7 +49,7 @@ export interface PickContext {
 
 /** What a picker offers, or null when OBS is not there to ask. */
 export function pickOptions(pick: ObsPick, context: PickContext): string[] | null {
-  if (!names || !names.connected) return null
+  if (!names?.connected) return null
   switch (pick) {
     case "scene": return names.scenes
     case "sceneItem": return context.sceneName ? names.sceneItems[context.sceneName] ?? [] : []

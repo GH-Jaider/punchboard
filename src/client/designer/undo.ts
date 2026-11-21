@@ -17,7 +17,10 @@ const stack: UndoEntry[] = []
 function apply(entry: UndoEntry): void {
   const index = stack.indexOf(entry)
   // Forgotten since (the deck was reloaded or restored): its objects are gone.
-  if (index === -1) return toast(t("designer.undo.gone"))
+  if (index === -1) {
+    toast(t("designer.undo.gone"))
+    return
+  }
   stack.splice(index, 1)
   entry.restore()
   touch()
@@ -47,7 +50,10 @@ export function clearUndo(): void {
 /** ⌘Z: undoes the most recent edit that can be undone. */
 export function undoLast(): void {
   const entry = stack[stack.length - 1]
-  if (!entry) return toast(t("designer.undo.nothing"))
+  if (!entry) {
+    toast(t("designer.undo.nothing"))
+    return
+  }
   apply(entry)
   toast(t("designer.undo.undid", { action: entry.label.toLowerCase() }))
 }

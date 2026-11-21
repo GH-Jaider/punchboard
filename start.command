@@ -1,19 +1,14 @@
 #!/bin/bash
-# Punchboard: one-click starter for macOS.
+# Punchboard: one-click starter for macOS, from the source.
 #
-# Double-click in Finder. The first run downloads its own copy of Node.js into
-# ./runtime (checked against the official checksums), installs dependencies,
-# then starts the companion. Nothing is installed system-wide and no admin
-# password is needed. Later runs start straight away, offline too.
+# Double-click in Finder. It builds the companion (the Rust program in
+# server/) and starts it, so it needs Rust; the first run also builds the
+# pages, which needs Node.js. Nothing is installed system-wide and no admin
+# password is needed. Most people do not need any of this: the app on the
+# releases page is the same Punchboard, ready to open.
 cd "$(cd "$(dirname "$0")" && pwd)" || exit 1
 
-NODE_VERSION="24.15.0"
-case "$(uname -m)" in
-  arm64) NODE_ARCH="arm64" ;;
-  *) NODE_ARCH="x64" ;;
-esac
-NODE_NAME="node-v${NODE_VERSION}-darwin-${NODE_ARCH}"
-NODE_HOME="$PWD/runtime/$NODE_NAME"
+RELEASES="https://github.com/GH-Jaider/punchboard/releases/latest"
 
 pause_and_exit() {
   echo ""
@@ -26,59 +21,30 @@ echo "  Punchboard"
 echo "  =========="
 echo ""
 
-download_node() {
-  local base="https://nodejs.org/dist/v${NODE_VERSION}"
-  local tmp
-  tmp="$(mktemp -d)" || return 1
-  echo "  First run: downloading Node.js ${NODE_VERSION} (about 50 MB)..."
-  curl -fL --progress-bar "$base/${NODE_NAME}.tar.gz" -o "$tmp/node.tar.gz" || { rm -rf "$tmp"; return 1; }
-  curl -fsSL "$base/SHASUMS256.txt" -o "$tmp/SHASUMS256.txt" || { rm -rf "$tmp"; return 1; }
-  local expected actual
-  expected="$(grep " ${NODE_NAME}.tar.gz\$" "$tmp/SHASUMS256.txt" | cut -d' ' -f1)"
-  actual="$(shasum -a 256 "$tmp/node.tar.gz" | cut -d' ' -f1)"
-  if [ -z "$expected" ] || [ "$expected" != "$actual" ]; then
-    echo "  The download did not match the official checksum, so it was discarded."
-    rm -rf "$tmp"
-    return 1
-  fi
-  tar -xzf "$tmp/node.tar.gz" -C "$tmp" || { rm -rf "$tmp"; return 1; }
-  mkdir -p runtime && mv "$tmp/$NODE_NAME" "$NODE_HOME"
-  rm -rf "$tmp"
-  echo "  Node.js is ready."
-  echo ""
-}
+# rustup installs here; a window opened from Finder may not have it on PATH.
+[ -x "$HOME/.cargo/bin/cargo" ] && export PATH="$HOME/.cargo/bin:$PATH"
 
-if [ ! -x "$NODE_HOME/bin/node" ] && ! download_node; then
-  # Offline on the first run: fall back to a Node the Mac already has.
-  # Node 22.18+ runs TypeScript directly, which the companion needs.
-  if command -v node >/dev/null 2>&1 && node -e 'const [a, b] = process.versions.node.split(".").map(Number); process.exit(a > 22 || (a === 22 && b >= 18) ? 0 : 1)'; then
-    echo "  Could not download Node.js, so the one already on this Mac will be used."
-  else
-    echo "  Node.js could not be downloaded. Check the internet connection and"
-    echo "  double-click this file again. This is only needed the first time."
-    pause_and_exit 1
-  fi
-else
-  export PATH="$NODE_HOME/bin:$PATH"
+if ! command -v cargo >/dev/null 2>&1; then
+  echo "  Running Punchboard from the source needs Rust: install it from"
+  echo "  https://rustup.rs and double-click this file again."
+  echo "  Most people should install the app instead:"
+  echo "  $RELEASES"
+  pause_and_exit 1
 fi
 
-# Dependencies: installed on the first run, and again whenever they change.
-# A release zip ships the built pages in public/js; a source checkout does
-# not, so it also needs the build tools and one build.
-NEEDS_BUILD=0
-[ -f public/js/deck.js ] || NEEDS_BUILD=1
-if [ ! -f node_modules/.installed ] || [ package-lock.json -nt node_modules/.installed ] || [ "$NEEDS_BUILD" = 1 ]; then
-  echo "  Installing Punchboard's parts, this only happens once..."
-  if [ "$NEEDS_BUILD" = 1 ]; then INSTALL_FLAGS=""; else INSTALL_FLAGS="--omit=dev"; fi
-  if ! npm ci $INSTALL_FLAGS --no-audit --no-fund --loglevel=error; then
+# The pages (public/js) are built from src/client, once, with Node.js.
+if [ ! -f public/js/deck.js ]; then
+  if ! command -v npm >/dev/null 2>&1; then
+    echo "  The pages have not been built yet, and building them needs Node.js:"
+    echo "  install it from https://nodejs.org and double-click this file again."
+    echo "  Or install the app instead: $RELEASES"
+    pause_and_exit 1
+  fi
+  echo "  Building the pages, this only happens once..."
+  if ! npm ci --no-audit --no-fund --loglevel=error; then
     echo "  Something went wrong installing. Check the messages above."
     pause_and_exit 1
   fi
-  touch node_modules/.installed
-  echo ""
-fi
-if [ "$NEEDS_BUILD" = 1 ]; then
-  echo "  Building the pages..."
   if ! npm run --silent build; then
     echo "  The build failed. Check the messages above."
     pause_and_exit 1
@@ -86,7 +52,8 @@ if [ "$NEEDS_BUILD" = 1 ]; then
   echo ""
 fi
 
-echo "  Starting. Keep this window open while you stream;"
+echo "  Starting (the first time, building takes a few minutes)."
+echo "  Keep this window open while you stream;"
 echo "  close it (or press Ctrl+C) to stop the deck."
-node src/server/main.ts
+PUNCHBOARD_APP_DIR="$PWD" cargo run --release --locked --manifest-path server/Cargo.toml
 pause_and_exit $?

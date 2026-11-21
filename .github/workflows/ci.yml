@@ -1,5 +1,7 @@
-# Type-checks, builds and runs the tests on both systems people use, then
-# checks what only the desktop app uses: the bundled companion and the shell.
+# Type-checks, lints and builds the pages, tests the companion (the Rust crate in
+# server/) on its own and from outside (npm test starts it and talks to it),
+# then checks what only the desktop app uses: the sidecar and the shell.
+# Linux, where Punchboard is built from source, has a job of its own.
 name: CI
 
 on:
@@ -20,24 +22,80 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      - run: npm ci
-      - run: npm run check
-      - run: npm test
-      # The app runs the bundle, not the sources: start it the way the app does.
-      - run: npm run build:server
-      - run: npm run test:bundle
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
-      - name: Check the desktop shell
-        shell: bash
+          workspaces: |
+            server
+            src-tauri
+      - run: npm ci
+      - run: npm run check
+      # The companion's own tests, then the black-box ones: npm test builds
+      # it in debug, starts it and talks to it over HTTP.
+      - name: cargo test (server)
+        run: cargo test --locked
+        working-directory: server
+      - name: cargo clippy (server)
+        run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: server
+      - name: cargo fmt (server)
+        run: cargo fmt --check
+        working-directory: server
+      - run: npm test
+      # The fixtures made from the code the browser shares (src/shared) are
+      # what keeps its Rust twin matching it: made again here, they must come
+      # out as committed. Once is enough, so only on macOS.
+      - name: The live fixtures are up to date
+        if: runner.os == 'macOS'
         run: |
-          # tauri-build wants the Node sidecar and its licence to exist; a
-          # check never runs them, so empty stand-ins do (this runner is thrown
-          # away, and fetch-node.mjs would otherwise skip a real download).
-          HOST=$(rustc -vV | sed -n 's/^host: //p')
-          EXT=""; case "$HOST" in *windows*) EXT=".exe";; esac
-          mkdir -p src-tauri/binaries
-          touch "src-tauri/binaries/node-$HOST$EXT" src-tauri/binaries/node-LICENSE.txt
-          cd src-tauri && cargo check --locked
+          npm run fixtures
+          git diff --exit-code tests/fixtures
+      # The app runs the release sidecar from its resources, not from the
+      # repository: build it and start it the way the app does.
+      - run: npm run build:server
+      - run: npm run test:bundle
+      - name: Check the desktop shell
+        # tauri-build wants the sidecar and the notices to exist: build:server
+        # has just made both.
+        run: cargo check --locked
+        working-directory: src-tauri
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: server
+      # What the companion links on Linux; the same list as scripts/linux-dev.Dockerfile.
+      - name: Install the system libraries
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pkg-config libasound2-dev libpulse-dev libssl-dev \
+            libx11-dev libxtst-dev libxi-dev libudev-dev libdbus-1-dev
+      - run: npm ci
+      # The pages the companion serves, which the tests ask for.
+      - run: npm run check
+      - name: cargo test (server)
+        run: cargo test --locked
+        working-directory: server
+      - name: cargo clippy (server)
+        run: cargo clippy --locked --all-targets -- -D warnings
+        working-directory: server
+      - name: cargo fmt (server)
+        run: cargo fmt --check
+        working-directory: server
+      # The runner has no display, no sound server and no input devices, and
+      # the tests need none: the companion writes what it would have done to
+      # files (PUNCHBOARD_TEST_SYSTEM, PUNCHBOARD_POINTER_LOG). The pages run
+      # in the runner's headless Chrome.
+      - run: npm test

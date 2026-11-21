@@ -27,3 +27,6 @@ src-tauri/target/
 src-tauri/binaries/
 src-tauri/gen/
 release/
+
+# What the tests compare against is kept, whatever its name
+!tests/fixtures/**

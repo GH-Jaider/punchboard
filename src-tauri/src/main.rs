@@ -1,7 +1,7 @@
-// Punchboard's desktop shell. The companion itself is the Node server in
-// src/server, bundled as server.mjs and run here with a Node binary that
-// ships inside the app. This file only starts and stops it, shows the
-// Control Center in a window, and keeps an icon in the menu bar.
+// Punchboard's desktop shell. The companion itself is the Rust program in
+// server/ (punchboard-server), which ships inside the app as a sidecar. This
+// file only starts and stops it, shows the Control Center in a window, and
+// keeps an icon in the menu bar.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod language;
@@ -263,10 +263,10 @@ fn keep_running_on_close(window: &WebviewWindow) {
 
 /// Starts the companion and follows what it prints.
 fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std::error::Error>> {
-    // Windows hands out the resource folder as \\?\C:\…, a form Node cannot
-    // start a module from; dunce turns it back into C:\… where that is safe.
+    // Windows hands out the resource folder as \\?\C:\…; dunce turns it back
+    // into C:\… where that is safe, the form the companion's paths are
+    // compared in and the one a person reads in its log.
     let resources = dunce::simplified(&app.path().resource_dir()?).to_path_buf();
-    let script = resources.join("server.mjs");
     if let Some(path) = log_path(app) {
         if let Some(dir) = path.parent() {
             let _ = std::fs::create_dir_all(dir);
@@ -275,8 +275,7 @@ fn start_companion(app: &AppHandle, show_window: bool) -> Result<(), Box<dyn std
     }
     let (mut events, child) = app
         .shell()
-        .sidecar("node")?
-        .args([script.to_string_lossy().to_string()])
+        .sidecar("punchboard-server")?
         .env("PUNCHBOARD_APP_DIR", resources.to_string_lossy().to_string())
         .env("PUNCHBOARD_DESKTOP", "1")
         .env("PUNCHBOARD_VERSION", app.package_info().version.to_string())
@@ -363,8 +362,8 @@ fn stop_companion(app: &AppHandle) {
 
 /// The updater, set to stop the companion if it ever quits the app itself:
 /// on Windows, installing exits the process at once, skipping RunEvent::Exit,
-/// and a companion left running would hold node.exe while the installer
-/// replaces it.
+/// and a companion left running would hold punchboard-server.exe while the
+/// installer replaces it.
 fn updater(app: &AppHandle) -> tauri_plugin_updater::Result<tauri_plugin_updater::Updater> {
     let handle = app.clone();
     app.updater_builder()
@@ -454,8 +453,8 @@ async fn download(
 }
 
 /// "Restart to update": stops the companion first (so it saves what is
-/// pending, and on Windows lets go of node.exe), then restarts into the new
-/// version.
+/// pending, and on Windows lets go of punchboard-server.exe), then restarts
+/// into the new version.
 fn restart_to_update(app: &AppHandle) {
     let Some(ready) = app.state::<Updates>().ready.lock().unwrap().take() else {
         return;
@@ -614,11 +613,7 @@ fn main() {
 
     app.run(|app, event| match event {
         // Cmd+Q or the Dock's Quit: stop the companion before going.
-        RunEvent::ExitRequested { .. } => {
-            if !*app.state::<Companion>().quitting.lock().unwrap() {
-                stop_companion(app);
-            }
-        }
+        RunEvent::ExitRequested { .. } if !*app.state::<Companion>().quitting.lock().unwrap() => stop_companion(app),
         // Clicking the Dock icon with the window hidden shows it again.
         #[cfg(target_os = "macos")]
         RunEvent::Reopen { has_visible_windows: false, .. } => open_window(app, "/designer"),

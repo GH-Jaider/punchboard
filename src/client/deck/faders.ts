@@ -164,7 +164,11 @@ interface Queued { timer: number | null; level: number }
 const queue: Record<string, Queued> = {}
 
 function sendLevel(button: FaderButton, level: number): void {
-  const queued = queue[button.id] ?? (queue[button.id] = { timer: null, level: 0 })
+  let queued = queue[button.id]
+  if (!queued) {
+    queued = { timer: null, level: 0 }
+    queue[button.id] = queued
+  }
   queued.level = level
   if (queued.timer !== null) return
   queued.timer = window.setTimeout(() => {
@@ -203,7 +207,7 @@ function postLevel(button: FaderButton, level: number): void {
 /** Asks the companion to read the real levels (OBS, the computer), so a fader starts where the sound actually is. */
 export function syncFaders(): void {
   const profile = activeProfile()
-  if (!profile || !profile.buttons.some((button) => button.control === "fader")) return
+  if (!profile?.buttons.some((button) => button.control === "fader")) return
   const body: VolumeSyncRequest = { profileId: state.activeId ?? profile.id }
   api<LevelsResponse>("/api/volume/sync", { method: "POST", json: body }).catch(() => {})
 }

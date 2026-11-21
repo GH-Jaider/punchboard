@@ -1,0 +1,6 @@
+[
+{"input":"studio","output":{"listed":true,"bg":"#0d0e11","family":"studio","dark":false,"echo":{"label":"shared.theme.studio.label","hint":"shared.theme.studio.hint"},"en":{"label":"Studio","hint":"Dark and soft. The original look."}}},
+{"input":"hardware","output":{"listed":true,"bg":"#e4e2dc","family":"hardware","dark":false,"echo":{"label":"shared.theme.hardware.label","hint":"shared.theme.hardware.hint"},"en":{"label":"Hardware","hint":"Light chassis, physical keys."}}},
+{"input":"hardware-dark","output":{"listed":false,"bg":"#1c1c1a","family":"hardware","dark":true,"echo":{"label":"shared.theme.hardware-dark.label","hint":"shared.theme.hardware-dark.hint"},"en":{"label":"Hardware","hint":"Dark chassis, physical keys."}}},
+{"input":"broadcast","output":{"listed":true,"bg":"#0b0b0b","family":"broadcast","dark":false,"echo":{"label":"shared.theme.broadcast.label","hint":"shared.theme.broadcast.hint"},"en":{"label":"Broadcast","hint":"Switcher console, hard edges."}}}
+]

@@ -26,7 +26,7 @@ export class UnpairedError extends Error {
 export function loadDevice(): DeviceCredentials | null {
   try {
     const stored = JSON.parse(storage.get(DEVICE_KEY) ?? "null") as Partial<DeviceCredentials> | null
-    device = stored && stored.id && stored.secret ? { id: stored.id, secret: stored.secret, name: stored.name ?? "" } : null
+    device = stored?.id && stored.secret ? { id: stored.id, secret: stored.secret, name: stored.name ?? "" } : null
   } catch {
     device = null
   }

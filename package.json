@@ -6,40 +6,39 @@
   "license": "Apache-2.0",
   "repository": "github:GH-Jaider/punchboard",
   "type": "module",
-  "main": "src/server/main.ts",
   "scripts": {
-    "start": "node src/server/main.ts",
+    "start": "node scripts/start.ts",
     "build": "node scripts/build.mjs",
     "watch": "node scripts/build.mjs --watch",
-    "typecheck": "tsc -p tsconfig.json && tsc -p src/client/tsconfig.json",
-    "check": "npm run typecheck && npm run build",
-    "build:server": "node scripts/build-server.mjs",
+    "typecheck": "tsc -p src/client/tsconfig.json && tsc -p scripts/tsconfig.json",
+    "check": "npm run typecheck && npm run lint && npm run build",
+    "build:server": "node scripts/build-companion.ts && node scripts/notices.ts",
+    "build:companion:debug": "cd server && cargo build --locked",
     "tauri": "tauri",
     "app:dev": "npm run build && npm run build:server && tauri dev",
-    "app:build": "node scripts/fetch-node.mjs && tauri build",
+    "app:build": "tauri build",
     "release:mac": "node scripts/release-mac.mjs && node scripts/latest-json.mjs",
     "release:windows": "node scripts/release-windows.mjs",
-    "test": "node tests/security.test.mjs && node tests/actions.test.mjs && node tests/obs.test.mjs && node tests/sounds.test.mjs && node tests/app-volume.test.mjs && node tests/library.test.mjs && node tests/trackpad.test.mjs && node tests/touchpad.test.mjs && node tests/designer.test.mjs && node tests/tour.test.mjs && node tests/scripts.test.mjs && node tests/windows.test.mjs && node tests/i18n.test.mjs",
-    "test:bundle": "node tests/bundle.smoke.mjs"
+    "test": "node scripts/test.ts",
+    "test:bundle": "node tests/companion.smoke.ts",
+    "test:rust": "cd server && cargo test --locked",
+    "fixtures": "node tests/fixtures/make-model.ts && node tests/fixtures/make-base.ts && node tests/fixtures/make-input.ts && node tests/fixtures/make-auth.ts",
+    "lint:rust": "cd server && cargo clippy --locked --all-targets -- -D warnings && cargo fmt --check && cd ../src-tauri && cargo clippy --locked --all-targets -- -D warnings",
+    "lint": "biome lint"
   },
   "dependencies": {
-    "driver.js": "^1.8.0",
-    "obs-websocket-js": "^5.0.6",
-    "open": "^10.1.0",
-    "qrcode": "^1.5.4",
-    "qrcode-terminal": "^0.12.0",
-    "ws": "^8.22.0"
+    "driver.js": "^1.8.0"
   },
   "engines": {
     "node": ">=22.18"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.8",
     "@msgpack/msgpack": "^2.8.0",
     "@tauri-apps/cli": "^2.12.0",
     "@types/node": "^24.19.0",
-    "@types/qrcode": "^1.5.6",
-    "@types/ws": "^8.18.2",
     "esbuild": "^0.28.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "ws": "^8.22.0"
   }
 }

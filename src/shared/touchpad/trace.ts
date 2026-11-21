@@ -70,7 +70,7 @@ export function summarize(events: TouchpadEvent[]): string[] {
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value)
-const finite = (value: unknown): value is number => typeof value === "number" && isFinite(value)
+const finite = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value)
 
 export function isTouchFrame(value: unknown): value is TouchFrame {
   if (!isRecord(value) || !finite(value.time) || !Array.isArray(value.contacts) || value.contacts.length > TRACE_LIMITS.contacts) return false

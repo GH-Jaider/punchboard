@@ -21,7 +21,7 @@ const PATTERNS: Record<Haptic, number | number[]> = { tap: 12, tick: 5, click: 8
     iOS 26 freezes it at 18_6, which still counts as 18 and later. */
 function iosMajor(): number {
   const match = /OS (\d+)_\d+(?:_\d+)? like Mac OS X/.exec(navigator.userAgent)
-  return match && match[1] ? parseInt(match[1], 10) : 0
+  return match?.[1] ? parseInt(match[1], 10) : 0
 }
 
 /** An iPhone whose Safari ticks under a flipped switch: iOS 18 and later.

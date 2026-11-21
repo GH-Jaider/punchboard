@@ -40,7 +40,10 @@ export function renderInspector(): void {
   parkIntro()
   inspectorEl.innerHTML = ""
   const button = selectedButton()
-  if (!button) return renderDeckPanel()
+  if (!button) {
+    renderDeckPanel()
+    return
+  }
 
   const head = el("div", "panel-head")
   head.appendChild(el("h2", null, t("designer.inspector.buttonTitle", { number: button.slot + 1 })))
@@ -360,7 +363,7 @@ function colorField(button: Button, iconTrigger: HTMLElement): HTMLElement {
   const swatches = el("div", "swatch-grid")
   const choose = (color: ButtonColor, swatch: HTMLElement): void => {
     button.color = color
-    swatches.querySelectorAll(".swatch").forEach((other) => other.setAttribute("aria-pressed", "false"))
+    swatches.querySelectorAll(".swatch").forEach((other) => { other.setAttribute("aria-pressed", "false") })
     swatch.setAttribute("aria-pressed", "true")
     applyTileColor(iconTrigger, button.color)
     view.refreshTile(button)

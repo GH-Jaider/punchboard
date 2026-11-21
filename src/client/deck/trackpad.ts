@@ -89,7 +89,10 @@ function open(): void {
   if (!shown || socket) return
   const url = `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}${streamUrl("/api/pointer")}`
   let next: WebSocket
-  try { next = new WebSocket(url) } catch { return retry() }
+  try { next = new WebSocket(url) } catch {
+    retry()
+    return
+  }
   socket = next
   setStatus(t("deck.trackpad.connecting"), false)
   // A socket that is no longer the current one (the trackpad was taken down

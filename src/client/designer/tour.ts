@@ -64,7 +64,7 @@ function selectFirstButton(): void {
 }
 
 function restoreSelection(): void {
-  if (!saved || !saved.selectedByTour) return
+  if (!saved?.selectedByTour) return
   saved.selectedByTour = false
   if (saved.selection === null) deselect()
   else view.select(saved.selection)

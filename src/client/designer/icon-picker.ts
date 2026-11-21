@@ -164,7 +164,7 @@ export function bindIconPicker(): void {
   styleOptions.forEach((option) => {
     option.addEventListener("click", () => {
       googleStyle = GLYPH_STYLES.find((style) => style === option.dataset.style) ?? "outlined"
-      styleOptions.forEach((other) => other.setAttribute("aria-pressed", String(other === option)))
+      styleOptions.forEach((other) => { other.setAttribute("aria-pressed", String(other === option)) })
       const button = selectedButton()
       if (button) drawGoogleIcons(button)
     })

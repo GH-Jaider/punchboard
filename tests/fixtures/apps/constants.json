@@ -1,0 +1,3 @@
+[
+{"input":"GENERIC_HOSTS","output":["explorer","cmd","powershell","pwsh","wt","windowsterminal","conhost","wscript","cscript","mshta","rundll32","msiexec","dllhost","mmc","control","hh","java","javaw","py","pyw","python","pythonw","node","update"]}
+]

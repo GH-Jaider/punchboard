@@ -9,10 +9,8 @@ import crypto from "node:crypto"
 import fs from "node:fs"
 import http from "node:http"
 import net from "node:net"
-import os from "node:os"
 import path from "node:path"
 import { WebSocket } from "ws"
-import { createAuth } from "../src/server/auth.ts"
 import { signRequest } from "../src/shared/sign.ts"
 import { checker, JSON_TYPE, LAN, startCompanion } from "./companion.mjs"
 
@@ -79,41 +77,6 @@ function chunkedPut(urlPath, body) {
     for (let at = 0; at < body.length; at += 16 * 1024) req.write(body.slice(at, at + 16 * 1024))
     req.end()
   })
-}
-
-/** Pairing rules checked on the auth module itself, with made-up addresses. */
-function authUnitChecks() {
-  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "punchboard-auth-")), "devices.json")
-  const auth = createAuth({ file, log: () => {} })
-  const tryClaim = (code, ip) => {
-    try { auth.claim(code, "Unit", ip); return "paired" } catch (error) { return error.code }
-  }
-  const wrong = (code) => String((Number(code) + 1) % 1000000).padStart(6, "0")
-
-  let code = auth.currentCode().code
-  check("Unit: a code pairs once", tryClaim(code, "10.0.0.2") === "paired" && tryClaim(code, "10.0.0.3") === "bad_code", "reused")
-  code = auth.currentCode().code
-  const results = []
-  for (let i = 0; i < 9; i++) results.push(tryClaim(wrong(code), "10.0.0.66"))
-  check("Unit: eight wrong codes lock that address", results.slice(0, 8).every((result) => result === "bad_code") && results[8] === "locked", results.join(","))
-  check("Unit: the code is not replaced by one address's guesses", auth.currentCode().code === code, "replaced")
-  check("Unit: other addresses still pair while one is locked", tryClaim(code, "10.0.0.7") === "paired", "refused")
-
-  code = auth.currentCode().code
-  const v6 = []
-  for (let i = 0; i < 9; i++) v6.push(tryClaim(wrong(code), `fd00:1:2:3::${(i + 1).toString(16)}`))
-  check("Unit: a whole IPv6 /64 counts as one address", v6[8] === "locked" && tryClaim(code, "fd00:1:2:3:ffff::9") === "locked", v6.join(","))
-  check("Unit: another /64 is not locked by it", tryClaim(code, "fd00:1:2:4::1") === "paired", "refused")
-
-  code = auth.currentCode().code
-  let addresses = 0
-  while (auth.currentCode().code === code && addresses < 10) {
-    addresses += 1
-    for (let i = 0; i < 7; i++) tryClaim(wrong(code), `10.1.0.${addresses}`)
-  }
-  check("Unit: many addresses guessing together get the code replaced", auth.currentCode().code !== code && addresses <= 4, `${addresses} addresses`)
-  check("Unit: the replaced code no longer pairs", tryClaim(code, "10.2.0.1") === "bad_code", "paired")
-  fs.rmSync(path.dirname(file), { recursive: true, force: true })
 }
 
 async function main() {
@@ -252,7 +215,6 @@ async function main() {
   r = await remote({ method: "POST", path: "/api/pair/claim", headers: JSON_TYPE, body: JSON.stringify({ code: (await request({ path: "/api/pair" })).json.code }) })
   check("The guessing address stays locked, even with the right code", r.status === 429, r.status)
 
-  authUnitChecks()
 
   // --- two Control Center windows
   const lib = await request({ path: "/api/library" })
